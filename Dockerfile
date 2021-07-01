@@ -5,7 +5,7 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 go build -o ccm
 
-FROM alpine:latest
+FROM alpine:3.14
 RUN apk --no-cache add ca-certificates
 WORKDIR /app/
 COPY --from=builder /go/src/github.com/github.com/anexia-it/anxcloud-cloud-controller-manager/ccm .
