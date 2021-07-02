@@ -62,6 +62,7 @@ func cloudInitializer(config *cloudcontrollerconfig.CompletedConfig) cloudprovid
 	if err != nil {
 		klog.Fatalf("Cloud provider could not be initialized: %v", err)
 	}
+
 	if cloud == nil {
 		klog.Fatalf("Cloud provider is nil")
 	}
