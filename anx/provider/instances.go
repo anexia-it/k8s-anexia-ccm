@@ -2,58 +2,118 @@ package provider
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/utils"
+	"github.com/anexia-it/go-anxcloud/pkg/vsphere/powercontrol"
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
 	cloudprovider "k8s.io/cloud-provider"
+	"strings"
 )
 
-type instanceController struct {
+type instanceManager struct {
+	Provider
 }
 
-func (i instanceController) NodeAddresses(ctx context.Context, name types.NodeName) ([]v1.NodeAddress, error) {
-	panic("implement me")
+func (i instanceManager) NodeAddressesByProviderID(ctx context.Context, providerID string) ([]v1.NodeAddress, error) {
+	if providerID == "" {
+		return nil, errors.New("empty providerId is not allowed")
+	}
+	info, err := i.VSphere().Info().Get(ctx, providerID)
+	if err != nil {
+		return nil, fmt.Errorf("could not get vm infoMock: %w", err)
+	}
+
+	nodeAddresses := make([]v1.NodeAddress, 0, len(info.Network))
+	// TODO what if multiple VLANs are connected? how to determine the correct one, or maybe use all?
+	for _, network := range info.Network {
+		for _, ip := range network.IPv4 {
+			nodeAddresses = append(nodeAddresses, v1.NodeAddress{
+				Type:    "InternalIP",
+				Address: ip,
+			})
+		}
+	}
+	return nodeAddresses, nil
 }
 
-func (i instanceController) NodeAddressesByProviderID(ctx context.Context, providerID string) ([]v1.NodeAddress, error) {
-	panic("implement me")
+func (i instanceManager) InstanceExists(ctx context.Context, node *v1.Node) (bool, error) {
+	providerID, err := i.InstanceIDByNode(ctx, node)
+	if err != nil {
+		return false, err
+	}
+
+	_, err = i.VSphere().Info().Get(ctx, providerID)
+
+	if err == nil {
+		return true, nil
+	}
+
+	if utils.IsNotFoundError(err) {
+		return false, nil
+	}
+
+	return false, err
 }
 
-func (i instanceController) InstanceID(ctx context.Context, nodeName types.NodeName) (string, error) {
-	panic("implement me")
+func (i instanceManager) InstanceShutdown(ctx context.Context, node *v1.Node) (bool, error) {
+	providerID, err := i.InstanceIDByNode(ctx, node)
+	if err != nil {
+		return false, err
+	}
+
+	state, err := i.VSphere().PowerControl().Get(ctx, providerID)
+	if err != nil {
+		return false, fmt.Errorf("could not get power state of '%s': %w", providerID, err)
+	}
+
+	switch state {
+	case powercontrol.OnState:
+		return false, nil
+	case powercontrol.OffState:
+		return true, nil
+	default:
+		return false, fmt.Errorf("unkown power state '%s'", state)
+	}
 }
 
-func (i instanceController) InstanceType(ctx context.Context, name types.NodeName) (string, error) {
-	panic("implement me")
+func (i instanceManager) InstanceMetadata(ctx context.Context, node *v1.Node) (*cloudprovider.InstanceMetadata, error) {
+	providerID, err := i.InstanceIDByNode(ctx, node)
+	if err != nil {
+		return nil, err
+	}
+
+	nodeAddresses, err := i.NodeAddressesByProviderID(ctx, providerID)
+	if err != nil {
+		return nil, err
+	}
+
+	info, err := i.VSphere().Info().Get(ctx, providerID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &cloudprovider.InstanceMetadata{
+		ProviderID: providerID,
+		// TODO is templateID the correct thing to use here
+		InstanceType:  info.TemplateID,
+		NodeAddresses: nodeAddresses,
+		Zone:          info.LocationCode,
+		Region:        info.LocationCountry,
+	}, nil
 }
 
-func (i instanceController) InstanceTypeByProviderID(ctx context.Context, providerID string) (string, error) {
-	panic("implement me")
-}
+func (i instanceManager) InstanceIDByNode(ctx context.Context, node *v1.Node) (string, error) {
+	if node.Spec.ProviderID != "" {
+		return strings.TrimPrefix(node.Spec.ProviderID, cloudProviderScheme), nil
+	}
+	vms, err := i.VSphere().Search().ByName(ctx, fmt.Sprintf("%%-%s", node.Name)) // TODO check wehther this can be implemented without a template
+	if err != nil {
+		return "", err
+	}
+	if len(vms) != 1 {
+		return "", fmt.Errorf("expected 1 VM with the name '%s', but found %d", node.Name, len(vms))
+	}
 
-func (i instanceController) AddSSHKeyToAllInstances(ctx context.Context, user string, keyData []byte) error {
-	panic("implement me")
-}
-
-func (i instanceController) CurrentNodeName(ctx context.Context, hostname string) (types.NodeName, error) {
-	panic("implement me")
-}
-
-func (i instanceController) InstanceExistsByProviderID(ctx context.Context, providerID string) (bool, error) {
-	panic("implement me")
-}
-
-func (i instanceController) InstanceShutdownByProviderID(ctx context.Context, providerID string) (bool, error) {
-	panic("implement me")
-}
-
-func (i instanceController) InstanceExists(ctx context.Context, node *v1.Node) (bool, error) {
-	panic("implement me")
-}
-
-func (i instanceController) InstanceShutdown(ctx context.Context, node *v1.Node) (bool, error) {
-	panic("implement me")
-}
-
-func (i instanceController) InstanceMetadata(ctx context.Context, node *v1.Node) (*cloudprovider.InstanceMetadata, error) {
-	panic("implement me")
+	return vms[0].Identifier, nil
 }
