@@ -1,0 +1,13 @@
+apiVersion: skaffold/v2beta18
+kind: Config
+metadata:
+  name: cloud-controller-manager
+build:
+  artifacts:
+  - image: kstiehl/anx-cloud-controller-manager
+    docker:
+      dockerfile: Dockerfile
+deploy:
+  kubectl:
+    manifests:
+    - manifests/deployment.yml
