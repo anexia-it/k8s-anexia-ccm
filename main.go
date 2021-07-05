@@ -8,6 +8,7 @@ import (
 
 	"github.com/spf13/pflag"
 
+	_ "github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/cloud-provider"
 	"k8s.io/cloud-provider/app"
