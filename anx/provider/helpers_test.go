@@ -12,7 +12,7 @@ import (
 //go:generate mockery --srcpkg github.com/anexia-it/go-anxcloud/pkg/vsphere/powercontrol --name API --structname PowerControl --filename powercontrol.go
 //go:generate mockery --srcpkg github.com/anexia-it/go-anxcloud/pkg/vsphere --name API --structname VSphere --filename vsphere.go
 //go:generate mockery --srcpkg github.com/anexia-it/go-anxcloud/pkg/vsphere/search --name API --structname Search --filename search.go
-//go:generate mockery --srcpkg github.com/anexia-it/go-anxcloud/pkg/vsphere/infoMock --name API --structname Info --filename infoMock.go
+//go:generate mockery --srcpkg github.com/anexia-it/go-anxcloud/pkg/vsphere/info --name API --structname Info --filename info.go
 
 type mockedProvider struct {
 	apiMock          *mocks.API
