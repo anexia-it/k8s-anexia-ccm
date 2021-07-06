@@ -2,3 +2,4 @@ Dockerfile
 skaffold.yaml
 ./manifests
 .git/
+chart/

@@ -8,6 +8,11 @@ build:
     docker:
       dockerfile: Dockerfile
 deploy:
-  kubectl:
-    manifests:
-    - manifests/deployment.yml
+  helm:
+    releases:
+      - artifactOverrides:
+          image: "kstiehl/anx-cloud-controller-manager"
+        name: anx-ccm
+        chartPath: chart
+        imageStrategy:
+          helm: {}

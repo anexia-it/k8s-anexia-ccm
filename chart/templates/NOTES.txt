@@ -1,0 +1,3 @@
+The Anexia Cloud Controller Manager has been deployed make sure that the cloud provider is set to "external" on the apiserver,
+and the kubelets.
+

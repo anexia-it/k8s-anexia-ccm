@@ -26,6 +26,7 @@ func main() {
 	pflag.CommandLine.SetNormalizeFunc(cliflag.WordSepNormalizeFunc)
 
 	ccmOptions, err := options.NewCloudControllerManagerOptions()
+	ccmOptions.SecureServing.BindPort = 8080
 	if err != nil {
 		klog.Fatalf("unable to initialize command options: %v", err)
 	}
