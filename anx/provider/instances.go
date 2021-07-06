@@ -31,14 +31,13 @@ func (i instanceManager) NodeAddressesByProviderID(ctx context.Context, provider
 	}
 
 	nodeAddresses := make([]v1.NodeAddress, 0, len(info.Network))
-	// TODO what if multiple VLANs are connected? how to determine the correct one, or maybe use all?
 	if len(info.Network) > 1 {
 		klog.Warningf("found multiple networks for VM '%s'. This can potentially break stuff. Since only the first one"+
 			"will be used", providerID)
 	}
 	for _, ip := range info.Network[0].IPv4 {
 		nodeAddresses = append(nodeAddresses, v1.NodeAddress{
-			Type:    "InternalIP", // TODO could this be externalIP as well?
+			Type:    "InternalIP",
 			Address: ip,
 		})
 	}
@@ -103,8 +102,7 @@ func (i instanceManager) InstanceMetadata(ctx context.Context, node *v1.Node) (*
 	}
 
 	return &cloudprovider.InstanceMetadata{
-		ProviderID: providerID,
-		// TODO is templateID the correct thing to use here
+		ProviderID:    providerID,
 		InstanceType:  instanceType(info),
 		NodeAddresses: nodeAddresses,
 		Zone:          info.LocationCode,
