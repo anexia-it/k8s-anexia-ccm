@@ -1,11 +1,11 @@
 package provider
 
 import (
+	"encoding/json"
 	"fmt"
 	anexia "github.com/anexia-it/go-anxcloud/pkg"
 	"github.com/anexia-it/go-anxcloud/pkg/client"
 	"io"
-	"k8s.io/apimachinery/pkg/util/json"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog/v2"
 )
@@ -76,7 +76,7 @@ func (a anxProvider) HasClusterID() bool {
 	return true
 }
 
-func init() {
+func registerCloudProvider() {
 	cloudprovider.RegisterCloudProvider("anx", func(configReader io.Reader) (cloudprovider.Interface, error) {
 		if configReader == nil {
 			klog.Info("no configuration was provided for the anx cloud-provider")
@@ -99,4 +99,8 @@ func init() {
 		}
 		return provider, nil
 	})
+}
+
+func init() {
+	registerCloudProvider()
 }
