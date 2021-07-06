@@ -5,9 +5,11 @@ import (
 	"errors"
 	"fmt"
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/utils"
+	"github.com/anexia-it/go-anxcloud/pkg/vsphere/info"
 	"github.com/anexia-it/go-anxcloud/pkg/vsphere/powercontrol"
 	v1 "k8s.io/api/core/v1"
 	cloudprovider "k8s.io/cloud-provider"
+	"k8s.io/klog/v2"
 	"strings"
 )
 
@@ -24,16 +26,23 @@ func (i instanceManager) NodeAddressesByProviderID(ctx context.Context, provider
 		return nil, fmt.Errorf("could not get vm infoMock: %w", err)
 	}
 
+	if len(info.Network) == 0 {
+		return nil, nil
+	}
+
 	nodeAddresses := make([]v1.NodeAddress, 0, len(info.Network))
 	// TODO what if multiple VLANs are connected? how to determine the correct one, or maybe use all?
-	for _, network := range info.Network {
-		for _, ip := range network.IPv4 {
-			nodeAddresses = append(nodeAddresses, v1.NodeAddress{
-				Type:    "InternalIP",
-				Address: ip,
-			})
-		}
+	if len(info.Network) > 1 {
+		klog.Warningf("found multiple networks for VM '%s'. This can potentially break stuff. Since only the first one"+
+			"will be used", providerID)
 	}
+	for _, ip := range info.Network[0].IPv4 {
+		nodeAddresses = append(nodeAddresses, v1.NodeAddress{
+			Type:    "InternalIP", // TODO could this be externalIP as well?
+			Address: ip,
+		})
+	}
+
 	return nodeAddresses, nil
 }
 
@@ -96,7 +105,7 @@ func (i instanceManager) InstanceMetadata(ctx context.Context, node *v1.Node) (*
 	return &cloudprovider.InstanceMetadata{
 		ProviderID: providerID,
 		// TODO is templateID the correct thing to use here
-		InstanceType:  info.TemplateID,
+		InstanceType:  instanceType(info),
 		NodeAddresses: nodeAddresses,
 		Zone:          info.LocationCode,
 		Region:        info.LocationCountry,
@@ -116,4 +125,10 @@ func (i instanceManager) InstanceIDByNode(ctx context.Context, node *v1.Node) (s
 	}
 
 	return vms[0].Identifier, nil
+}
+
+func instanceType(info info.Info) string {
+	cores := info.CPU
+	ram := info.RAM / 1024
+	return fmt.Sprintf("C%d-M%d", cores, ram)
 }

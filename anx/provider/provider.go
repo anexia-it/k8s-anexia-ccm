@@ -23,56 +23,56 @@ type Provider interface {
 	anexia.API
 }
 
-type provider struct {
+type anxProvider struct {
 	anexia.API
 	config          providerConfig
 	instanceManager instanceManager
 }
 
-func newAnxProvider(config providerConfig) (*provider, error) {
+func newAnxProvider(config providerConfig) (*anxProvider, error) {
 	client, err := client.New(client.AuthFromEnv(false))
 	if err != nil {
 		return nil, fmt.Errorf("could not create anexia client. %w", err)
 	}
-	return &provider{
+	return &anxProvider{
 		API:    anexia.NewAPI(client),
 		config: config,
 	}, nil
 }
 
-func (a *provider) Initialize(clientBuilder cloudprovider.ControllerClientBuilder, stop <-chan struct{}) {
+func (a *anxProvider) Initialize(clientBuilder cloudprovider.ControllerClientBuilder, stop <-chan struct{}) {
 	a.instanceManager = instanceManager{a}
 }
 
-func (a provider) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
+func (a anxProvider) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
 	return nil, false
 }
 
-func (a provider) Instances() (cloudprovider.Instances, bool) {
+func (a anxProvider) Instances() (cloudprovider.Instances, bool) {
 	return nil, false
 }
 
-func (a provider) InstancesV2() (cloudprovider.InstancesV2, bool) {
+func (a anxProvider) InstancesV2() (cloudprovider.InstancesV2, bool) {
 	return a.instanceManager, true
 }
 
-func (a provider) Zones() (cloudprovider.Zones, bool) {
+func (a anxProvider) Zones() (cloudprovider.Zones, bool) {
 	return nil, false
 }
 
-func (a provider) Clusters() (cloudprovider.Clusters, bool) {
+func (a anxProvider) Clusters() (cloudprovider.Clusters, bool) {
 	return nil, false
 }
 
-func (a provider) Routes() (cloudprovider.Routes, bool) {
+func (a anxProvider) Routes() (cloudprovider.Routes, bool) {
 	return nil, false
 }
 
-func (a provider) ProviderName() string {
+func (a anxProvider) ProviderName() string {
 	return cloudProviderName
 }
 
-func (a provider) HasClusterID() bool {
+func (a anxProvider) HasClusterID() bool {
 	return true
 }
 
