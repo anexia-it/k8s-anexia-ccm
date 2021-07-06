@@ -3,7 +3,7 @@ WORKDIR /go/src/github.com/github.com/anexia-it/anxcloud-cloud-controller-manage
 COPY go.sum go.mod ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 go build -o ccm
+RUN CGO_ENABLED=0 go build -o ccm -ldflags '-s -w'
 
 FROM alpine:3.14
 RUN apk --no-cache add ca-certificates
