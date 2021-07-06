@@ -1,11 +1,13 @@
 package provider
 
 import (
+	"fmt"
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/mocks"
 	"github.com/anexia-it/go-anxcloud/pkg/ipam"
 	"github.com/anexia-it/go-anxcloud/pkg/test"
 	"github.com/anexia-it/go-anxcloud/pkg/vlan"
 	"github.com/anexia-it/go-anxcloud/pkg/vsphere"
+	v1 "k8s.io/api/core/v1"
 )
 
 //go:generate mockery --srcpkg github.com/anexia-it/go-anxcloud/pkg --name API --structname API --filename api.go
@@ -57,4 +59,12 @@ func (m mockedProvider) VLAN() vlan.API {
 
 func (m mockedProvider) VSphere() vsphere.API {
 	return m.vsphereMock
+}
+
+func providerManagedNode() v1.Node {
+	return v1.Node{
+		Spec: v1.NodeSpec{
+			ProviderID: fmt.Sprintf("%s%s", cloudProviderScheme, nodeIdentifier),
+		},
+	}
 }

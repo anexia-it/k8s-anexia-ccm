@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/utils"
-	"github.com/anexia-it/go-anxcloud/pkg/vsphere/info"
+	vminfo "github.com/anexia-it/go-anxcloud/pkg/vsphere/info"
 	"github.com/anexia-it/go-anxcloud/pkg/vsphere/powercontrol"
 	v1 "k8s.io/api/core/v1"
 	cloudprovider "k8s.io/cloud-provider"
@@ -114,7 +114,7 @@ func (i instanceManager) InstanceIDByNode(ctx context.Context, node *v1.Node) (s
 	if node.Spec.ProviderID != "" {
 		return strings.TrimPrefix(node.Spec.ProviderID, cloudProviderScheme), nil
 	}
-	vms, err := i.VSphere().Search().ByName(ctx, fmt.Sprintf("%%-%s", node.Name)) // TODO check wehther this can be implemented without a template
+	vms, err := i.VSphere().Search().ByName(ctx, fmt.Sprintf("%%-%s", node.Name)) // TODO check whether this can be implemented without a template
 	if err != nil {
 		return "", err
 	}
@@ -125,7 +125,7 @@ func (i instanceManager) InstanceIDByNode(ctx context.Context, node *v1.Node) (s
 	return vms[0].Identifier, nil
 }
 
-func instanceType(info info.Info) string {
+func instanceType(info vminfo.Info) string {
 	cores := info.CPU
 	ram := info.RAM / 1024
 	return fmt.Sprintf("C%d-M%d", cores, ram)
