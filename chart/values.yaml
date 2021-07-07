@@ -10,6 +10,10 @@ image:
   # Overrides the image tag whose default is the chart appVersion.
   tag: ""
 
+anexia:
+  secretName: anx-ccm-token
+  tokenField: token
+
 imagePullSecrets: []
 nameOverride: ""
 fullnameOverride: ""

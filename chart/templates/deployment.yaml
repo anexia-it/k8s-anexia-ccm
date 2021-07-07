@@ -27,6 +27,12 @@ spec:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
         - name: {{ .Chart.Name }}
+          env:
+            - name: ANEXIA_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.anexia.secretName }}
+                  key: {{ .Values.anexia.tokenField }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
@@ -39,10 +45,12 @@ spec:
             httpGet:
               path: /healthz
               port: http
+              scheme: HTTPS
           readinessProbe:
             httpGet:
               path: /healthz
               port: http
+              scheme: HTTPS
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
       {{- with .Values.nodeSelector }}

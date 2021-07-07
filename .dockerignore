@@ -1,5 +1,5 @@
 Dockerfile
 skaffold.yaml
-./manifests
 .git/
+chart/**/*
 chart/

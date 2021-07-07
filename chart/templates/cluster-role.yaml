@@ -5,6 +5,25 @@ metadata:
   name: {{ include "chart.fullname" . }}
 rules:
   - apiGroups:
+      - coordination.k8s.io
+    resources:
+      - leases
+    verbs:
+      - create
+      - get
+      - list
+      - watch
+      - update
+      - patch
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    verbs:
+      - get
+      - watch
+      - list
+  - apiGroups:
       - ""
     resources:
       - events
