@@ -10,13 +10,16 @@ import (
 	"k8s.io/klog/v2"
 )
 
-const cloudProviderName = "anx"
+const (
+	cloudProviderName = "anx"
+)
 
 var (
 	cloudProviderScheme = fmt.Sprintf("%s://", cloudProviderName)
 )
 
 type providerConfig struct {
+	CustomerPrefix string `json:"customerPrefix,omitempty"`
 }
 
 type Provider interface {
@@ -34,6 +37,7 @@ func newAnxProvider(config providerConfig) (*anxProvider, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not create anexia client. %w", err)
 	}
+
 	return &anxProvider{
 		API:    anexia.NewAPI(client),
 		config: config,
@@ -42,6 +46,7 @@ func newAnxProvider(config providerConfig) (*anxProvider, error) {
 
 func (a *anxProvider) Initialize(clientBuilder cloudprovider.ControllerClientBuilder, stop <-chan struct{}) {
 	a.instanceManager = instanceManager{a}
+	klog.Infof("Running with customer prefix '%s'", a.config.CustomerPrefix)
 }
 
 func (a anxProvider) LoadBalancer() (cloudprovider.LoadBalancer, bool) {

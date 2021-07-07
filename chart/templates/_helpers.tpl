@@ -60,3 +60,10 @@ Create the name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{/*
+Create the name of the configmap to use
+*/}}
+{{- define "chart.configMapName" -}}
+{{ include "chart.fullname" . }}-provider-config
+{{- end }}

@@ -11,10 +11,11 @@ spec:
       {{- include "chart.selectorLabels" . | nindent 6 }}
   template:
     metadata:
-      {{- with .Values.podAnnotations }}
       annotations:
+        providerconfig/checksum: {{ toJson .Values.providerConfig | toString | sha256sum }}
+        {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
-      {{- end }}
+        {{- end }}
       labels:
         {{- include "chart.selectorLabels" . | nindent 8 }}
     spec:
@@ -27,12 +28,19 @@ spec:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       containers:
         - name: {{ .Chart.Name }}
+          command: ["/app/ccm"]
+          args:
+            - --cloud-provider=anx
+            - --cloud-config=/etc/ccm/providerConfig.json
           env:
             - name: ANEXIA_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.anexia.secretName }}
                   key: {{ .Values.anexia.tokenField }}
+          volumeMounts:
+            - mountPath: /etc/ccm
+              name: provider-cfgmap
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
@@ -53,6 +61,11 @@ spec:
               scheme: HTTPS
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+      volumes:
+        - name: provider-cfgmap
+          configMap:
+            name: {{ include "chart.configMapName" . }}
+            optional: false
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
