@@ -128,5 +128,14 @@ func (i instanceManager) InstanceIDByNode(ctx context.Context, node *v1.Node) (s
 func instanceType(info vminfo.Info) string {
 	cores := info.CPU
 	ram := info.RAM / 1024
+	var largestDisk *vminfo.DiskInfo
+	for _, diskInfo := range info.DiskInfo {
+		if largestDisk == nil || largestDisk.DiskGB < diskInfo.DiskGB {
+			largestDisk = &diskInfo
+		}
+	}
+	if largestDisk != nil {
+		return fmt.Sprintf("C%d-M%d-%s", cores, ram, largestDisk.DiskType)
+	}
 	return fmt.Sprintf("C%d-M%d", cores, ram)
 }

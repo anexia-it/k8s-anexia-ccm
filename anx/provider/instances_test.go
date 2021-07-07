@@ -183,12 +183,36 @@ func TestInstanceShutdown(t *testing.T) {
 
 func TestInstanceTypeFromInfo(t *testing.T) {
 	t.Parallel()
-	instanceTypeStr := instanceType(info.Info{
-		RAM: 4096,
-		CPU: 5,
+	t.Run("WithDiskInfo", func(t *testing.T) {
+		t.Parallel()
+		instanceTypeStr := instanceType(info.Info{
+			RAM: 4096,
+			CPU: 5,
+			DiskInfo: []info.DiskInfo{
+				{
+					DiskType: "ENT6",
+					DiskGB:   5,
+				},
+				{
+					DiskType: "ENT7",
+					DiskGB:   100,
+				},
+			},
+		})
+
+		require.Equal(t, "C5-M4-ENT7", instanceTypeStr)
 	})
 
-	require.Equal(t, "C5-M4", instanceTypeStr)
+	t.Run("NoDiskInfo", func(t *testing.T) {
+		t.Parallel()
+		instanceTypeStr := instanceType(info.Info{
+			RAM: 4096,
+			CPU: 5,
+		})
+
+		require.Equal(t, "C5-M4", instanceTypeStr)
+	})
+
 }
 
 func TestInstanceMetadata(t *testing.T) {
