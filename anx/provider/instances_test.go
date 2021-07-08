@@ -25,7 +25,8 @@ func TestFetchingID(t *testing.T) {
 	t.Run("GetProviderIDForNode/NoProviderID", func(t *testing.T) {
 		t.Parallel()
 		provider := getMockedAnxProvider()
-		provider.searchMock.On("ByName", ctx, fmt.Sprintf("%%-%s", nodeName)).Return([]search.VM{
+		provider.searchMock.On("ByName", ctx, fmt.Sprintf("%s-%s", provider.Config().CustomerPrefix,
+			nodeName)).Return([]search.VM{
 			{
 				Identifier: nodeIdentifier,
 			}}, nil)
@@ -60,7 +61,8 @@ func TestFetchingID(t *testing.T) {
 	t.Run("GetProviderIDForNode/MultipleVMs", func(t *testing.T) {
 		t.Parallel()
 		provider := getMockedAnxProvider()
-		provider.searchMock.On("ByName", ctx, fmt.Sprintf("%%-%s", nodeName)).Return([]search.VM{
+		provider.searchMock.On("ByName", ctx, fmt.Sprintf("%s-%s",
+			provider.Config().CustomerPrefix, nodeName)).Return([]search.VM{
 			{
 				Name:       "VM1",
 				Identifier: nodeIdentifier,

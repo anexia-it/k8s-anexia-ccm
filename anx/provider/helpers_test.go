@@ -22,6 +22,7 @@ type mockedProvider struct {
 	powerControlMock *mocks.PowerControl
 	searchMock       *mocks.Search
 	infoMock         *mocks.Info
+	config           *providerConfig
 }
 
 func getMockedAnxProvider() mockedProvider {
@@ -59,6 +60,15 @@ func (m mockedProvider) VLAN() vlan.API {
 
 func (m mockedProvider) VSphere() vsphere.API {
 	return m.vsphereMock
+}
+
+func (m mockedProvider) Config() *providerConfig {
+	if m.config == nil {
+		return &providerConfig{
+			CustomerPrefix: "no-set",
+		}
+	}
+	return m.config
 }
 
 func providerManagedNode() v1.Node {
