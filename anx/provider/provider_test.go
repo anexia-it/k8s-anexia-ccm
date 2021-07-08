@@ -62,3 +62,20 @@ func TestProviderScheme(t *testing.T) {
 	t.Parallel()
 	require.Equal(t, fmt.Sprintf("%s://", cloudProviderName), cloudProviderScheme)
 }
+
+func TestProviderConfig(t *testing.T) {
+	t.Parallel()
+	require.NoError(t, os.Setenv("ANEXIA_TOKEN", "RANDOM_VALUE"))
+	t.Cleanup(func() {
+		require.NoError(t, os.Unsetenv("ANEXIA_TOKEN"))
+	})
+	provider, err := newAnxProvider(providerConfig{
+		"5555",
+	})
+	require.NoError(t, err)
+
+	config := provider.Config()
+
+	require.Equal(t, "5555", config.CustomerPrefix)
+
+}

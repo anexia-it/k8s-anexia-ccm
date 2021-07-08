@@ -24,11 +24,12 @@ type providerConfig struct {
 
 type Provider interface {
 	anexia.API
+	Config() *providerConfig
 }
 
 type anxProvider struct {
 	anexia.API
-	config          providerConfig
+	config          *providerConfig
 	instanceManager instanceManager
 }
 
@@ -40,7 +41,7 @@ func newAnxProvider(config providerConfig) (*anxProvider, error) {
 
 	return &anxProvider{
 		API:    anexia.NewAPI(client),
-		config: config,
+		config: &config,
 	}, nil
 }
 
@@ -79,6 +80,10 @@ func (a anxProvider) ProviderName() string {
 
 func (a anxProvider) HasClusterID() bool {
 	return true
+}
+
+func (a anxProvider) Config() *providerConfig {
+	return a.config
 }
 
 func registerCloudProvider() {
