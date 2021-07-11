@@ -31,7 +31,7 @@ spec:
           command: ["/app/ccm"]
           args:
             - --cloud-provider=anx
-            - --cloud-config=/etc/ccm/providerConfig.json
+            - --cloud-config=/etc/ccm/providerConfig.yaml
           volumeMounts:
             - mountPath: /etc/ccm
               name: provider-cfgmap
