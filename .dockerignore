@@ -3,3 +3,4 @@ skaffold.yaml
 .git/
 chart/**/*
 chart/
+local-config.yaml

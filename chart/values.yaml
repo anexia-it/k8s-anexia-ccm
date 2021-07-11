@@ -6,12 +6,12 @@ replicaCount: 1
 
 image:
   repository: kstiehl/anx-cloud-controller-manager
-  pullPolicy: IfNotPresent
+  pullPolicy: Always
   # Overrides the image tag whose default is the chart appVersion.
   tag: "latest"
 
 anexia:
-  secretName: anx-ccm-token
+  secretName: ""
   tokenField: token
 
 providerConfig: {}

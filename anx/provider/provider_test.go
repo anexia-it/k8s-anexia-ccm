@@ -5,16 +5,14 @@ import (
 	"fmt"
 	"github.com/stretchr/testify/require"
 	cloudprovider "k8s.io/cloud-provider"
-	"os"
 	"testing"
 )
 
 func TestNewProvider(t *testing.T) {
-	require.NoError(t, os.Setenv("ANEXIA_TOKEN", "RANDOM_VALUE"))
-	t.Cleanup(func() {
-		require.NoError(t, os.Unsetenv("ANEXIA_TOKEN"))
+	provider, err := newAnxProvider(providerConfig{
+		"RANDOME_VALUE",
+		"CUSTOMER",
 	})
-	provider, err := newAnxProvider(providerConfig{})
 	require.NoError(t, err)
 	require.NotNil(t, provider)
 
@@ -49,11 +47,7 @@ func TestNewProvider(t *testing.T) {
 }
 
 func TestRegisterCloudProvider(t *testing.T) {
-	require.NoError(t, os.Setenv("ANEXIA_TOKEN", "RANDOM_VALUE"))
-	t.Cleanup(func() {
-		require.NoError(t, os.Unsetenv("ANEXIA_TOKEN"))
-	})
-	provider, err := cloudprovider.GetCloudProvider("anx", bytes.NewReader([]byte("{}")))
+	provider, err := cloudprovider.GetCloudProvider("anx", bytes.NewReader([]byte("anexiaToken: VALUE\ncustomerID: 555")))
 	require.NoError(t, err)
 	require.NotNil(t, provider)
 }

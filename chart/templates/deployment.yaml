@@ -32,12 +32,6 @@ spec:
           args:
             - --cloud-provider=anx
             - --cloud-config=/etc/ccm/providerConfig.json
-          env:
-            - name: ANEXIA_TOKEN
-              valueFrom:
-                secretKeyRef:
-                  name: {{ .Values.anexia.secretName }}
-                  key: {{ .Values.anexia.tokenField }}
           volumeMounts:
             - mountPath: /etc/ccm
               name: provider-cfgmap
@@ -63,8 +57,8 @@ spec:
             {{- toYaml .Values.resources | nindent 12 }}
       volumes:
         - name: provider-cfgmap
-          configMap:
-            name: {{ include "chart.configMapName" . }}
+          secret:
+            secretName: {{ include "chart.secretName" . }}
             optional: false
       {{- with .Values.nodeSelector }}
       nodeSelector:
