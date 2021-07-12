@@ -1,10 +1,11 @@
 package provider
 
 import (
-	"encoding/json"
+	"errors"
 	"fmt"
 	anexia "github.com/anexia-it/go-anxcloud/pkg"
 	"github.com/anexia-it/go-anxcloud/pkg/client"
+	"gopkg.in/yaml.v3"
 	"io"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog/v2"
@@ -19,7 +20,8 @@ var (
 )
 
 type providerConfig struct {
-	CustomerPrefix string `json:"customerPrefix,omitempty"`
+	AnexiaToken string `yaml:"anexiaToken"`
+	CustomerID  string `yaml:"customerID,omitempty"`
 }
 
 type Provider interface {
@@ -34,7 +36,7 @@ type anxProvider struct {
 }
 
 func newAnxProvider(config providerConfig) (*anxProvider, error) {
-	client, err := client.New(client.AuthFromEnv(false))
+	client, err := client.New(client.TokenFromString(config.AnexiaToken))
 	if err != nil {
 		return nil, fmt.Errorf("could not create anexia client. %w", err)
 	}
@@ -47,7 +49,7 @@ func newAnxProvider(config providerConfig) (*anxProvider, error) {
 
 func (a *anxProvider) Initialize(clientBuilder cloudprovider.ControllerClientBuilder, stop <-chan struct{}) {
 	a.instanceManager = instanceManager{a}
-	klog.Infof("Running with customer prefix '%s'", a.config.CustomerPrefix)
+	klog.Infof("Running with customer prefix '%s'", a.config.CustomerID)
 }
 
 func (a anxProvider) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
@@ -90,7 +92,7 @@ func registerCloudProvider() {
 	cloudprovider.RegisterCloudProvider("anx", func(configReader io.Reader) (cloudprovider.Interface, error) {
 		if configReader == nil {
 			klog.Info("no configuration was provided for the anx cloud-provider")
-			return newAnxProvider(providerConfig{})
+			return nil, errors.New("missing configuration for 'anx' cloudprovider")
 		}
 
 		config, err := io.ReadAll(configReader)
@@ -98,7 +100,7 @@ func registerCloudProvider() {
 			return nil, err
 		}
 		var providerConfig providerConfig
-		err = json.Unmarshal(config, &providerConfig)
+		err = yaml.Unmarshal(config, &providerConfig)
 		if err != nil {
 			return nil, err
 		}

@@ -64,6 +64,10 @@ Create the name of the service account to use
 {{/*
 Create the name of the configmap to use
 */}}
-{{- define "chart.configMapName" -}}
-{{ include "chart.fullname" . }}-provider-config
+{{- define "chart.secretName" -}}
+{{- if .Values.anexia.secretName }}
+{{- .Values.anexia.secretName }}
+{{- else }}
+{{- include "chart.fullname" . }}-config
+{{- end }}
 {{- end }}
