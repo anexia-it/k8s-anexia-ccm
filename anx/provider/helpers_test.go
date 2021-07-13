@@ -65,7 +65,7 @@ func (m mockedProvider) VSphere() vsphere.API {
 func (m mockedProvider) Config() *providerConfig {
 	if m.config == nil {
 		return &providerConfig{
-			CustomerPrefix: "no-set",
+			CustomerID: "no-set",
 		}
 	}
 	return m.config

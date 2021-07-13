@@ -114,7 +114,7 @@ func (i instanceManager) InstanceIDByNode(ctx context.Context, node *v1.Node) (s
 	if node.Spec.ProviderID != "" {
 		return strings.TrimPrefix(node.Spec.ProviderID, cloudProviderScheme), nil
 	}
-	vms, err := i.VSphere().Search().ByName(ctx, fmt.Sprintf("%s-%s", i.Config().CustomerPrefix, node.Name))
+	vms, err := i.VSphere().Search().ByName(ctx, fmt.Sprintf("%s-%s", i.Config().CustomerID, node.Name))
 	if err != nil {
 		return "", err
 	}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/stretchr/testify/require"
 	cloudprovider "k8s.io/cloud-provider"
+	"os"
 	"testing"
 )
 
@@ -65,11 +66,11 @@ func TestProviderConfig(t *testing.T) {
 	})
 	provider, err := newAnxProvider(providerConfig{
 		"5555",
+		"5555",
 	})
 	require.NoError(t, err)
 
 	config := provider.Config()
 
-	require.Equal(t, "5555", config.CustomerPrefix)
-
+	require.Equal(t, "5555", config.CustomerID)
 }
