@@ -1,5 +1,5 @@
 on: pull_request
-
+name: PR Review
 jobs:
   review:
     runs-on: ubuntu-20.04
