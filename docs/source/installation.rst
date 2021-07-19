@@ -2,12 +2,12 @@
 Installation (Helm)
 ####################
 
+In this section we go over the required steps to install the Anexia CCM via Helm.
+
 Prerequisites
 #############
 
-
 In order for the CCM to access the Anexia REST API you can obtain an access token from your `profile <https://engine.anexia-it.com/profile>`__.
-
 
 Helm Install
 #############

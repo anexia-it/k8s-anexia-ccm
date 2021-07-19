@@ -14,8 +14,6 @@ Welcome to anxcloud-cloud-controller-manager's documentation!
    ./features.rst
 
 
-
-
 Indices and tables
 ==================
 

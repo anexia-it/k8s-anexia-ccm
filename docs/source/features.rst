@@ -2,9 +2,10 @@
 Features
 ########
 
-The CCM controller consists of many smaller sub controllers. currently the following controllers are implemented
+This chapter will give you an overview of the components that are currently included in the CCM controller. And give you some
+hints on what to consider when you run the CCM in your cluster.
 
-NodeController
+Node Controller
 ##############
 
 The node controller is responsible for creating Node objects when new servers are created in your cloud infrastructure.
