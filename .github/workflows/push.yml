@@ -8,6 +8,11 @@ jobs:
         uses: docker/build-push-action@v2
         with:
           push: false
+      - name: Build Kubermatic Addon Image
+        uses: docker/build-push-action@v2
+        with:
+          context: ./kubermatic-addon
+          push: false
   test:
     runs-on: ubuntu-20.04
     steps:
