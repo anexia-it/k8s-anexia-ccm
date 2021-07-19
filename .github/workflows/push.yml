@@ -1,4 +1,5 @@
 on: push
+name: CI Build & Test
 jobs:
   build:
     runs-on: ubuntu-20.04
