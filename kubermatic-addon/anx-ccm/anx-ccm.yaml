@@ -3,7 +3,6 @@ kind: ServiceAccount
 metadata:
   name: anx-ccm-anx-cloud-controller-manager
   labels:
-    helm.sh/chart: anx-cloud-controller-manager-0.1.0
     app.kubernetes.io/name: anx-cloud-controller-manager
     app.kubernetes.io/instance: anx-ccm
 ---
@@ -105,11 +104,9 @@ kind: Deployment
 metadata:
   name: anx-ccm-anx-cloud-controller-manager
   labels:
-    helm.sh/chart: anx-cloud-controller-manager-0.1.0
     app.kubernetes.io/name: anx-cloud-controller-manager
     app.kubernetes.io/instance: anx-ccm
     app.kubernetes.io/version: "0.0.1"
-    app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
   selector:
