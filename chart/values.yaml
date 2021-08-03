@@ -5,10 +5,10 @@
 replicaCount: 1
 
 image:
-  repository: kstiehl/anx-cloud-controller-manager
+  repository: anexia/anx-cloud-controller-manager
   pullPolicy: Always
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "latest"
+  tag: "0.0.1"
 
 anexia:
   secretName: ""
