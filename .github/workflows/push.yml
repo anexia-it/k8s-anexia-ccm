@@ -5,15 +5,38 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
       - uses: actions/checkout@v2
+      - uses: docker/login-action@v1
+        with:
+          username: ${{ secrets.HARBOR_USER }}
+          password: ${{ secrets.HARBOR_SECRET }}
+          registry: anx-cr.io
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v3
+        with:
+          images: |
+            anx-cr.io/anexia/anx-cloud-controller-manager
+          tags: |
+            type=schedule
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha
       - name: Build Docker Image
         uses: docker/build-push-action@v2
         with:
-          push: false
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.tags }}
       - name: Build Kubermatic Addon Image
         uses: docker/build-push-action@v2
         with:
           context: ./kubermatic-addon
-          push: false
+          push: true
+          tags: |
+            anx-cr.io/anexia/kubermatic-addon:v2.17.2
   test:
     runs-on: ubuntu-20.04
     steps:
