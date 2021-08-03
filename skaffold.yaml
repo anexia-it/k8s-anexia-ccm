@@ -11,7 +11,7 @@ deploy:
   helm:
     releases:
       - artifactOverrides:
-          image: "kstiehl/anx-cloud-controller-manager"
+          image: "anx-cr.io/anexia/anx-cloud-controller-manager"
         name: anx-ccm
         chartPath: chart
         imageStrategy:
