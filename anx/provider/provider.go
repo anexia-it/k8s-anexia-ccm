@@ -1,10 +1,10 @@
 package provider
 
 import (
-	"errors"
 	"fmt"
 	anexia "github.com/anexia-it/go-anxcloud/pkg"
 	"github.com/anexia-it/go-anxcloud/pkg/client"
+	"github.com/kelseyhightower/envconfig"
 	"gopkg.in/yaml.v3"
 	"io"
 	cloudprovider "k8s.io/cloud-provider"
@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	cloudProviderName = "anx"
+	cloudProviderName = "anexia"
 )
 
 var (
@@ -20,8 +20,8 @@ var (
 )
 
 type providerConfig struct {
-	AnexiaToken string `yaml:"anexiaToken"`
-	CustomerID  string `yaml:"customerID,omitempty"`
+	Token      string `yaml:"anexiaToken" split_words:"true"`
+	CustomerID string `yaml:"customerID,omitempty" split_words:"true"`
 }
 
 type Provider interface {
@@ -36,7 +36,7 @@ type anxProvider struct {
 }
 
 func newAnxProvider(config providerConfig) (*anxProvider, error) {
-	client, err := client.New(client.TokenFromString(config.AnexiaToken))
+	client, err := client.New(client.TokenFromString(config.Token))
 	if err != nil {
 		return nil, fmt.Errorf("could not create anexia client. %w", err)
 	}
@@ -89,18 +89,19 @@ func (a anxProvider) Config() *providerConfig {
 }
 
 func registerCloudProvider() {
-	cloudprovider.RegisterCloudProvider("anx", func(configReader io.Reader) (cloudprovider.Interface, error) {
-		if configReader == nil {
-			klog.Info("no configuration was provided for the anx cloud-provider")
-			return nil, errors.New("missing configuration for 'anx' cloudprovider")
-		}
-
-		config, err := io.ReadAll(configReader)
-		if err != nil {
-			return nil, err
-		}
+	cloudprovider.RegisterCloudProvider("anexia", func(configReader io.Reader) (cloudprovider.Interface, error) {
 		var providerConfig providerConfig
-		err = yaml.Unmarshal(config, &providerConfig)
+		if configReader != nil {
+			config, err := io.ReadAll(configReader)
+			if err != nil {
+				return nil, err
+			}
+			err = yaml.Unmarshal(config, &providerConfig)
+			if err != nil {
+				return nil, err
+			}
+		}
+		err := envconfig.Process("ANEXIA", &providerConfig)
 		if err != nil {
 			return nil, err
 		}

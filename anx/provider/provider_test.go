@@ -48,9 +48,18 @@ func TestNewProvider(t *testing.T) {
 }
 
 func TestRegisterCloudProvider(t *testing.T) {
-	provider, err := cloudprovider.GetCloudProvider("anx", bytes.NewReader([]byte("anexiaToken: VALUE\ncustomerID: 555")))
+	require.NoError(t, os.Setenv("ANEXIA_TOKEN", "TOKEN"))
+	t.Cleanup(func() {
+		require.NoError(t, os.Unsetenv("ANEXIA_TOKEN"))
+	})
+	provider, err := cloudprovider.GetCloudProvider("anexia", bytes.NewReader([]byte("customerID: 555")))
 	require.NoError(t, err)
 	require.NotNil(t, provider)
+	anxProvider, ok := provider.(*anxProvider)
+	require.True(t, ok)
+	config := anxProvider.Config()
+	require.Equal(t, "555", config.CustomerID)
+	require.Equal(t, "TOKEN", config.Token)
 }
 
 func TestProviderScheme(t *testing.T) {
@@ -60,10 +69,6 @@ func TestProviderScheme(t *testing.T) {
 
 func TestProviderConfig(t *testing.T) {
 	t.Parallel()
-	require.NoError(t, os.Setenv("ANEXIA_TOKEN", "RANDOM_VALUE"))
-	t.Cleanup(func() {
-		require.NoError(t, os.Unsetenv("ANEXIA_TOKEN"))
-	})
 	provider, err := newAnxProvider(providerConfig{
 		"5555",
 		"5555",
