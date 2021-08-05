@@ -50,6 +50,7 @@ jobs:
 
   docker-scan:
     runs-on: ubuntu-20.04
+    needs: [build]
     steps:
       - name: Get Image Tag
         run: echo "::set-output name=tag::${GITHUB_SHA::8}"
