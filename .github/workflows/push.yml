@@ -53,13 +53,13 @@ jobs:
     needs: [build]
     steps:
       - name: Get Image Tag
-        run: echo "::set-output name=tag::${GITHUB_SHA::8}"
+        run: echo "::set-output name=tag::sha-${GITHUB_SHA::7}"
         shell: bash
         id: git
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
-          image-ref: 'docker.io/my-organization/my-app:${{ steps.git.outputs.tag }}'
+          image-ref: 'anx-cr.io/anexia/anx-cloud-controller-manager:${{ steps.git.outputs.tag }}'
           format: 'table'
           exit-code: '1'
           ignore-unfixed: true
