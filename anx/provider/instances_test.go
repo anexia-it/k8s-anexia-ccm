@@ -8,6 +8,7 @@ import (
 	"github.com/anexia-it/go-anxcloud/pkg/vsphere/info"
 	"github.com/anexia-it/go-anxcloud/pkg/vsphere/powercontrol"
 	"github.com/anexia-it/go-anxcloud/pkg/vsphere/search"
+	"github.com/anexia-it/go-anxcloud/pkg/vsphere/vmlist"
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -52,6 +53,40 @@ func TestFetchingID(t *testing.T) {
 
 		providerId, err := manager.InstanceIDByNode(ctx, &v1.Node{
 			Spec: v1.NodeSpec{ProviderID: fmt.Sprintf("%s%s", cloudProviderScheme, nodeIdentifier)},
+		})
+
+		require.NoError(t, err)
+		require.Equal(t, nodeIdentifier, providerId)
+	})
+
+	t.Run("GetProviderIDForNode/AutomaticResolverNoProviderID", func(t *testing.T) {
+		t.Parallel()
+		const customerPrefix = "customerPrefix"
+
+		provider := getMockedAnxProvider()
+		provider.config = &providerConfig{
+			Token:      "",
+			CustomerID: "",
+		}
+
+		// act like one VM is already present
+		provider.vmListMock.On("Get", ctx, 1, 1).Return([]vmlist.VM{
+			{Name: fmt.Sprintf("%s-nodeName", customerPrefix), Identifier: "identifier"},
+		}, nil)
+
+		provider.searchMock.On("ByName", ctx, fmt.Sprintf("%s-%s", customerPrefix,
+			nodeName)).Return([]search.VM{
+			{
+				Identifier: nodeIdentifier,
+			}}, nil)
+
+		manager := instanceManager{provider}
+
+		providerId, err := manager.InstanceIDByNode(ctx, &v1.Node{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: nodeName,
+			},
+			Spec: v1.NodeSpec{},
 		})
 
 		require.NoError(t, err)

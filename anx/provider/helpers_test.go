@@ -3,6 +3,7 @@ package provider
 import (
 	"fmt"
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/mocks"
+	"github.com/anexia-it/go-anxcloud/pkg/clouddns"
 	"github.com/anexia-it/go-anxcloud/pkg/ipam"
 	"github.com/anexia-it/go-anxcloud/pkg/test"
 	"github.com/anexia-it/go-anxcloud/pkg/vlan"
@@ -12,9 +13,11 @@ import (
 
 //go:generate mockery --srcpkg github.com/anexia-it/go-anxcloud/pkg --name API --structname API --filename api.go
 //go:generate mockery --srcpkg github.com/anexia-it/go-anxcloud/pkg/vsphere/powercontrol --name API --structname PowerControl --filename powercontrol.go
+//go:generate mockery --srcpkg github.com/anexia-it/go-anxcloud/pkg/clouddns --name API --structname CloudDNS --filename clouddns.go
 //go:generate mockery --srcpkg github.com/anexia-it/go-anxcloud/pkg/vsphere --name API --structname VSphere --filename vsphere.go
 //go:generate mockery --srcpkg github.com/anexia-it/go-anxcloud/pkg/vsphere/search --name API --structname Search --filename search.go
 //go:generate mockery --srcpkg github.com/anexia-it/go-anxcloud/pkg/vsphere/info --name API --structname Info --filename info.go
+//go:generate mockery --srcpkg github.com/anexia-it/go-anxcloud/pkg/vsphere/vmlist --name API --structname VMList --filename vmlist.go
 
 type mockedProvider struct {
 	apiMock          *mocks.API
@@ -22,6 +25,8 @@ type mockedProvider struct {
 	powerControlMock *mocks.PowerControl
 	searchMock       *mocks.Search
 	infoMock         *mocks.Info
+	vmListMock       *mocks.VMList
+	cloudDNSMock     *mocks.CloudDNS
 	config           *providerConfig
 }
 
@@ -31,11 +36,15 @@ func getMockedAnxProvider() mockedProvider {
 	powerControlMock := &mocks.PowerControl{}
 	searchMock := &mocks.Search{}
 	infoMock := &mocks.Info{}
+	vmListMock := &mocks.VMList{}
+	cloudDNSMock := &mocks.CloudDNS{}
 
 	vsphereMock.On("PowerControl").Return(powerControlMock)
 	vsphereMock.On("Search").Return(searchMock)
 	vsphereMock.On("Info").Return(infoMock)
+	vsphereMock.On("VMList").Return(vmListMock)
 	apiMock.On("VSphere").Return(vsphereMock)
+	apiMock.On("CloudDNS").Return(cloudDNSMock)
 
 	return mockedProvider{
 		apiMock:          apiMock,
@@ -43,6 +52,7 @@ func getMockedAnxProvider() mockedProvider {
 		powerControlMock: powerControlMock,
 		searchMock:       searchMock,
 		infoMock:         infoMock,
+		vmListMock:       vmListMock,
 	}
 }
 
@@ -60,6 +70,10 @@ func (m mockedProvider) VLAN() vlan.API {
 
 func (m mockedProvider) VSphere() vsphere.API {
 	return m.vsphereMock
+}
+
+func (m mockedProvider) CloudDNS() clouddns.API {
+	return m.cloudDNSMock
 }
 
 func (m mockedProvider) Config() *providerConfig {

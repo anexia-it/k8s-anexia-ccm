@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/utils"
+	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/utils/resolve"
 	vminfo "github.com/anexia-it/go-anxcloud/pkg/vsphere/info"
 	"github.com/anexia-it/go-anxcloud/pkg/vsphere/powercontrol"
 	v1 "k8s.io/api/core/v1"
@@ -114,15 +115,26 @@ func (i instanceManager) InstanceIDByNode(ctx context.Context, node *v1.Node) (s
 	if node.Spec.ProviderID != "" {
 		return strings.TrimPrefix(node.Spec.ProviderID, cloudProviderScheme), nil
 	}
-	vms, err := i.VSphere().Search().ByName(ctx, fmt.Sprintf("%s-%s", i.Config().CustomerID, node.Name))
-	if err != nil {
-		return "", err
-	}
-	if len(vms) != 1 {
-		return "", fmt.Errorf("expected 1 VM with the name '%s', but found %d", node.Name, len(vms))
+
+	resolver := i.GetNodeResolver()
+
+	return resolver.Resolve(ctx, node.Name)
+}
+
+func (i instanceManager) GetNodeResolver() resolve.NodeResolver {
+	switch {
+	case i.Config().CustomerID != "":
+		return resolve.CustomerPrefixResolver{
+			API:            i,
+			CustomerPrefix: i.Config().CustomerID,
+		}
+	default:
+		return &resolve.AutomaticResolver{
+			API:      i,
+			UseCache: true,
+		}
 	}
 
-	return vms[0].Identifier, nil
 }
 
 func instanceType(info vminfo.Info) string {
