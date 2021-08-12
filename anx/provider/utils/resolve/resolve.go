@@ -34,7 +34,7 @@ func (c CustomerPrefixResolver) Resolve(ctx context.Context, name string) (strin
 }
 
 // AutomaticResolver tries to find out what the customer prefix is by looking at the names of already provisioned VMs
-// If `UseCache` is `true` the customerPrefix is done only once and then cached forever.
+// If `UseCache` is `true` the customerPrefix is only fetched once and then cached forever.
 type AutomaticResolver struct {
 	pkg.API
 	UseCache       bool
