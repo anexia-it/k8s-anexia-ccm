@@ -1,4 +1,8 @@
-on: [push, release]
+on:
+  push: {}
+  release:
+    types:
+      - published
 name: CI Build & Test
 jobs:
   build:
