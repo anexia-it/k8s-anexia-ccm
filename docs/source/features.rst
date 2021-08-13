@@ -6,12 +6,11 @@ This chapter will give you an overview of the components that are currently incl
 hints on what to consider when you run the CCM in your cluster.
 
 Node Controller
-##############
+################
 
 The node controller is responsible for creating Node objects when new servers are created in your cloud infrastructure.
 The node controller obtains information about the hosts running inside your tenancy with the cloud provider.
 The node controller performs the following functions:
-
 
 #. Initialize a Node object for each server that the controller discovers through the cloud provider API.
 #. Annotating and labelling the Node object with cloud-specific information, such as the region the node is deployed into and the resources (CPU, memory, etc) that it has available.
