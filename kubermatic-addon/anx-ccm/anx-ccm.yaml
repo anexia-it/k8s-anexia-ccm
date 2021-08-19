@@ -135,7 +135,7 @@ spec:
               name: provider-cfgmap
           securityContext:
             {}
-          image: "kstiehl/anx-cloud-controller-manager:latest"
+          image: "anx-cr.io/anexia/anx-cloud-controller-manager:v0.2.0"
           imagePullPolicy: Always
           ports:
             - name: http
