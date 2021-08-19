@@ -4,7 +4,7 @@ metadata:
   name: cloud-controller-manager
 build:
   artifacts:
-  - image: kstiehl/anx-cloud-controller-manager
+  - image: anx-cr.io/anexia/anx-cloud-controller-manager
     docker:
       dockerfile: Dockerfile
 deploy:
