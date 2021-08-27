@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/configuration"
+	tUtils "github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/test"
 	"github.com/anexia-it/go-anxcloud/pkg/client"
 	"github.com/anexia-it/go-anxcloud/pkg/vsphere/info"
 	"github.com/anexia-it/go-anxcloud/pkg/vsphere/powercontrol"
@@ -12,11 +14,12 @@ import (
 	"github.com/stretchr/testify/require"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"math"
+	"math/rand"
 	"net/http"
+	"strconv"
 	"testing"
 )
-
-const nodeIdentifier = "test-ident"
 
 func TestFetchingID(t *testing.T) {
 	t.Parallel()
@@ -25,8 +28,10 @@ func TestFetchingID(t *testing.T) {
 
 	t.Run("GetProviderIDForNode/NoProviderID", func(t *testing.T) {
 		t.Parallel()
-		provider := getMockedAnxProvider()
-		provider.searchMock.On("ByName", ctx, fmt.Sprintf("%s-%s", provider.Config().CustomerID,
+		provider := tUtils.GetMockedAnxProvider()
+		nodeIdentifier := randomNodeIdentifier()
+		provider.ProviderConfig.CustomerID = "test"
+		provider.SearchMock.On("ByName", ctx, fmt.Sprintf("%s-%s", "test",
 			nodeName)).Return([]search.VM{
 			{
 				Identifier: nodeIdentifier,
@@ -47,12 +52,13 @@ func TestFetchingID(t *testing.T) {
 
 	t.Run("GetProviderIDForNode/WithProviderID", func(t *testing.T) {
 		t.Parallel()
-		provider := getMockedAnxProvider()
+		provider := tUtils.GetMockedAnxProvider()
 
 		manager := instanceManager{provider}
 
+		nodeIdentifier := randomNodeIdentifier()
 		providerId, err := manager.InstanceIDByNode(ctx, &v1.Node{
-			Spec: v1.NodeSpec{ProviderID: fmt.Sprintf("%s%s", cloudProviderScheme, nodeIdentifier)},
+			Spec: v1.NodeSpec{ProviderID: fmt.Sprintf("%s%s", configuration.CloudProviderScheme, nodeIdentifier)},
 		})
 
 		require.NoError(t, err)
@@ -63,21 +69,19 @@ func TestFetchingID(t *testing.T) {
 		t.Parallel()
 		const customerPrefix = "customerPrefix"
 
-		provider := getMockedAnxProvider()
-		provider.config = &providerConfig{
-			Token:      "",
-			CustomerID: "",
-		}
+		provider := tUtils.GetMockedAnxProvider()
+		provider.ProviderConfig.CustomerID = customerPrefix
 
 		// act like one VM is already present
-		provider.vmListMock.On("Get", ctx, 1, 1).Return([]vmlist.VM{
+		provider.VmListMock.On("Get", ctx, 1, 1).Return([]vmlist.VM{
 			{Name: fmt.Sprintf("%s-nodeName", customerPrefix), Identifier: "identifier"},
 		}, nil)
 
-		provider.searchMock.On("ByName", ctx, fmt.Sprintf("%s-%s", customerPrefix,
+		nodeIndentifier := randomNodeIdentifier()
+		provider.SearchMock.On("ByName", ctx, fmt.Sprintf("%s-%s", customerPrefix,
 			nodeName)).Return([]search.VM{
 			{
-				Identifier: nodeIdentifier,
+				Identifier: nodeIndentifier,
 			}}, nil)
 
 		manager := instanceManager{provider}
@@ -90,17 +94,18 @@ func TestFetchingID(t *testing.T) {
 		})
 
 		require.NoError(t, err)
-		require.Equal(t, nodeIdentifier, providerId)
+		require.Equal(t, nodeIndentifier, providerId)
 	})
 
 	t.Run("GetProviderIDForNode/MultipleVMs", func(t *testing.T) {
 		t.Parallel()
-		provider := getMockedAnxProvider()
-		provider.searchMock.On("ByName", ctx, fmt.Sprintf("%s-%s",
+		provider := tUtils.GetMockedAnxProvider()
+		randomNodeIdentifier := randomNodeIdentifier()
+		provider.SearchMock.On("ByName", ctx, fmt.Sprintf("%s-%s",
 			provider.Config().CustomerID, nodeName)).Return([]search.VM{
 			{
 				Name:       "VM1",
-				Identifier: nodeIdentifier,
+				Identifier: randomNodeIdentifier,
 			},
 			{
 				Name:       "VM2",
@@ -124,12 +129,13 @@ func TestFetchingID(t *testing.T) {
 func TestInstanceExists(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	node := providerManagedNode()
+	identifier := randomNodeIdentifier()
+	node := tUtils.ProviderManagedNode(identifier)
 
 	t.Run("InstanceExists", func(t *testing.T) {
 		t.Parallel()
-		provider := getMockedAnxProvider()
-		provider.infoMock.On("Get", ctx, nodeIdentifier).Return(info.Info{}, nil)
+		provider := tUtils.GetMockedAnxProvider()
+		provider.InfoMock.On("Get", ctx, identifier).Return(info.Info{}, nil)
 		manager := instanceManager{provider}
 		exists, err := manager.InstanceExists(ctx, &node)
 
@@ -139,8 +145,8 @@ func TestInstanceExists(t *testing.T) {
 
 	t.Run("InstanceDoesNotExist", func(t *testing.T) {
 		t.Parallel()
-		provider := getMockedAnxProvider()
-		provider.infoMock.On("Get", ctx, nodeIdentifier).Return(info.Info{}, &client.ResponseError{
+		provider := tUtils.GetMockedAnxProvider()
+		provider.InfoMock.On("Get", ctx, identifier).Return(info.Info{}, &client.ResponseError{
 			Response: &http.Response{
 				StatusCode: http.StatusNotFound,
 			},
@@ -154,8 +160,9 @@ func TestInstanceExists(t *testing.T) {
 
 	t.Run("UnknownError", func(t *testing.T) {
 		t.Parallel()
-		provider := getMockedAnxProvider()
-		provider.infoMock.On("Get", ctx, nodeIdentifier).Return(info.Info{}, errors.New("unknownError"))
+		provider := tUtils.GetMockedAnxProvider()
+
+		provider.InfoMock.On("Get", ctx, identifier).Return(info.Info{}, errors.New("unknownError"))
 		manager := instanceManager{provider}
 		exists, err := manager.InstanceExists(ctx, &node)
 
@@ -168,17 +175,18 @@ func TestInstanceShutdown(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	const nodeName = "test-node"
-	node := providerManagedNode()
+	identifier := randomNodeIdentifier()
+	node := tUtils.ProviderManagedNode(identifier)
 
 	t.Run("PoweredOn", func(t *testing.T) {
 		t.Parallel()
-		provider := getMockedAnxProvider()
-		provider.searchMock.On("ByName", ctx, fmt.Sprintf("%%-%s", nodeName)).Return([]search.VM{
+		provider := tUtils.GetMockedAnxProvider()
+		provider.SearchMock.On("ByName", ctx, fmt.Sprintf("%%-%s", nodeName)).Return([]search.VM{
 			{
-				Identifier: nodeIdentifier,
+				Identifier: identifier,
 			}}, nil)
 
-		provider.powerControlMock.On("Get", ctx, nodeIdentifier).Return(powercontrol.OnState, nil)
+		provider.PowerControlMock.On("Get", ctx, identifier).Return(powercontrol.OnState, nil)
 
 		manager := instanceManager{provider}
 		isShutdown, err := manager.InstanceShutdown(ctx, &node)
@@ -188,13 +196,13 @@ func TestInstanceShutdown(t *testing.T) {
 
 	t.Run("PoweredOff", func(t *testing.T) {
 		t.Parallel()
-		provider := getMockedAnxProvider()
-		provider.searchMock.On("ByName", ctx, fmt.Sprintf("%%-%s", nodeName)).Return([]search.VM{
+		provider := tUtils.GetMockedAnxProvider()
+		provider.SearchMock.On("ByName", ctx, fmt.Sprintf("%%-%s", nodeName)).Return([]search.VM{
 			{
-				Identifier: nodeIdentifier,
+				Identifier: identifier,
 			}}, nil)
 
-		provider.powerControlMock.On("Get", ctx, nodeIdentifier).Return(powercontrol.OffState, nil)
+		provider.PowerControlMock.On("Get", ctx, identifier).Return(powercontrol.OffState, nil)
 
 		manager := instanceManager{provider}
 		isShutdown, err := manager.InstanceShutdown(ctx, &node)
@@ -204,13 +212,13 @@ func TestInstanceShutdown(t *testing.T) {
 
 	t.Run("UnknownPowerState", func(t *testing.T) {
 		t.Parallel()
-		provider := getMockedAnxProvider()
-		provider.searchMock.On("ByName", ctx, fmt.Sprintf("%%-%s", nodeName)).Return([]search.VM{
+		provider := tUtils.GetMockedAnxProvider()
+		provider.SearchMock.On("ByName", ctx, fmt.Sprintf("%%-%s", nodeName)).Return([]search.VM{
 			{
-				Identifier: nodeIdentifier,
+				Identifier: identifier,
 			}}, nil)
 
-		provider.powerControlMock.On("Get", ctx, nodeIdentifier).Return(powercontrol.State("NoExistentState"), nil)
+		provider.PowerControlMock.On("Get", ctx, identifier).Return(powercontrol.State("NoExistentState"), nil)
 
 		manager := instanceManager{provider}
 		_, err := manager.InstanceShutdown(ctx, &node)
@@ -255,12 +263,13 @@ func TestInstanceTypeFromInfo(t *testing.T) {
 func TestInstanceMetadata(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	node := providerManagedNode()
+	identifier := randomNodeIdentifier()
+	node := tUtils.ProviderManagedNode(identifier)
 
 	t.Run("OneNetwork", func(t *testing.T) {
 		t.Parallel()
-		provider := getMockedAnxProvider()
-		provider.infoMock.On("Get", ctx, nodeIdentifier).Return(info.Info{
+		provider := tUtils.GetMockedAnxProvider()
+		provider.InfoMock.On("Get", ctx, identifier).Return(info.Info{
 			CPU:             5,
 			RAM:             4096,
 			LocationCountry: "AT",
@@ -285,8 +294,8 @@ func TestInstanceMetadata(t *testing.T) {
 
 	t.Run("MultipleNetworks", func(t *testing.T) {
 		t.Parallel()
-		provider := getMockedAnxProvider()
-		provider.infoMock.On("Get", ctx, nodeIdentifier).Return(info.Info{
+		provider := tUtils.GetMockedAnxProvider()
+		provider.InfoMock.On("Get", ctx, identifier).Return(info.Info{
 			CPU:             5,
 			RAM:             4096,
 			LocationCountry: "AT",
@@ -312,4 +321,8 @@ func TestInstanceMetadata(t *testing.T) {
 		require.Equal(t, string(metadata.NodeAddresses[0].Type), "InternalIP")
 	})
 
+}
+
+func randomNodeIdentifier() string {
+	return fmt.Sprintf("test-ident-%s", strconv.Itoa(rand.Intn(math.MaxInt)))
 }

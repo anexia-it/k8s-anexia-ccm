@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/configuration"
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/utils"
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/utils/resolve"
 	vminfo "github.com/anexia-it/go-anxcloud/pkg/vsphere/info"
@@ -113,7 +114,7 @@ func (i instanceManager) InstanceMetadata(ctx context.Context, node *v1.Node) (*
 
 func (i instanceManager) InstanceIDByNode(ctx context.Context, node *v1.Node) (string, error) {
 	if node.Spec.ProviderID != "" {
-		return strings.TrimPrefix(node.Spec.ProviderID, cloudProviderScheme), nil
+		return strings.TrimPrefix(node.Spec.ProviderID, configuration.CloudProviderScheme), nil
 	}
 
 	resolver := i.GetNodeResolver()

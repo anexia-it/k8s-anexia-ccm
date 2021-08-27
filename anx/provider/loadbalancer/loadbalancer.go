@@ -1,0 +1,136 @@
+package loadbalancer
+
+import (
+	"context"
+	"errors"
+	fmt "fmt"
+	"github.com/anexia-it/go-anxcloud/pkg/lbaas"
+	"github.com/go-logr/logr"
+)
+
+var (
+	InvalidGroupError = errors.New("group has not been initialised correctly")
+)
+
+// state holds the current state of an LoadBalancer.
+// It acts like a cache in order to not execute too many request during
+// more complex reconcile operations.
+type state struct {
+	ID LoadBalancerID
+	BackendID
+	FrontendID
+	BindID
+}
+
+// LoadBalancer represents an actual LoadBalancer
+type LoadBalancer struct {
+	lbaas.API
+	State  *state
+	Logger logr.Logger
+}
+
+// NodeEndpoint represents the actual K8s NodePort.
+type NodeEndpoint struct {
+	IP   string
+	Port int32
+}
+
+// Type IDs in order to not pass strings around and prevent errors.
+
+type LoadBalancerID string
+type FrontendID string
+type BackendID string
+type BindID string
+
+func NewLoadBalancer(api lbaas.API, id LoadBalancerID, logger logr.Logger) LoadBalancer {
+	return LoadBalancer{
+		API:    api,
+		Logger: logger.WithValues("loadbalancer", id),
+		State:  &state{ID: id},
+	}
+}
+
+func (g LoadBalancer) EnsureLBConfig(ctx context.Context, lbName string, endpoints []NodeEndpoint) error {
+	wrapErr := func(err error) error { return fmt.Errorf("unable to create loadbalancer: %w", err) }
+
+	// ensure backend exists in every anexia load balancer of the group
+	backendId, err := ensureBackendInLoadBalancer(ctx, g, lbName)
+	if err != nil {
+		return wrapErr(err)
+	}
+	g.State.BackendID = backendId
+
+	// make sure frontends for these backends exists in every load balancer
+	frontendId, err := ensureFrontendInLoadBalancer(ctx, g, lbName)
+	if err != nil {
+		return wrapErr(err)
+	}
+	g.State.FrontendID = frontendId
+
+	bind, err := ensureFrontendBindInLoadBalancer(ctx, g, lbName)
+	if err != nil {
+		return wrapErr(err)
+	}
+	g.State.BindID = bind
+
+	for _, endpoint := range endpoints {
+		_, err := ensureBackendServerInLoadBalancer(ctx, g, lbName, endpoint)
+		if err != nil {
+			return wrapErr(err)
+		}
+	}
+
+	return nil
+}
+
+func (g LoadBalancer) EnsureLBDeleted(ctx context.Context, lbName string) error {
+
+	wrapErr := func(err error) error { return fmt.Errorf("unable to delete loadbalancer: %w", err) }
+
+	// delete frontend bind
+	err := ensureFrontendBindDeleted(ctx, g, lbName)
+	if err != nil {
+		return err
+	}
+	// delete frontend
+	err = ensureFrontendDeleted(ctx, g, lbName)
+	if err != nil {
+		return wrapErr(err)
+	}
+
+	// delete all servers from backend
+	err = deleteServersFromBackendInLB(ctx, g, lbName)
+	if err != nil {
+		return wrapErr(err)
+	}
+	// delete backend
+	err = deleteBackendFromLB(ctx, g, lbName)
+	if err != nil {
+		return wrapErr(err)
+	}
+
+	return nil
+}
+
+func deleteBackendFromLB(ctx context.Context, g LoadBalancer, name string) error {
+	backend := findBackendInLB(ctx, g, name)
+	if backend == nil {
+		return nil
+	}
+	return g.Backend().DeleteByID(ctx, backend.Identifier)
+}
+
+// HostInformation holds the information about a host.
+type HostInformation struct {
+	IP       string
+	Hostname string
+}
+
+func (g LoadBalancer) GetHostInformation(ctx context.Context) (HostInformation, error) {
+	lbIdentifier := g.State.ID
+	fetchedBalancer, err := g.LoadBalancer().GetByID(ctx, string(lbIdentifier))
+	return HostInformation{
+		IP:       fetchedBalancer.IpAddress,
+		Hostname: "",
+	}, err
+}

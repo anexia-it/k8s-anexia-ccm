@@ -2,40 +2,27 @@ package provider
 
 import (
 	"fmt"
+	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/configuration"
 	anexia "github.com/anexia-it/go-anxcloud/pkg"
 	"github.com/anexia-it/go-anxcloud/pkg/client"
-	"github.com/kelseyhightower/envconfig"
-	"gopkg.in/yaml.v3"
 	"io"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog/v2"
 )
 
-const (
-	cloudProviderName = "anexia"
-)
-
-var (
-	cloudProviderScheme = fmt.Sprintf("%s://", cloudProviderName)
-)
-
-type providerConfig struct {
-	Token      string `yaml:"anexiaToken" split_words:"true"`
-	CustomerID string `yaml:"customerID,omitempty" split_words:"true"`
-}
-
 type Provider interface {
 	anexia.API
-	Config() *providerConfig
+	Config() *configuration.ProviderConfig
 }
 
 type anxProvider struct {
 	anexia.API
-	config          *providerConfig
-	instanceManager instanceManager
+	config              *configuration.ProviderConfig
+	instanceManager     instanceManager
+	loadBalancerManager loadBalancerManager
 }
 
-func newAnxProvider(config providerConfig) (*anxProvider, error) {
+func newAnxProvider(config configuration.ProviderConfig) (*anxProvider, error) {
 	client, err := client.New(client.TokenFromString(config.Token))
 	if err != nil {
 		return nil, fmt.Errorf("could not create anexia client. %w", err)
@@ -49,11 +36,12 @@ func newAnxProvider(config providerConfig) (*anxProvider, error) {
 
 func (a *anxProvider) Initialize(clientBuilder cloudprovider.ControllerClientBuilder, stop <-chan struct{}) {
 	a.instanceManager = instanceManager{a}
+	a.loadBalancerManager = loadBalancerManager{a}
 	klog.Infof("Running with customer prefix '%s'", a.config.CustomerID)
 }
 
 func (a anxProvider) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
-	return nil, false
+	return a.loadBalancerManager, true
 }
 
 func (a anxProvider) Instances() (cloudprovider.Instances, bool) {
@@ -77,36 +65,25 @@ func (a anxProvider) Routes() (cloudprovider.Routes, bool) {
 }
 
 func (a anxProvider) ProviderName() string {
-	return cloudProviderName
+	return configuration.CloudProviderName
 }
 
 func (a anxProvider) HasClusterID() bool {
 	return true
 }
 
-func (a anxProvider) Config() *providerConfig {
+func (a anxProvider) Config() *configuration.ProviderConfig {
 	return a.config
 }
 
 func registerCloudProvider() {
 	cloudprovider.RegisterCloudProvider("anexia", func(configReader io.Reader) (cloudprovider.Interface, error) {
-		var providerConfig providerConfig
-		if configReader != nil {
-			config, err := io.ReadAll(configReader)
-			if err != nil {
-				return nil, err
-			}
-			err = yaml.Unmarshal(config, &providerConfig)
-			if err != nil {
-				return nil, err
-			}
-		}
-		err := envconfig.Process("ANEXIA", &providerConfig)
+		config, err := configuration.NewProviderConfig(configReader)
 		if err != nil {
 			return nil, err
 		}
 
-		provider, err := newAnxProvider(providerConfig)
+		provider, err := newAnxProvider(config)
 		if err != nil {
 			return nil, err
 		}
