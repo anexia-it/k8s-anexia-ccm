@@ -11,7 +11,7 @@ type ProviderConfig struct {
 	Token                    string `yaml:"anexiaToken" split_words:"true"`
 	CustomerID               string `yaml:"customerID,omitempty" split_words:"true"`
 	LoadBalancerIdentifier   string `yaml:"loadBalancerIdentifier,omitempty" split_words:"true"`
-	AutoDiscoverLoadBalancer string `yaml:"AutoDiscoverLoadBalancer,"`
+	AutoDiscoverLoadBalancer bool   `yaml:"AutoDiscoverLoadBalancer,omitempty" split_words:"true"`
 }
 
 const (

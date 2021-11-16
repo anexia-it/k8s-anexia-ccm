@@ -149,3 +149,24 @@ func (_m *Frontend) NextPage(ctx context.Context, page pagination.Page) (paginat
 
 	return r0, r1
 }
+
+// Update provides a mock function with given fields: ctx, identifier, definition
+func (_m *Frontend) Update(ctx context.Context, identifier string, definition frontend.Definition) (frontend.Frontend, error) {
+	ret := _m.Called(ctx, identifier, definition)
+
+	var r0 frontend.Frontend
+	if rf, ok := ret.Get(0).(func(context.Context, string, frontend.Definition) frontend.Frontend); ok {
+		r0 = rf(ctx, identifier, definition)
+	} else {
+		r0 = ret.Get(0).(frontend.Frontend)
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, string, frontend.Definition) error); ok {
+		r1 = rf(ctx, identifier, definition)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}

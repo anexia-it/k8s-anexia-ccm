@@ -149,3 +149,24 @@ func (_m *Server) NextPage(ctx context.Context, page pagination.Page) (paginatio
 
 	return r0, r1
 }
+
+// Update provides a mock function with given fields: ctx, identifier, definition
+func (_m *Server) Update(ctx context.Context, identifier string, definition server.Definition) (server.Server, error) {
+	ret := _m.Called(ctx, identifier, definition)
+
+	var r0 server.Server
+	if rf, ok := ret.Get(0).(func(context.Context, string, server.Definition) server.Server); ok {
+		r0 = rf(ctx, identifier, definition)
+	} else {
+		r0 = ret.Get(0).(server.Server)
+	}
+
+	var r1 error
+	if rf, ok := ret.Get(1).(func(context.Context, string, server.Definition) error); ok {
+		r1 = rf(ctx, identifier, definition)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}

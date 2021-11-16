@@ -12,9 +12,8 @@ import (
 
 func TestNewProvider(t *testing.T) {
 	provider, err := newAnxProvider(configuration.ProviderConfig{
-		"RANDOME_VALUE",
-		"CUSTOMER",
-		"",
+		Token:      "RANDOME_VALUE",
+		CustomerID: "CUSTOMER",
 	})
 	require.NoError(t, err)
 	require.NotNil(t, provider)
@@ -72,9 +71,8 @@ func TestProviderScheme(t *testing.T) {
 func TestProviderConfig(t *testing.T) {
 	t.Parallel()
 	provider, err := newAnxProvider(configuration.ProviderConfig{
-		"5555",
-		"5555",
-		"",
+		Token:      "5555",
+		CustomerID: "5555",
 	})
 	require.NoError(t, err)
 
