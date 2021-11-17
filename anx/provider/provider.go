@@ -1,13 +1,19 @@
 package provider
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/configuration"
 	anexia "github.com/anexia-it/go-anxcloud/pkg"
-	"github.com/anexia-it/go-anxcloud/pkg/client"
+	"github.com/anexia-it/go-anxcloud/pkg/api"
+	"github.com/anexia-it/go-anxcloud/pkg/api/types"
+	anxClient "github.com/anexia-it/go-anxcloud/pkg/client"
+	"github.com/anexia-it/go-anxcloud/pkg/core/resource"
 	"io"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog/v2"
+	"time"
 )
 
 type Provider interface {
@@ -23,7 +29,7 @@ type anxProvider struct {
 }
 
 func newAnxProvider(config configuration.ProviderConfig) (*anxProvider, error) {
-	client, err := client.New(client.TokenFromString(config.Token))
+	client, err := anxClient.New(anxClient.TokenFromString(config.Token))
 	if err != nil {
 		return nil, fmt.Errorf("could not create anexia client. %w", err)
 	}
@@ -36,8 +42,54 @@ func newAnxProvider(config configuration.ProviderConfig) (*anxProvider, error) {
 
 func (a *anxProvider) Initialize(clientBuilder cloudprovider.ControllerClientBuilder, stop <-chan struct{}) {
 	a.instanceManager = instanceManager{a}
+	if a.Config().AutoDiscoverLoadBalancer {
+		balancer, err := autoDiscoverLoadBalancer(a, stop)
+		if err != nil {
+			panic(fmt.Errorf("unable to autodiscover loadbalancer to configure"))
+		}
+		a.config.LoadBalancerIdentifier = balancer
+	}
 	a.loadBalancerManager = loadBalancerManager{a}
 	klog.Infof("Running with customer prefix '%s'", a.config.CustomerID)
+}
+
+func autoDiscoverLoadBalancer(a *anxProvider, stop <-chan struct{}) (string, error) {
+	newAPI, err := api.NewAPI(api.WithClientOptions(anxClient.TokenFromString(a.Config().Token)))
+	if err != nil {
+		return "", err
+	}
+	ctx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Minute)
+	defer cancelFunc()
+	go func() {
+		select {
+		case <-stop:
+			cancelFunc()
+		case <-time.After(1 * time.Minute):
+		}
+	}()
+
+	var pageIter types.PageInfo
+	err = newAPI.List(ctx, &resource.Info{
+		Tags: []string{a.Config().ClusterName},
+	}, api.Paged(1, 1, &pageIter))
+
+	var infos []resource.Info
+	pageIter.Next(&infos)
+	if pageIter.TotalPages() > 1 {
+		return "", errors.New("more than one resource was marked with LoadBalancer discovery tag")
+	}
+
+	if len(infos) != 1 {
+		return "", fmt.Errorf("expected one resource to be tagged with '%s'", a.Config().ClusterName)
+	}
+
+	taggedResource := infos[0]
+	err = newAPI.Get(ctx, &taggedResource)
+	if err != nil {
+		return "", err
+	}
+
+	return taggedResource.Identifier, nil
 }
 
 func (a anxProvider) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
