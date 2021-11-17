@@ -21,8 +21,10 @@ func TestIntegrationTestLB(t *testing.T) {
 	require.NotNil(t, client)
 
 	provider := &anxProvider{
-		API:    pkg.NewAPI(client),
-		config: &configuration.ProviderConfig{},
+		API: pkg.NewAPI(client),
+		config: &configuration.ProviderConfig{
+			LoadBalancerIdentifier: "285b954fdf2a449c8fdae01cc6074025",
+		},
 	}
 
 	manager := loadBalancerManager{provider}
@@ -41,7 +43,28 @@ func TestIntegrationTestLB(t *testing.T) {
 				NodePort:   5000,
 			}},
 		},
-	}, []*v1.Node{})
+	}, []*v1.Node{
+		{
+			Status: v1.NodeStatus{
+				Addresses: []v1.NodeAddress{
+					{
+						Type:    "ExternalIP",
+						Address: "8.8.8.8",
+					},
+				},
+			},
+		},
+		//{
+		//	Status: v1.NodeStatus{
+		//		Addresses: []v1.NodeAddress{
+		//			{
+		//				Type:    "ExternalIP",
+		//				Address: "9.9.9.9",
+		//			},
+		//		},
+		//	},
+		//},
+	})
 
 	require.NoError(t, err)
 	require.NotNil(t, balancer)

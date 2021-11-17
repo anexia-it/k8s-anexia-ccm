@@ -26,10 +26,10 @@ func (l loadBalancerManager) GetLoadBalancer(ctx context.Context, clusterName st
 
 func (l loadBalancerManager) GetLoadBalancerName(ctx context.Context, clusterName string, service *v1.Service) string {
 	if clusterName != "" {
-		return fmt.Sprintf("%s-%s-%s", clusterName, service.Namespace, service.Name)
+		return fmt.Sprintf("%s.%s.%s", service.Name, service.Namespace, clusterName)
 	}
 
-	return fmt.Sprintf("%s-%s", service.Namespace, service.Name)
+	return fmt.Sprintf("%s.%s", service.Name, service.Namespace)
 }
 
 func (l loadBalancerManager) EnsureLoadBalancer(ctx context.Context, clusterName string, service *v1.Service,
@@ -47,7 +47,7 @@ func (l loadBalancerManager) EnsureLoadBalancer(ctx context.Context, clusterName
 		portStatus[i].Port = svcPort.Port
 		portStatus[i].Protocol = svcPort.Protocol
 
-		lbPortName := fmt.Sprintf("%s-%s", lbName, strconv.Itoa(int(svcPort.Port)))
+		lbPortName := fmt.Sprintf("%s.%s", strconv.Itoa(int(svcPort.Port)), lbName)
 		err = lbGroup.EnsureLBConfig(ctx, lbPortName, getNodeEndpoints(nodes, svcPort.NodePort))
 
 		if err != nil {
@@ -122,7 +122,7 @@ func prepareContext(ctx context.Context, l loadBalancerManager) (context.Context
 		loadbalancer.LoadBalancerID(identifier),
 		logger)
 
-	return context.WithValue(ctx, lbManagerContextKey{}, group), nil
+	return context.WithValue(ctx, lbManagerContextKey{}, &group), nil
 }
 
 func getLBFromContext(ctx context.Context) *loadbalancer.LoadBalancer {
@@ -138,14 +138,36 @@ func getNodeEndpoints(nodes []*v1.Node, port int32) []loadbalancer.NodeEndpoint 
 	retAddresses := make([]loadbalancer.NodeEndpoint, 0, len(nodes))
 
 	for _, node := range nodes {
-		for _, address := range node.Status.Addresses {
-			if address.Type == v1.NodeInternalIP {
-				retAddresses = append(retAddresses, loadbalancer.NodeEndpoint{
-					IP:   address.Address,
-					Port: port,
-				})
-			}
+		externalIP := getNodeAddressOfType(node, v1.NodeExternalIP)
+		internalIP := getNodeAddressOfType(node, v1.NodeInternalIP)
+
+		var nodeAddress string
+
+		if internalIP != nil && internalIP.Address != "" {
+			nodeAddress = internalIP.Address
+		}
+
+		// externalIP should be preffered
+		if externalIP != nil && externalIP.Address != "" {
+			nodeAddress = externalIP.Address
+		}
+
+		if nodeAddress != "" {
+			retAddresses = append(retAddresses, loadbalancer.NodeEndpoint{
+				IP:   nodeAddress,
+				Port: port,
+			})
 		}
 	}
+
 	return retAddresses
+}
+
+func getNodeAddressOfType(node *v1.Node, addressType v1.NodeAddressType) *v1.NodeAddress {
+	for _, address := range node.Status.Addresses {
+		if address.Type == addressType {
+			return &address
+		}
+	}
+	return nil
 }

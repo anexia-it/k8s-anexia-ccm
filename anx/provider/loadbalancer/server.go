@@ -41,7 +41,7 @@ func ensureBackendServerInLoadBalancer(ctx context.Context, lb LoadBalancer,
 }
 
 func getServerName(lbName string, endpoint NodeEndpoint) string {
-	return fmt.Sprintf("%s-%x", lbName, md5.Sum([]byte(endpoint.IP)))
+	return fmt.Sprintf("%x.%s", md5.Sum([]byte(endpoint.IP)), lbName)
 }
 
 func createServerForLB(ctx context.Context, lb LoadBalancer, name string,
@@ -63,12 +63,12 @@ func getServerDefinition(name string, endpoint NodeEndpoint, state *state) serve
 	return definition
 }
 
-func findServersByBackendInLB(ctx context.Context, lb LoadBalancer, lbName, prefix string) []*server.Server {
+func findServersByBackendInLB(ctx context.Context, lb LoadBalancer, lbName, suffix string) []*server.Server {
 	var fetchedServers []*server.Server
-	if prefix == "" {
-		prefix = lbName
+	if suffix == "" {
+		suffix = lbName
 	}
-	servers, cancelFunc := pagination.AsChan(ctx, lb.Server(), SearchParameter(prefix))
+	servers, cancelFunc := pagination.AsChan(ctx, lb.Server(), SearchParameter(suffix))
 	defer cancelFunc()
 
 	for elem := range servers {

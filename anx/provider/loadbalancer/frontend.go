@@ -61,6 +61,10 @@ func ensureFrontendInLoadBalancer(ctx context.Context, lb LoadBalancer, frontend
 		return createdFrontend, nil
 	}
 
+	//if existingFrontend.DefaultBackend.Identifier != string(lb.State.BackendID) {
+	//
+	//}
+
 	return FrontendID(existingFrontend.Identifier), nil
 }
 
