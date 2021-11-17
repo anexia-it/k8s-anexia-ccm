@@ -8,6 +8,14 @@ import (
 	"github.com/go-logr/logr"
 )
 
+const (
+	StatusNoServersAssigned       = "load balancer has no backend servers assigned"
+	StatusBackendMissing          = "load balancer backend is not present"
+	StatusFrontendMissing         = "load balancer frontend is not present"
+	SatusBindMissing              = "load balancer frontend bind is not present"
+	StatusSuccessfullyProvisioned = "load balancer successfully provisioned"
+)
+
 var (
 	InvalidGroupError = errors.New("group has not been initialised correctly")
 )
@@ -112,12 +120,31 @@ func (g LoadBalancer) EnsureLBDeleted(ctx context.Context, lbName string) error 
 	return nil
 }
 
-func deleteBackendFromLB(ctx context.Context, g LoadBalancer, name string) error {
-	backend := findBackendInLB(ctx, g, name)
+func (g LoadBalancer) GetProvisioningState(ctx context.Context, lbName string) (bool, string) {
+	backend := findBackendInLB(ctx, g, lbName)
 	if backend == nil {
-		return nil
+		return false, StatusBackendMissing
 	}
-	return g.Backend().DeleteByID(ctx, backend.Identifier)
+	g.State.BackendID = BackendID(backend.Identifier)
+
+	frontend := findFrontendInLB(ctx, g, lbName)
+	if frontend == nil {
+		return false, StatusFrontendMissing
+	}
+	g.State.FrontendID = FrontendID(frontend.Identifier)
+
+	bind := findFrontendBindInLoadBalancer(ctx, g, lbName)
+	if bind == nil {
+		return false, SatusBindMissing
+	}
+	g.State.BindID = BindID(bind.Identifier)
+
+	servers := findServersByBackendInLB(ctx, g, lbName, "")
+	if len(servers) == 0 {
+		return false, StatusNoServersAssigned
+	}
+
+	return true, StatusSuccessfullyProvisioned
 }
 
 // HostInformation holds the information about a host.

@@ -30,7 +30,46 @@ func TestIntegrationTestLB(t *testing.T) {
 	manager := loadBalancerManager{provider}
 	ctx := context.Background()
 
-	balancer, err := manager.EnsureLoadBalancer(ctx, clusterName, &v1.Service{
+	t.Run("Create loadbalancer", func(t *testing.T) {
+		balancer, err := manager.EnsureLoadBalancer(ctx, clusterName, &v1.Service{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "TestService",
+				Namespace: "default",
+			},
+			Spec: v1.ServiceSpec{
+				Ports: []v1.ServicePort{{
+					Protocol:   "TCP",
+					Port:       8080,
+					TargetPort: intstr.IntOrString{IntVal: 5},
+					NodePort:   5000,
+				}},
+			},
+		}, []*v1.Node{
+			{
+				Status: v1.NodeStatus{
+					Addresses: []v1.NodeAddress{
+						{
+							Type:    "ExternalIP",
+							Address: "8.8.8.8",
+						},
+					},
+				},
+			},
+		})
+		require.NoError(t, err)
+		require.NotNil(t, balancer)
+	})
+
+	t.Run("EnsureLB exists", func(t *testing.T) {
+		state, isPresent, err := manager.GetLoadBalancer(ctx, clusterName, getTestService())
+		require.NoError(t, err)
+		require.NotNil(t, state)
+		require.True(t, isPresent)
+	})
+}
+
+func getTestService() *v1.Service {
+	return &v1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "TestService",
 			Namespace: "default",
@@ -43,29 +82,5 @@ func TestIntegrationTestLB(t *testing.T) {
 				NodePort:   5000,
 			}},
 		},
-	}, []*v1.Node{
-		{
-			Status: v1.NodeStatus{
-				Addresses: []v1.NodeAddress{
-					{
-						Type:    "ExternalIP",
-						Address: "8.8.8.8",
-					},
-				},
-			},
-		},
-		//{
-		//	Status: v1.NodeStatus{
-		//		Addresses: []v1.NodeAddress{
-		//			{
-		//				Type:    "ExternalIP",
-		//				Address: "9.9.9.9",
-		//			},
-		//		},
-		//	},
-		//},
-	})
-
-	require.NoError(t, err)
-	require.NotNil(t, balancer)
+	}
 }

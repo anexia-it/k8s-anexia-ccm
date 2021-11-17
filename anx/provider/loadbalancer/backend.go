@@ -57,3 +57,11 @@ func createBackendForLB(ctx context.Context, lb LoadBalancer, backendName string
 	lb.Logger.Info("configured backend for loadbalancer", "name", backendName, "resource", "backend")
 	return BackendID(createdBackend.Identifier), nil
 }
+
+func deleteBackendFromLB(ctx context.Context, g LoadBalancer, name string) error {
+	backend := findBackendInLB(ctx, g, name)
+	if backend == nil {
+		return nil
+	}
+	return g.Backend().DeleteByID(ctx, backend.Identifier)
+}

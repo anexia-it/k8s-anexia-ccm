@@ -15,13 +15,32 @@ type loadBalancerManager struct {
 
 func (l loadBalancerManager) GetLoadBalancer(ctx context.Context, clusterName string,
 	service *v1.Service) (*v1.LoadBalancerStatus, bool, error) {
-	status := service.Status.LoadBalancer
-	if len(status.Ingress) == 0 {
-		return nil, false, nil
+	ctx, err := prepareContext(ctx, l)
+	if err != nil {
+		return nil, false, err
 	}
 
-	//TODO implement correctly
-	return nil, false, nil
+	lbGroup := getLBFromContext(ctx)
+	lbName := l.GetLoadBalancerName(ctx, clusterName, service)
+
+	overallState := true
+	portStatus := make([]v1.PortStatus, len(service.Spec.Ports))
+	for i, svcPort := range service.Spec.Ports {
+		portStatus[i].Port = svcPort.Port
+		portStatus[i].Protocol = svcPort.Protocol
+
+		// the lb name consists of the load balancer name and port
+		lbFullName := fmt.Sprintf("%s.%s", strconv.Itoa(int(svcPort.Port)), lbName)
+		isPresent, statusMessage := lbGroup.GetProvisioningState(ctx, lbFullName)
+		overallState = overallState && isPresent
+
+		if !isPresent {
+			portStatus[i].Error = &statusMessage
+		}
+	}
+
+	status, err := assembleLBStatus(ctx, lbGroup, portStatus)
+	return status, overallState, err
 }
 
 func (l loadBalancerManager) GetLoadBalancerName(ctx context.Context, clusterName string, service *v1.Service) string {
@@ -56,6 +75,15 @@ func (l loadBalancerManager) EnsureLoadBalancer(ctx context.Context, clusterName
 		}
 	}
 
+	status, err := assembleLBStatus(ctx, lbGroup, portStatus)
+	if err != nil {
+		return status, err
+	}
+
+	return status, nil
+}
+
+func assembleLBStatus(ctx context.Context, lbGroup *loadbalancer.LoadBalancer, portStatus []v1.PortStatus) (*v1.LoadBalancerStatus, error) {
 	hostInformation, err := lbGroup.GetHostInformation(ctx)
 	if err != nil {
 		return nil, err
@@ -70,9 +98,7 @@ func (l loadBalancerManager) EnsureLoadBalancer(ctx context.Context, clusterName
 			},
 		},
 	}
-
 	return status, nil
-
 }
 
 func (l loadBalancerManager) UpdateLoadBalancer(ctx context.Context, clusterName string, service *v1.Service, nodes []*v1.Node) error {
