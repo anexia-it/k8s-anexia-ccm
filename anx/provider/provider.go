@@ -68,9 +68,10 @@ func autoDiscoverLoadBalancer(a *anxProvider, stop <-chan struct{}) (string, err
 		}
 	}()
 
+	tag := fmt.Sprintf("%s-%s", a.Config().AutoDiscoveryTagPrefix, a.Config().ClusterName)
 	var pageIter types.PageInfo
 	err = newAPI.List(ctx, &resource.Info{
-		Tags: []string{a.Config().ClusterName},
+		Tags: []string{tag},
 	}, api.Paged(1, 1, &pageIter))
 
 	var infos []resource.Info
