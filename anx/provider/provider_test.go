@@ -3,6 +3,7 @@ package provider
 import (
 	"bytes"
 	"fmt"
+	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/configuration"
 	"github.com/stretchr/testify/require"
 	cloudprovider "k8s.io/cloud-provider"
 	"os"
@@ -10,9 +11,9 @@ import (
 )
 
 func TestNewProvider(t *testing.T) {
-	provider, err := newAnxProvider(providerConfig{
-		"RANDOME_VALUE",
-		"CUSTOMER",
+	provider, err := newAnxProvider(configuration.ProviderConfig{
+		Token:      "RANDOME_VALUE",
+		CustomerID: "CUSTOMER",
 	})
 	require.NoError(t, err)
 	require.NotNil(t, provider)
@@ -32,16 +33,16 @@ func TestNewProvider(t *testing.T) {
 	require.Nil(t, zones)
 	require.Nil(t, routes)
 	require.Nil(t, clusters)
-	require.Nil(t, loadbalancer)
+	require.NotNil(t, loadbalancer)
 	require.False(t, instancesEnabled)
 	require.True(t, instancesV2Enabled)
 	require.False(t, zonesEnabled)
 	require.False(t, routesEnabled)
 	require.True(t, hasClusterID)
 	require.False(t, clustersEnabled)
-	require.False(t, loadbalancerEnabled)
+	require.True(t, loadbalancerEnabled)
 
-	require.Equal(t, cloudProviderName, providerName)
+	require.Equal(t, configuration.CloudProviderName, providerName)
 	require.IsType(t, instanceManager{}, instancesV2)
 	manager := instancesV2.(instanceManager)
 	require.Equal(t, provider, manager.Provider)
@@ -64,14 +65,14 @@ func TestRegisterCloudProvider(t *testing.T) {
 
 func TestProviderScheme(t *testing.T) {
 	t.Parallel()
-	require.Equal(t, fmt.Sprintf("%s://", cloudProviderName), cloudProviderScheme)
+	require.Equal(t, fmt.Sprintf("%s://", configuration.CloudProviderName), configuration.CloudProviderScheme)
 }
 
 func TestProviderConfig(t *testing.T) {
 	t.Parallel()
-	provider, err := newAnxProvider(providerConfig{
-		"5555",
-		"5555",
+	provider, err := newAnxProvider(configuration.ProviderConfig{
+		Token:      "5555",
+		CustomerID: "5555",
 	})
 	require.NoError(t, err)
 
