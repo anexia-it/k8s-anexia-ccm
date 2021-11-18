@@ -5,6 +5,7 @@ import (
 	"errors"
 	fmt "fmt"
 	"github.com/anexia-it/go-anxcloud/pkg/lbaas"
+	"github.com/anexia-it/go-anxcloud/pkg/lbaas/server"
 	"github.com/go-logr/logr"
 )
 
@@ -87,6 +88,41 @@ func (g LoadBalancer) EnsureLBConfig(ctx context.Context, lbName string, endpoin
 			return wrapErr(err)
 		}
 	}
+	servers := findServersByBackendInLB(ctx, g, lbName, "")
+	if len(servers) == len(endpoints) {
+		return nil
+	}
+
+	err = cleanupOldServers(ctx, g, lbName, endpoints, servers)
+	if err != nil {
+		return wrapErr(err)
+	}
+
+	return nil
+}
+
+func cleanupOldServers(ctx context.Context, g LoadBalancer, lbName string,
+	wantedEndpoints []NodeEndpoint, exisitngServers []*server.Server) error {
+	for _, server := range exisitngServers {
+		var found bool
+		for _, endpoint := range wantedEndpoints {
+			if server.Name == getServerName(lbName, endpoint) {
+				found = true
+				break
+			}
+		}
+
+		// when server was found we continue with next server
+		if found {
+			continue
+		}
+
+		// server was not found so we remove it
+		err := g.Server().DeleteByID(ctx, server.Identifier)
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
 }
@@ -95,28 +131,39 @@ func (g LoadBalancer) EnsureLBDeleted(ctx context.Context, lbName string) error 
 
 	wrapErr := func(err error) error { return fmt.Errorf("unable to delete loadbalancer: %w", err) }
 
-	// delete frontend bind
-	err := ensureFrontendBindDeleted(ctx, g, lbName)
-	if err != nil {
-		return err
-	}
-	// delete frontend
-	err = ensureFrontendDeleted(ctx, g, lbName)
-	if err != nil {
-		return wrapErr(err)
+	// check if we have a frontend if yes delete it and all related to it
+	frontend := findFrontendInLB(ctx, g, lbName)
+	if frontend != nil {
+		g.State.FrontendID = FrontendID(frontend.Identifier)
+		// delete frontend bind
+		err := ensureFrontendBindDeleted(ctx, g, lbName)
+		if err != nil {
+			return wrapErr(err)
+		}
+
+		// delete frontend
+		err = ensureFrontendDeleted(ctx, g, lbName)
+		if err != nil {
+			return wrapErr(err)
+		}
 	}
 
-	// delete all servers from backend
-	err = deleteServersFromBackendInLB(ctx, g, lbName)
-	if err != nil {
-		return wrapErr(err)
-	}
-	// delete backend
-	err = deleteBackendFromLB(ctx, g, lbName)
-	if err != nil {
-		return wrapErr(err)
-	}
+	// check if we have a backend and if yes delete it and all resources related to it
+	backend := findBackendInLB(ctx, g, lbName)
+	if backend != nil {
+		g.State.BackendID = BackendID(backend.Identifier)
+		// delete all servers beforehand
+		err := deleteServersFromBackendInLB(ctx, g, lbName)
+		if err != nil {
+			return wrapErr(err)
+		}
 
+		// delete backend
+		err = deleteBackendFromLB(ctx, g, lbName)
+		if err != nil {
+			return wrapErr(err)
+		}
+	}
 	return nil
 }
 

@@ -121,16 +121,24 @@ func (l loadBalancerManager) UpdateLoadBalancer(ctx context.Context, clusterName
 	return nil
 }
 
-func (l loadBalancerManager) EnsureLoadBalancerDeleted(ctx context.Context, clusterName string, service *v1.Service) error {
+func (l loadBalancerManager) EnsureLoadBalancerDeleted(ctx context.Context, clusterName string,
+	service *v1.Service) error {
 	ctx, err := prepareContext(ctx, l)
 	if err != nil {
 		return err
 	}
 
 	lb := getLBFromContext(ctx)
-	name := l.GetLoadBalancerName(ctx, clusterName, service)
-	return lb.EnsureLBDeleted(ctx, name)
+	lbName := l.GetLoadBalancerName(ctx, clusterName, service)
+	for _, svcPort := range service.Spec.Ports {
+		lbPortName := fmt.Sprintf("%s.%s", strconv.Itoa(int(svcPort.Port)), lbName)
+		err := lb.EnsureLBDeleted(ctx, lbPortName)
+		if err != nil {
+			return err
+		}
+	}
 
+	return lb.EnsureLBDeleted(ctx, lbName)
 }
 
 type lbManagerContextKey struct{}

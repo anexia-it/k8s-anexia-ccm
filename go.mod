@@ -104,4 +104,4 @@ require (
 	sigs.k8s.io/yaml v1.2.0 // indirect
 )
 
-replace github.com/anexia-it/go-anxcloud => github.com/anexia-it/go-anxcloud v0.3.29-0.20211117192111-4145a357a32b
+replace github.com/anexia-it/go-anxcloud => github.com/anexia-it/go-anxcloud v0.3.29-0.20211118122951-84f0ef05bdb3

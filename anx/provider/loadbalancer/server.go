@@ -85,7 +85,7 @@ func findServersByBackendInLB(ctx context.Context, lb LoadBalancer, lbName, suff
 }
 
 func deleteServersFromBackendInLB(ctx context.Context, g LoadBalancer, name string) error {
-	servers := findServersByBackendInLB(ctx, g, name, name)
+	servers := findServersByBackendInLB(ctx, g, name, "")
 	for _, server := range servers {
 		return g.Server().DeleteByID(ctx, server.Identifier)
 	}
