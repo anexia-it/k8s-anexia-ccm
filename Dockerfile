@@ -5,9 +5,9 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 go build -o ccm -ldflags '-s -w'
 
-FROM alpine:3.14
+FROM alpine:3.15
 EXPOSE 8080
-RUN apk --no-cache add ca-certificates=20191127-r5
+RUN apk --no-cache add ca-certificates=20211220-r0
 WORKDIR /app/
 COPY --from=builder /go/src/github.com/github.com/anexia-it/anxcloud-cloud-controller-manager/ccm .
 CMD ["/app/ccm", "--cloud-provider=anx"]
