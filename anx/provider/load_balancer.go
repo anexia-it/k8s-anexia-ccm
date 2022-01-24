@@ -112,7 +112,7 @@ func (l loadBalancerManager) UpdateLoadBalancer(ctx context.Context, clusterName
 	lbName := l.GetLoadBalancerName(ctx, clusterName, service)
 	for _, svcPort := range service.Spec.Ports {
 		// first we make sure that the base configuration for the lb exists
-		lbPortName := fmt.Sprintf("%s-%s", lbName, strconv.Itoa(int(svcPort.Port)))
+		lbPortName := fmt.Sprintf("%s.%s", strconv.Itoa(int(svcPort.Port)), lbName)
 		err = lbGroup.EnsureLBConfig(ctx, lbPortName, getNodeEndpoints(nodes, svcPort.NodePort))
 		if err != nil {
 			return err
