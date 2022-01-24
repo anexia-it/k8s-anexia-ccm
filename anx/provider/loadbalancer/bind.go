@@ -55,7 +55,9 @@ func ensureFrontendBindInLoadBalancer(ctx context.Context, lb LoadBalancer, bind
 
 	if existingBind.Frontend.Identifier == string(lb.State.FrontendID) {
 		lb.Logger.Info("frontend changed", "name", bindName, "resource", "bind")
-		updatedBind, err := lb.Bind().Update(ctx, existingBind.Identifier, getBindDefinition(bindName, lb.State))
+		definition := getBindDefinition(bindName, lb.State)
+		definition.State = common.Updating
+		updatedBind, err := lb.Bind().Update(ctx, existingBind.Identifier, definition)
 		return BindID(updatedBind.Identifier), err
 	}
 
