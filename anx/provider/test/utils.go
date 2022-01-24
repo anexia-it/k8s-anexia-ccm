@@ -4,28 +4,28 @@ import (
 	"fmt"
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/configuration"
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/mocks"
-	"github.com/anexia-it/go-anxcloud/pkg/clouddns"
-	"github.com/anexia-it/go-anxcloud/pkg/ipam"
-	"github.com/anexia-it/go-anxcloud/pkg/lbaas"
-	"github.com/anexia-it/go-anxcloud/pkg/test"
-	"github.com/anexia-it/go-anxcloud/pkg/vlan"
-	"github.com/anexia-it/go-anxcloud/pkg/vsphere"
+	"go.anx.io/go-anxcloud/pkg/clouddns"
+	"go.anx.io/go-anxcloud/pkg/ipam"
+	"go.anx.io/go-anxcloud/pkg/lbaas"
+	"go.anx.io/go-anxcloud/pkg/test"
+	"go.anx.io/go-anxcloud/pkg/vlan"
+	"go.anx.io/go-anxcloud/pkg/vsphere"
 	v1 "k8s.io/api/core/v1"
 )
 
-//go:generate mockery --srcpkg github.com/anexia-it/go-anxcloud/pkg --name API --structname API --filename api.go --output ../mocks
-//go:generate mockery --srcpkg github.com/anexia-it/go-anxcloud/pkg/vsphere/powercontrol --name API --structname PowerControl --filename powercontrol.go --output ../mocks
-//go:generate mockery --srcpkg github.com/anexia-it/go-anxcloud/pkg/clouddns --name API --structname CloudDNS --filename clouddns.go --output ../mocks
-//go:generate mockery --srcpkg github.com/anexia-it/go-anxcloud/pkg/vsphere --name API --structname VSphere --filename vsphere.go --output ../mocks
-//go:generate mockery --srcpkg github.com/anexia-it/go-anxcloud/pkg/vsphere/search --name API --structname Search --filename search.go --output ../mocks
-//go:generate mockery --srcpkg github.com/anexia-it/go-anxcloud/pkg/vsphere/info --name API --structname Info --filename info.go --output ../mocks
-//go:generate mockery --srcpkg github.com/anexia-it/go-anxcloud/pkg/vsphere/vmlist --name API --structname VMList --filename vmlist.go --output ../mocks
-//go:generate mockery --srcpkg github.com/anexia-it/go-anxcloud/pkg/lbaas/ --name API --structname LBaaS --filename lbaas.go --output ../mocks
-//go:generate mockery --srcpkg github.com/anexia-it/go-anxcloud/pkg/lbaas/frontend --name API --structname Frontend --filename frontend.go --output ../mocks
-//go:generate mockery --srcpkg github.com/anexia-it/go-anxcloud/pkg/lbaas/backend --name API --structname Backend --filename backend.go --output ../mocks
-//go:generate mockery --srcpkg github.com/anexia-it/go-anxcloud/pkg/lbaas/bind --name API --structname Bind --filename bind.go --output ../mocks
-//go:generate mockery --srcpkg github.com/anexia-it/go-anxcloud/pkg/lbaas/server --name API --structname Server --filename server.go --output ../mocks
-//go:generate mockery --srcpkg github.com/anexia-it/go-anxcloud/pkg/lbaas/loadbalancer --name API --structname LoadBalancer --filename loadbalancer.go --output ../mocks
+//go:generate mockery --srcpkg go.anx.io/go-anxcloud/pkg --name API --structname API --filename api.go --output ../mocks
+//go:generate mockery --srcpkg go.anx.io/go-anxcloud/pkg/vsphere/powercontrol --name API --structname PowerControl --filename powercontrol.go --output ../mocks
+//go:generate mockery --srcpkg go.anx.io/go-anxcloud/pkg/clouddns --name API --structname CloudDNS --filename clouddns.go --output ../mocks
+//go:generate mockery --srcpkg go.anx.io/go-anxcloud/pkg/vsphere --name API --structname VSphere --filename vsphere.go --output ../mocks
+//go:generate mockery --srcpkg go.anx.io/go-anxcloud/pkg/vsphere/search --name API --structname Search --filename search.go --output ../mocks
+//go:generate mockery --srcpkg go.anx.io/go-anxcloud/pkg/vsphere/info --name API --structname Info --filename info.go --output ../mocks
+//go:generate mockery --srcpkg go.anx.io/go-anxcloud/pkg/vsphere/vmlist --name API --structname VMList --filename vmlist.go --output ../mocks
+//go:generate mockery --srcpkg go.anx.io/go-anxcloud/pkg/lbaas/ --name API --structname LBaaS --filename lbaas.go --output ../mocks
+//go:generate mockery --srcpkg go.anx.io/go-anxcloud/pkg/lbaas/frontend --name API --structname Frontend --filename frontend.go --output ../mocks
+//go:generate mockery --srcpkg go.anx.io/go-anxcloud/pkg/lbaas/backend --name API --structname Backend --filename backend.go --output ../mocks
+//go:generate mockery --srcpkg go.anx.io/go-anxcloud/pkg/lbaas/bind --name API --structname Bind --filename bind.go --output ../mocks
+//go:generate mockery --srcpkg go.anx.io/go-anxcloud/pkg/lbaas/server --name API --structname Server --filename server.go --output ../mocks
+//go:generate mockery --srcpkg go.anx.io/go-anxcloud/pkg/lbaas/loadbalancer --name API --structname LoadBalancer --filename loadbalancer.go --output ../mocks
 
 type MockedProvider struct {
 	ApiMock          *mocks.API

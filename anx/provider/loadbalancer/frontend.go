@@ -2,10 +2,10 @@ package loadbalancer
 
 import (
 	"context"
-	"github.com/anexia-it/go-anxcloud/pkg/lbaas/common"
-	"github.com/anexia-it/go-anxcloud/pkg/lbaas/frontend"
-	"github.com/anexia-it/go-anxcloud/pkg/pagination"
-	"github.com/anexia-it/go-anxcloud/pkg/utils/param"
+	"go.anx.io/go-anxcloud/pkg/lbaas/common"
+	"go.anx.io/go-anxcloud/pkg/lbaas/frontend"
+	"go.anx.io/go-anxcloud/pkg/pagination"
+	"go.anx.io/go-anxcloud/pkg/utils/param"
 )
 
 var SearchParameter = param.ParameterBuilder("search")

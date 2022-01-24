@@ -5,9 +5,9 @@ package provider
 import (
 	"context"
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/configuration"
-	"github.com/anexia-it/go-anxcloud/pkg"
-	"github.com/anexia-it/go-anxcloud/pkg/client"
 	"github.com/stretchr/testify/require"
+	"go.anx.io/go-anxcloud/pkg"
+	"go.anx.io/go-anxcloud/pkg/client"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"

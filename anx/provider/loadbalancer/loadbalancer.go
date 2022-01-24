@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	fmt "fmt"
-	"github.com/anexia-it/go-anxcloud/pkg/lbaas"
-	"github.com/anexia-it/go-anxcloud/pkg/lbaas/server"
 	"github.com/go-logr/logr"
+	"go.anx.io/go-anxcloud/pkg/lbaas"
+	"go.anx.io/go-anxcloud/pkg/lbaas/server"
 )
 
 const (

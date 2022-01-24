@@ -3,14 +3,14 @@ package loadbalancer
 import (
 	"context"
 	tUtils "github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/test"
-	"github.com/anexia-it/go-anxcloud/pkg/lbaas/backend"
-	"github.com/anexia-it/go-anxcloud/pkg/lbaas/bind"
-	"github.com/anexia-it/go-anxcloud/pkg/lbaas/frontend"
-	"github.com/anexia-it/go-anxcloud/pkg/lbaas/loadbalancer"
-	"github.com/anexia-it/go-anxcloud/pkg/lbaas/server"
 	"github.com/go-logr/logr"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"go.anx.io/go-anxcloud/pkg/lbaas/backend"
+	"go.anx.io/go-anxcloud/pkg/lbaas/bind"
+	"go.anx.io/go-anxcloud/pkg/lbaas/frontend"
+	"go.anx.io/go-anxcloud/pkg/lbaas/loadbalancer"
+	"go.anx.io/go-anxcloud/pkg/lbaas/server"
 	"testing"
 )
 
@@ -67,11 +67,11 @@ func mockCreateFrontend(identifier string) func(ctx context.Context, definition 
 			ResellerIdentifier: "reseller-identifier",
 			Identifier:         identifier,
 			Name:               definition.Name,
-			LoadBalancer: &loadbalancer.LoadBalancerInfo{
+			LoadBalancer: &loadbalancer.Loadbalancer{
 				Identifier: definition.LoadBalancer,
 				Name:       "Bruce Wayne",
 			},
-			DefaultBackend: &backend.BackendInfo{
+			DefaultBackend: &backend.Backend{
 				Identifier: definition.DefaultBackend,
 				Name:       definition.Name,
 			},
@@ -88,7 +88,7 @@ func mockBackendCreate(identifier string) func(ctx context.Context, definition b
 			ResellerIdentifier: "reseller-identifier",
 			Identifier:         identifier,
 			Name:               definition.Name,
-			LoadBalancer: loadbalancer.LoadBalancerInfo{
+			LoadBalancer: loadbalancer.Loadbalancer{
 				Identifier: string(definition.LoadBalancer),
 				Name:       "Bruce Wayne",
 			},
@@ -106,7 +106,7 @@ func mockBindCreate(identifier string) func(ctx context.Context, definition bind
 			ResellerIdentifier: "reseller-identifier",
 			Identifier:         identifier,
 			Name:               definition.Name,
-			Frontend: frontend.FrontendInfo{
+			Frontend: frontend.Frontend{
 				Identifier: definition.Frontend,
 				Name:       definition.Name,
 			},
@@ -127,7 +127,7 @@ func mockServerCreate(identifier string) func(ctx context.Context, definition se
 			Name:               definition.Name,
 			IP:                 definition.IP,
 			Port:               definition.Port,
-			Backend: backend.BackendInfo{
+			Backend: backend.Backend{
 				Identifier: definition.Backend,
 				Name:       definition.Name,
 			},
