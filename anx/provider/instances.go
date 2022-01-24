@@ -135,7 +135,6 @@ func (i instanceManager) GetNodeResolver() resolve.NodeResolver {
 			UseCache: true,
 		}
 	}
-
 }
 
 func instanceType(info vminfo.Info) string {

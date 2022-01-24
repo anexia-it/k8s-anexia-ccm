@@ -1,6 +1,10 @@
 package main
 
 import (
+	"context"
+	"github.com/go-logr/logr"
+	"k8s.io/component-base/config"
+	"k8s.io/klog/v2/klogr"
 	"math/rand"
 	"os"
 	"time"
@@ -26,6 +30,10 @@ func main() {
 	pflag.CommandLine.SetNormalizeFunc(cliflag.WordSepNormalizeFunc)
 
 	ccmOptions, err := options.NewCloudControllerManagerOptions()
+	if _, isSet := os.LookupEnv("DEBUG_DISABLE_LEADER_ELECTION"); isSet {
+		ccmOptions.Generic.LeaderElection = config.LeaderElectionConfiguration{LeaderElect: false}
+	}
+
 	ccmOptions.SecureServing.BindPort = 8080
 	if err != nil {
 		klog.Fatalf("unable to initialize command options: %v", err)
@@ -38,7 +46,8 @@ func main() {
 	logs.InitLogs()
 	defer logs.FlushLogs()
 
-	if err := command.Execute(); err != nil {
+	cmdContext := logr.NewContext(context.Background(), klogr.New())
+	if err := command.ExecuteContext(cmdContext); err != nil {
 		os.Exit(1)
 	}
 }

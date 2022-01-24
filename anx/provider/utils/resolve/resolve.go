@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/anexia-it/go-anxcloud/pkg"
+	"github.com/go-logr/logr"
 	"strings"
 )
 
@@ -60,6 +61,7 @@ func (receiver *AutomaticResolver) Resolve(ctx context.Context, name string) (st
 		receiver.customerPrefix = nameParts[0]
 	}
 
+	logr.FromContextOrDiscard(ctx).Info("Setting up NodeResolver", "customerPrefix", receiver.customerPrefix)
 	return CustomerPrefixResolver{
 		API:            receiver,
 		CustomerPrefix: receiver.customerPrefix,

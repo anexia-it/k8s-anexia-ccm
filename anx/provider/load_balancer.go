@@ -6,6 +6,7 @@ import (
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/loadbalancer"
 	"github.com/go-logr/logr"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/klog/v2/klogr"
 	"strconv"
 )
 
@@ -149,7 +150,12 @@ func prepareContext(ctx context.Context, l loadBalancerManager) (context.Context
 		return ctx, nil
 	}
 
-	logger := logr.FromContextOrDiscard(ctx)
+	logger, err := logr.FromContext(ctx)
+	if err != nil {
+		// logger is not set but we definitely need one
+		logger = klogr.New()
+		ctx = logr.NewContext(ctx, logger)
+	}
 	identifier := l.Config().LoadBalancerIdentifier
 
 	group := loadbalancer.NewLoadBalancer(l.LBaaS(),
