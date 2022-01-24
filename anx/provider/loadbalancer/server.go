@@ -5,9 +5,9 @@ import (
 	"crypto/md5"
 	"errors"
 	"fmt"
-	"github.com/anexia-it/go-anxcloud/pkg/lbaas/common"
-	"github.com/anexia-it/go-anxcloud/pkg/lbaas/server"
-	"github.com/anexia-it/go-anxcloud/pkg/pagination"
+	"go.anx.io/go-anxcloud/pkg/lbaas/common"
+	"go.anx.io/go-anxcloud/pkg/lbaas/server"
+	"go.anx.io/go-anxcloud/pkg/pagination"
 )
 
 func ensureBackendServerInLoadBalancer(ctx context.Context, lb LoadBalancer,

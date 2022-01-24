@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/anexia-it/go-anxcloud/pkg"
 	"github.com/go-logr/logr"
+	"go.anx.io/go-anxcloud/pkg"
 	"strings"
 )
 

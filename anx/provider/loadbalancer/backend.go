@@ -2,9 +2,9 @@ package loadbalancer
 
 import (
 	"context"
-	"github.com/anexia-it/go-anxcloud/pkg/lbaas/backend"
-	"github.com/anexia-it/go-anxcloud/pkg/lbaas/common"
-	"github.com/anexia-it/go-anxcloud/pkg/pagination"
+	"go.anx.io/go-anxcloud/pkg/lbaas/backend"
+	"go.anx.io/go-anxcloud/pkg/lbaas/common"
+	"go.anx.io/go-anxcloud/pkg/pagination"
 )
 
 func ensureBackendInLoadBalancer(ctx context.Context, lb LoadBalancer,
