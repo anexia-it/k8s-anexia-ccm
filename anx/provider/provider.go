@@ -13,6 +13,7 @@ import (
 	"io"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog/v2"
+	"k8s.io/klog/v2/klogr"
 	"time"
 )
 
@@ -40,7 +41,7 @@ func newAnxProvider(config configuration.ProviderConfig) (*anxProvider, error) {
 	}, nil
 }
 
-func (a *anxProvider) Initialize(clientBuilder cloudprovider.ControllerClientBuilder, stop <-chan struct{}) {
+func (a *anxProvider) Initialize(builder cloudprovider.ControllerClientBuilder, stop <-chan struct{}) {
 	a.instanceManager = instanceManager{a}
 	if a.Config().AutoDiscoverLoadBalancer {
 		balancer, err := autoDiscoverLoadBalancer(a, stop)
@@ -54,7 +55,7 @@ func (a *anxProvider) Initialize(clientBuilder cloudprovider.ControllerClientBui
 }
 
 func autoDiscoverLoadBalancer(a *anxProvider, stop <-chan struct{}) (string, error) {
-	newAPI, err := api.NewAPI(api.WithClientOptions(anxClient.TokenFromString(a.Config().Token)))
+	newAPI, err := api.NewAPI(api.WithClientOptions(anxClient.Logger(klogr.New()), anxClient.TokenFromString(a.Config().Token)))
 	if err != nil {
 		return "", err
 	}
@@ -73,6 +74,10 @@ func autoDiscoverLoadBalancer(a *anxProvider, stop <-chan struct{}) (string, err
 	err = newAPI.List(ctx, &resource.Info{
 		Tags: []string{tag},
 	}, api.Paged(1, 1, &pageIter))
+
+	if err != nil {
+		return "", fmt.Errorf("unable to autodisover load balancer by tag '%s': %w", tag, err)
+	}
 
 	var infos []resource.Info
 	pageIter.Next(&infos)

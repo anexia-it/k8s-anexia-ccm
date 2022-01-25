@@ -5,6 +5,7 @@ import (
 	"github.com/kelseyhightower/envconfig"
 	"gopkg.in/yaml.v3"
 	"io"
+	"k8s.io/cloud-provider/options"
 )
 
 type ProviderConfig struct {
@@ -19,6 +20,19 @@ type ProviderConfig struct {
 const (
 	CloudProviderName = "anexia"
 )
+
+// managerOptions is used to capture the configuration values that are added via cmd flags
+var managerOptions *options.CloudControllerManagerOptions
+
+func GetManagerOptions() (*options.CloudControllerManagerOptions, error) {
+	if managerOptions != nil {
+		return managerOptions, nil
+	}
+
+	var err error
+	managerOptions, err = options.NewCloudControllerManagerOptions()
+	return managerOptions, err
+}
 
 var (
 	CloudProviderScheme = fmt.Sprintf("%s://", CloudProviderName)
@@ -36,9 +50,28 @@ func NewProviderConfig(configReader io.Reader) (ProviderConfig, error) {
 			return ProviderConfig{}, err
 		}
 	}
+
 	err := envconfig.Process("ANEXIA", &providerConfig)
 	if err != nil {
 		return ProviderConfig{}, err
 	}
-	return providerConfig, nil
+
+	err = applyCliFlagsToProviderConfig(&providerConfig)
+
+	return providerConfig, err
+}
+
+func applyCliFlagsToProviderConfig(providerConfig *ProviderConfig) error {
+	managerOptions, err := GetManagerOptions()
+	if err != nil {
+		return err
+	}
+	sharedConfigClusterName := managerOptions.KubeCloudShared.ClusterName
+
+	// kubernetes is a fallback name we don't want to use
+	if sharedConfigClusterName != "kubernetes" {
+		providerConfig.ClusterName = sharedConfigClusterName
+	}
+
+	return nil
 }
