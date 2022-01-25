@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/configuration"
 	"github.com/go-logr/logr"
 	"k8s.io/component-base/config"
 	"k8s.io/klog/v2/klogr"
@@ -16,7 +17,6 @@ import (
 	"k8s.io/cloud-provider"
 	"k8s.io/cloud-provider/app"
 	cloudcontrollerconfig "k8s.io/cloud-provider/app/config"
-	"k8s.io/cloud-provider/options"
 	cliflag "k8s.io/component-base/cli/flag"
 	"k8s.io/component-base/logs"
 	_ "k8s.io/component-base/metrics/prometheus/clientgo" // load all the prometheus client-go plugins
@@ -29,7 +29,7 @@ func main() {
 
 	pflag.CommandLine.SetNormalizeFunc(cliflag.WordSepNormalizeFunc)
 
-	ccmOptions, err := options.NewCloudControllerManagerOptions()
+	ccmOptions, err := configuration.GetManagerOptions()
 	if _, isSet := os.LookupEnv("DEBUG_DISABLE_LEADER_ELECTION"); isSet {
 		ccmOptions.Generic.LeaderElection = config.LeaderElectionConfiguration{LeaderElect: false}
 	}
@@ -45,7 +45,6 @@ func main() {
 
 	logs.InitLogs()
 	defer logs.FlushLogs()
-
 	cmdContext := logr.NewContext(context.Background(), klogr.New())
 	if err := command.ExecuteContext(cmdContext); err != nil {
 		os.Exit(1)
