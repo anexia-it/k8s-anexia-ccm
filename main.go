@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/controller"
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/configuration"
 	"github.com/go-logr/logr"
 	"k8s.io/component-base/config"
@@ -38,7 +39,14 @@ func main() {
 	if err != nil {
 		klog.Fatalf("unable to initialize command options: %v", err)
 	}
+
 	controllerInitializers := app.DefaultInitFuncConstructors
+
+	// merge in Anexia controllers
+	for key, constructor := range controller.AnexiaDefaultInitFuncConstructors {
+		controllerInitializers[key] = constructor
+	}
+
 	fss := cliflag.NamedFlagSets{}
 	command := app.NewCloudControllerManagerCommand(ccmOptions, cloudInitializer, controllerInitializers,
 		fss, wait.NeverStop)
