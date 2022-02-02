@@ -106,7 +106,7 @@ func SyncLoadBalancer(ctx context.Context, anxAPI api.API, source, target compon
 
 		boundFrontend := components.FindCorrespondingFrontend(bind.Bind.Frontend.Name, source.Frontends, target.Frontends)
 		if boundFrontend == nil {
-			errors.New("corresponding frontend not found")
+			return errors.New("corresponding frontend not found")
 		}
 		bindClone.Frontend = *boundFrontend.Frontend
 
@@ -122,8 +122,7 @@ func SyncLoadBalancer(ctx context.Context, anxAPI api.API, source, target compon
 		serverClone := *server.Server
 		serverClone.Identifier = ""
 
-		var serverBackend *components.HashedBackend
-		serverBackend = components.GetBackendByName(serverClone.Backend.Name, target.Backends)
+		serverBackend := components.GetBackendByName(serverClone.Backend.Name, target.Backends)
 		if serverBackend == nil {
 			return errors.New("could not find corresponding backend in loadbalancer")
 		}
