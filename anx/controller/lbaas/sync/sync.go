@@ -122,6 +122,7 @@ func (s *syncController) Run(stopChan <-chan struct{}) error {
 			return nil
 		}
 	case _, ok := <-notify:
+		emptyChan(notify)
 		if !ok {
 			return errors.New("unexpected close of notify channel by the LoadBalancerReplicationManager")
 		}
@@ -184,4 +185,10 @@ func (s *syncController) runSync(sourceLB string, targetLBs ...string) (ctrlErro
 	}
 
 	return nil
+}
+
+func emptyChan(notify <-chan struct{}) {
+	for i := 0; i < len(notify); i++ {
+		<-notify
+	}
 }

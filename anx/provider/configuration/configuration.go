@@ -9,12 +9,13 @@ import (
 )
 
 type ProviderConfig struct {
-	Token                    string `yaml:"anexiaToken" split_words:"true"`
-	CustomerID               string `yaml:"customerID,omitempty" split_words:"true"`
-	LoadBalancerIdentifier   string `yaml:"loadBalancerIdentifier,omitempty" split_words:"true"`
-	ClusterName              string `yaml:"clusterName,omitempty" split_words:"true"`
-	AutoDiscoveryTagPrefix   string `yaml:"autoDiscoveryTagPrefix,omitempty" split_words:"true" default:"anxkube-ccm-lb"`
-	AutoDiscoverLoadBalancer bool   `yaml:"autoDiscoverLoadBalancer,omitempty" split_words:"true"`
+	Token                             string   `yaml:"anexiaToken" split_words:"true"`
+	CustomerID                        string   `yaml:"customerID,omitempty" split_words:"true"`
+	LoadBalancerIdentifier            string   `yaml:"loadBalancerIdentifier,omitempty" split_words:"true"`
+	ClusterName                       string   `yaml:"clusterName,omitempty" split_words:"true"`
+	AutoDiscoveryTagPrefix            string   `yaml:"autoDiscoveryTagPrefix,omitempty" split_words:"true" default:"anxkube-ccm-lb"`
+	AutoDiscoverLoadBalancer          bool     `yaml:"autoDiscoverLoadBalancer,omitempty" split_words:"true"`
+	SecondaryLoadBalancersIdentifiers []string `yaml:"secondaryLoadBalancersIdentifiers" split_words:"trues"`
 }
 
 const (
