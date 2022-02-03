@@ -6,12 +6,15 @@ import (
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/loadbalancer"
 	"github.com/go-logr/logr"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/klogr"
 	"strconv"
+	"time"
 )
 
 type loadBalancerManager struct {
 	Provider
+	notify chan struct{}
 }
 
 func (l loadBalancerManager) GetLoadBalancer(ctx context.Context, clusterName string,
@@ -54,6 +57,7 @@ func (l loadBalancerManager) GetLoadBalancerName(ctx context.Context, clusterNam
 
 func (l loadBalancerManager) EnsureLoadBalancer(ctx context.Context, clusterName string, service *v1.Service,
 	nodes []*v1.Node) (*v1.LoadBalancerStatus, error) {
+	defer l.notifyOthers()
 	ctx, err := prepareContext(ctx, l)
 	if err != nil {
 		return nil, fmt.Errorf("could not prepare context: %w", err)
@@ -104,6 +108,7 @@ func assembleLBStatus(ctx context.Context, lbGroup *loadbalancer.LoadBalancer, p
 
 func (l loadBalancerManager) UpdateLoadBalancer(ctx context.Context, clusterName string, service *v1.Service, nodes []*v1.Node) error {
 	ctx, err := prepareContext(ctx, l)
+	defer l.notifyOthers()
 	if err != nil {
 		return fmt.Errorf("could not prepare context: %w", err)
 	}
@@ -199,8 +204,18 @@ func getNodeEndpoints(nodes []*v1.Node, port int32) []loadbalancer.NodeEndpoint 
 			})
 		}
 	}
-
 	return retAddresses
+}
+
+func (l loadBalancerManager) GetIdentifiers() []string {
+	identifiers := make([]string, 0, len(l.Config().SecondaryLoadBalancersIdentifiers)+1)
+	identifiers = append(identifiers, l.Config().LoadBalancerIdentifier)
+	identifiers = append(identifiers, l.Config().SecondaryLoadBalancersIdentifiers...)
+	return identifiers
+}
+
+func (l loadBalancerManager) GetNotifyChannel() <-chan struct{} {
+	return l.notify
 }
 
 func getNodeAddressOfType(node *v1.Node, addressType v1.NodeAddressType) *v1.NodeAddress {
@@ -210,4 +225,17 @@ func getNodeAddressOfType(node *v1.Node, addressType v1.NodeAddressType) *v1.Nod
 		}
 	}
 	return nil
+}
+
+func (l loadBalancerManager) notifyOthers() {
+	go func() {
+		timer := time.NewTimer(30 * time.Second)
+		defer timer.Stop()
+		select {
+		case l.notify <- struct{}{}:
+			klog.V(1).Info("trigger notification")
+		case <-timer.C:
+			klog.V(1).Info("timeout when trying to notify others for changes")
+		}
+	}()
 }
