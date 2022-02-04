@@ -57,8 +57,6 @@ func startSyncController(ctx app.ControllerInitContext, stop <-chan struct{},
 	config *cloudcontrollerconfig.CompletedConfig,
 	cloud cloudprovider.Interface) (controller controller.Interface, enabled bool, err error) {
 
-	return nil, false, nil
-
 	controllerContext := logr.NewContext(context.Background(), klogr.New().WithName(ctx.ClientName))
 
 	replicationProvider, ok := cloud.(LoadBalancerReplicationProvider)
