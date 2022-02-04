@@ -5,8 +5,12 @@ import (
 	"errors"
 	fmt "fmt"
 	"github.com/go-logr/logr"
+	"go.anx.io/go-anxcloud/pkg/api"
+	"go.anx.io/go-anxcloud/pkg/client"
 	"go.anx.io/go-anxcloud/pkg/lbaas"
 	"go.anx.io/go-anxcloud/pkg/lbaas/server"
+	"math/rand"
+	"sync"
 )
 
 const (
@@ -25,7 +29,8 @@ var (
 // It acts like a cache in order to not execute too many request during
 // more complex reconcile operations.
 type state struct {
-	ID LoadBalancerID
+	ID   LoadBalancerID
+	Port int32
 	BackendID
 	FrontendID
 	BindID
@@ -34,8 +39,9 @@ type state struct {
 // LoadBalancer represents an actual LoadBalancer
 type LoadBalancer struct {
 	lbaas.API
-	State  *state
-	Logger logr.Logger
+	GenericAPI api.API
+	State      *state
+	Logger     logr.Logger
 }
 
 // NodeEndpoint represents the actual K8s NodePort.
@@ -51,15 +57,30 @@ type FrontendID string
 type BackendID string
 type BindID string
 
-func NewLoadBalancer(api lbaas.API, id LoadBalancerID, logger logr.Logger) LoadBalancer {
+func NewLoadBalancer(port int32, lbaasAPI lbaas.API,
+	id LoadBalancerID, logger logr.Logger) LoadBalancer {
+
+	genericAPI, err := api.NewAPI(api.WithClientOptions(client.TokenFromEnv(false)))
+	if err != nil {
+		logger.Error(err, "can't create client to configure load balancers")
+		panic(err)
+	}
 	return LoadBalancer{
-		API:    api,
-		Logger: logger.WithValues("loadbalancer", id),
-		State:  &state{ID: id},
+		API:        lbaasAPI,
+		GenericAPI: genericAPI,
+		Logger:     logger.WithValues("loadbalancer", id),
+		State:      &state{ID: id, Port: port},
 	}
 }
 
+var mutex = sync.Mutex{}
+
 func (g LoadBalancer) EnsureLBConfig(ctx context.Context, lbName string, endpoints []NodeEndpoint) error {
+	randomZahl := rand.Int()
+	g.Logger.Info("trying to get mutex! look at my random zahl", "randomZahl", randomZahl)
+	mutex.Lock()
+	g.Logger.Info("got mutex! look at my random zahl", "randomZahl", randomZahl)
+	defer mutex.Unlock()
 	wrapErr := func(err error) error { return fmt.Errorf("unable to create loadbalancer: %w", err) }
 
 	// ensure backend exists in every anexia load balancer of the group
@@ -200,9 +221,8 @@ type HostInformation struct {
 	Hostname string
 }
 
-func (g LoadBalancer) GetHostInformation(ctx context.Context) (HostInformation, error) {
-	lbIdentifier := g.State.ID
-	fetchedBalancer, err := g.LoadBalancer().GetByID(ctx, string(lbIdentifier))
+func GetHostInformation(ctx context.Context, lbaasClient lbaas.API, id string) (HostInformation, error) {
+	fetchedBalancer, err := lbaasClient.LoadBalancer().GetByID(ctx, id)
 	return HostInformation{
 		IP:       fetchedBalancer.IpAddress,
 		Hostname: "",
