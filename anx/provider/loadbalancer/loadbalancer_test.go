@@ -19,7 +19,7 @@ func TestEnsureBalancer(t *testing.T) {
 	ctx := context.Background()
 	provider := tUtils.GetMockedAnxProvider()
 	const LbIdentifier = "test"
-	balancer := NewLoadBalancer(nil, provider.LBaaS(), LbIdentifier, logr.Discard())
+	balancer := NewLoadBalancer(8000, provider.LBaaS(), LbIdentifier, logr.Discard())
 	const serviceName = "test-name"
 
 	mockEmptyLBaas(ctx, provider)
