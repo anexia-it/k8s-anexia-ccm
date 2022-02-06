@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/loadbalancer"
+	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/sync"
 	"github.com/go-logr/logr"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
@@ -15,21 +16,24 @@ import (
 type loadBalancerManager struct {
 	Provider
 	notify chan struct{}
+
+	rLock *sync.SubjectLock
 }
 
 func (l loadBalancerManager) GetLoadBalancer(ctx context.Context, clusterName string,
 	service *v1.Service) (*v1.LoadBalancerStatus, bool, error) {
-	ctx, err := prepareContext(ctx, l)
-	if err != nil {
-		return nil, false, err
-	}
+	ctx = prepareContext(ctx, l)
 
-	lbGroup := getLBFromContext(ctx)
 	lbName := l.GetLoadBalancerName(ctx, clusterName, service)
 
 	overallState := true
 	portStatus := make([]v1.PortStatus, len(service.Spec.Ports))
 	for i, svcPort := range service.Spec.Ports {
+
+		lbGroup := loadbalancer.NewLoadBalancer(svcPort.Port, l.LBaaS(),
+			loadbalancer.LoadBalancerID(l.Config().LoadBalancerIdentifier),
+			logr.FromContextOrDiscard(ctx))
+
 		portStatus[i].Port = svcPort.Port
 		portStatus[i].Protocol = svcPort.Protocol
 
@@ -43,7 +47,12 @@ func (l loadBalancerManager) GetLoadBalancer(ctx context.Context, clusterName st
 		}
 	}
 
-	status, err := assembleLBStatus(ctx, lbGroup, portStatus)
+	information, err := loadbalancer.GetHostInformation(ctx, l.LBaaS(), l.Config().LoadBalancerIdentifier)
+	if err != nil {
+		return nil, false, err
+	}
+
+	status, err := assembleLBStatus(ctx, information, portStatus)
 	return status, overallState, err
 }
 
@@ -57,22 +66,26 @@ func (l loadBalancerManager) GetLoadBalancerName(ctx context.Context, clusterNam
 
 func (l loadBalancerManager) EnsureLoadBalancer(ctx context.Context, clusterName string, service *v1.Service,
 	nodes []*v1.Node) (*v1.LoadBalancerStatus, error) {
-	defer l.notifyOthers()
-	ctx, err := prepareContext(ctx, l)
-	if err != nil {
-		return nil, fmt.Errorf("could not prepare context: %w", err)
-	}
 
-	lbGroup := getLBFromContext(ctx)
+	defer l.notifyOthers()
+	ctx = prepareContext(ctx, l)
+
 	lbName := l.GetLoadBalancerName(ctx, clusterName, service)
+
+	l.rLock.Lock(lbName)
+	defer l.rLock.Unlock(lbName)
 
 	portStatus := make([]v1.PortStatus, len(service.Spec.Ports))
 	for i, svcPort := range service.Spec.Ports {
+		lbGroup := loadbalancer.NewLoadBalancer(svcPort.Port, l.LBaaS(),
+			loadbalancer.LoadBalancerID(l.Config().LoadBalancerIdentifier),
+			logr.FromContextOrDiscard(ctx))
+
 		portStatus[i].Port = svcPort.Port
 		portStatus[i].Protocol = svcPort.Protocol
 
 		lbPortName := fmt.Sprintf("%s.%s", strconv.Itoa(int(svcPort.Port)), lbName)
-		err = lbGroup.EnsureLBConfig(ctx, lbPortName, getNodeEndpoints(nodes, svcPort.NodePort))
+		err := lbGroup.EnsureLBConfig(ctx, lbPortName, getNodeEndpoints(nodes, svcPort.NodePort))
 
 		if err != nil {
 			portError := err.Error()
@@ -80,7 +93,11 @@ func (l loadBalancerManager) EnsureLoadBalancer(ctx context.Context, clusterName
 		}
 	}
 
-	status, err := assembleLBStatus(ctx, lbGroup, portStatus)
+	information, err := loadbalancer.GetHostInformation(ctx, l.LBaaS(), l.Config().LoadBalancerIdentifier)
+	if err != nil {
+		return nil, err
+	}
+	status, err := assembleLBStatus(ctx, information, portStatus)
 	if err != nil {
 		return status, err
 	}
@@ -88,11 +105,8 @@ func (l loadBalancerManager) EnsureLoadBalancer(ctx context.Context, clusterName
 	return status, nil
 }
 
-func assembleLBStatus(ctx context.Context, lbGroup *loadbalancer.LoadBalancer, portStatus []v1.PortStatus) (*v1.LoadBalancerStatus, error) {
-	hostInformation, err := lbGroup.GetHostInformation(ctx)
-	if err != nil {
-		return nil, err
-	}
+func assembleLBStatus(ctx context.Context, hostInformation loadbalancer.HostInformation,
+	portStatus []v1.PortStatus) (*v1.LoadBalancerStatus, error) {
 
 	status := &v1.LoadBalancerStatus{
 		Ingress: []v1.LoadBalancerIngress{
@@ -107,18 +121,22 @@ func assembleLBStatus(ctx context.Context, lbGroup *loadbalancer.LoadBalancer, p
 }
 
 func (l loadBalancerManager) UpdateLoadBalancer(ctx context.Context, clusterName string, service *v1.Service, nodes []*v1.Node) error {
-	ctx, err := prepareContext(ctx, l)
+	ctx = prepareContext(ctx, l)
 	defer l.notifyOthers()
-	if err != nil {
-		return fmt.Errorf("could not prepare context: %w", err)
-	}
 
-	lbGroup := getLBFromContext(ctx)
 	lbName := l.GetLoadBalancerName(ctx, clusterName, service)
+
+	l.rLock.Lock(lbName)
+	defer l.rLock.Unlock(lbName)
+
 	for _, svcPort := range service.Spec.Ports {
+		lbGroup := loadbalancer.NewLoadBalancer(svcPort.Port, l.LBaaS(),
+			loadbalancer.LoadBalancerID(l.Config().LoadBalancerIdentifier),
+			logr.FromContextOrDiscard(ctx))
+
 		// first we make sure that the base configuration for the lb exists
 		lbPortName := fmt.Sprintf("%s.%s", strconv.Itoa(int(svcPort.Port)), lbName)
-		err = lbGroup.EnsureLBConfig(ctx, lbPortName, getNodeEndpoints(nodes, svcPort.NodePort))
+		err := lbGroup.EnsureLBConfig(ctx, lbPortName, getNodeEndpoints(nodes, svcPort.NodePort))
 		if err != nil {
 			return err
 		}
@@ -129,53 +147,38 @@ func (l loadBalancerManager) UpdateLoadBalancer(ctx context.Context, clusterName
 
 func (l loadBalancerManager) EnsureLoadBalancerDeleted(ctx context.Context, clusterName string,
 	service *v1.Service) error {
-	ctx, err := prepareContext(ctx, l)
-	if err != nil {
-		return err
-	}
+	defer l.notifyOthers()
+	ctx = prepareContext(ctx, l)
 
-	lb := getLBFromContext(ctx)
 	lbName := l.GetLoadBalancerName(ctx, clusterName, service)
+
+	l.rLock.Lock(lbName)
+	defer l.rLock.Unlock(lbName)
+
 	for _, svcPort := range service.Spec.Ports {
+		lbGroup := loadbalancer.NewLoadBalancer(svcPort.Port, l.LBaaS(),
+			loadbalancer.LoadBalancerID(l.Config().LoadBalancerIdentifier),
+			logr.FromContextOrDiscard(ctx))
+
 		lbPortName := fmt.Sprintf("%s.%s", strconv.Itoa(int(svcPort.Port)), lbName)
-		err := lb.EnsureLBDeleted(ctx, lbPortName)
+		err := lbGroup.EnsureLBDeleted(ctx, lbPortName)
 		if err != nil {
 			return err
 		}
 	}
 
-	return lb.EnsureLBDeleted(ctx, lbName)
+	return nil
 }
 
-type lbManagerContextKey struct{}
-
-func prepareContext(ctx context.Context, l loadBalancerManager) (context.Context, error) {
-	// we already have a load balancer group in this context
-	if getLBFromContext(ctx) != nil {
-		return ctx, nil
-	}
-
+func prepareContext(ctx context.Context, l loadBalancerManager) context.Context {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		// logger is not set but we definitely need one
 		logger = klogr.New()
 		ctx = logr.NewContext(ctx, logger)
 	}
-	identifier := l.Config().LoadBalancerIdentifier
 
-	group := loadbalancer.NewLoadBalancer(l.LBaaS(),
-		loadbalancer.LoadBalancerID(identifier),
-		logger)
-
-	return context.WithValue(ctx, lbManagerContextKey{}, &group), nil
-}
-
-func getLBFromContext(ctx context.Context) *loadbalancer.LoadBalancer {
-	group, ok := ctx.Value(lbManagerContextKey{}).(*loadbalancer.LoadBalancer)
-	if !ok {
-		return nil
-	}
-	return group
+	return ctx
 }
 
 func getNodeEndpoints(nodes []*v1.Node, port int32) []loadbalancer.NodeEndpoint {

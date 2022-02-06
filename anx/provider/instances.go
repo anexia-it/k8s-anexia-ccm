@@ -37,6 +37,7 @@ func (i instanceManager) NodeAddressesByProviderID(ctx context.Context, provider
 		klog.Warningf("found multiple networks for VM '%s'. This can potentially break stuff. Since only the first one"+
 			"will be used", providerID)
 	}
+
 	for _, ip := range info.Network[0].IPv4 {
 		nodeAddresses = append(nodeAddresses, v1.NodeAddress{
 			Type:    "InternalIP",

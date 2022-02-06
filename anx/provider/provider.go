@@ -2,18 +2,20 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/controller/lbaas/sync"
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/configuration"
 	anexia "go.anx.io/go-anxcloud/pkg"
 	"go.anx.io/go-anxcloud/pkg/api"
 	"go.anx.io/go-anxcloud/pkg/api/types"
+	v1 "go.anx.io/go-anxcloud/pkg/apis/lbaas/v1"
 	anxClient "go.anx.io/go-anxcloud/pkg/client"
 	"go.anx.io/go-anxcloud/pkg/core/resource"
 	"io"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog/v2"
-	"k8s.io/klog/v2/klogr"
+	"os"
 	"sort"
 	"time"
 )
@@ -26,11 +28,18 @@ type Provider interface {
 type anxProvider struct {
 	anexia.API
 	config              *configuration.ProviderConfig
+	client              anxClient.Client
 	instanceManager     instanceManager
 	loadBalancerManager loadBalancerManager
 }
 
 func newAnxProvider(config configuration.ProviderConfig) (*anxProvider, error) {
+	// make sure that token is also set as env so various managers can create clients without using the config
+	err := os.Setenv("ANEXIA_TOKEN", config.Token)
+	if err != nil {
+		return nil, err
+	}
+
 	client, err := anxClient.New(anxClient.TokenFromString(config.Token))
 	if err != nil {
 		return nil, fmt.Errorf("could not create anexia client. %w", err)
@@ -38,6 +47,7 @@ func newAnxProvider(config configuration.ProviderConfig) (*anxProvider, error) {
 
 	return &anxProvider{
 		API:    anexia.NewAPI(client),
+		client: client,
 		config: &config,
 	}, nil
 }
@@ -47,7 +57,6 @@ func (a *anxProvider) Replication() (sync.LoadBalancerReplicationManager, bool) 
 		a.loadBalancerManager.notify = make(chan struct{}, 10)
 		return a.loadBalancerManager, true
 	}
-
 	return nil, false
 }
 
@@ -56,7 +65,7 @@ func (a *anxProvider) Initialize(builder cloudprovider.ControllerClientBuilder, 
 	if a.Config().AutoDiscoverLoadBalancer {
 		balancer, secondaryLoadBalancers, err := autoDiscoverLoadBalancer(a, stop)
 		if err != nil {
-			panic(fmt.Errorf("unable to autodiscover loadbalancer to configure"))
+			panic(fmt.Errorf("unable to autodiscover loadbalancer to configure %w", err))
 		}
 
 		klog.Infof("discovered load balancer '%s'", balancer)
@@ -73,7 +82,8 @@ func (a *anxProvider) Initialize(builder cloudprovider.ControllerClientBuilder, 
 }
 
 func autoDiscoverLoadBalancer(a *anxProvider, stop <-chan struct{}) (string, []string, error) {
-	newAPI, err := api.NewAPI(api.WithClientOptions(anxClient.Logger(klogr.New()), anxClient.TokenFromString(a.Config().Token)))
+
+	newAPI, err := api.NewAPI(api.WithClientOptions(anxClient.TokenFromEnv(false)))
 	if err != nil {
 		return "", nil, err
 	}
@@ -94,13 +104,17 @@ func autoDiscoverLoadBalancer(a *anxProvider, stop <-chan struct{}) (string, []s
 	}, api.Paged(1, 100, &pageIter))
 
 	if err != nil {
-		return "", nil, fmt.Errorf("unable to autodisover load balancer by tag '%s': %w", tag, err)
+		return "", nil, fmt.Errorf("unable to autodiscover load balancer by tag '%s': %w", tag, err)
 	}
 
 	var infos []resource.Info
 	pageIter.Next(&infos)
 	if pageIter.TotalPages() > 1 {
-		klog.Errorf("too many load balancers were discovered currently only 100")
+		return "", nil, errors.New("too many load balancers were discovered currently only 100")
+	}
+
+	if len(infos) == 0 {
+		return "", nil, errors.New("no load balancers could be discovered")
 	}
 
 	var identifiers []string
@@ -111,10 +125,13 @@ func autoDiscoverLoadBalancer(a *anxProvider, stop <-chan struct{}) (string, []s
 	sort.Strings(identifiers)
 
 	var secondaryLoadBalancers []string
-	secondaryLoadBalancers = append(secondaryLoadBalancers, identifiers[1:]...)
+
+	if len(identifiers) > 1 {
+		secondaryLoadBalancers = append(secondaryLoadBalancers, identifiers[1:]...)
+	}
 
 	primaryLB := identifiers[0]
-	err = newAPI.Get(ctx, resource.Info{Identifier: primaryLB})
+	err = newAPI.Get(ctx, &v1.LoadBalancer{Identifier: primaryLB})
 	if err != nil {
 		klog.Errorf("checking if load balancer '%s' exists returned an error: %s", primaryLB,
 			err.Error())

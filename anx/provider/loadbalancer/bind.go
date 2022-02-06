@@ -2,29 +2,32 @@ package loadbalancer
 
 import (
 	"context"
+	v1 "go.anx.io/go-anxcloud/pkg/apis/lbaas/v1"
 	"go.anx.io/go-anxcloud/pkg/lbaas/bind"
 	"go.anx.io/go-anxcloud/pkg/lbaas/common"
 	"go.anx.io/go-anxcloud/pkg/pagination"
 )
 
 func createBind(ctx context.Context, lb LoadBalancer, bindName string) (BindID, error) {
-	definition := getBindDefinition(bindName, lb.State)
+	bind := getBindDefinition(bindName, lb.State)
 
-	createdBind, err := lb.Bind().Create(ctx, definition)
+	err := lb.GenericAPI.Create(ctx, &bind)
 	if err != nil {
 		return "", err
 	}
 	lb.Logger.Info("Bind created for loadbalancer", "name", bindName, "resource", "bind")
-	return BindID(createdBind.Identifier), nil
+	return BindID(bind.Identifier), nil
 }
 
-func getBindDefinition(bindName string, state *state) bind.Definition {
-	definition := bind.Definition{
-		Name:     bindName,
-		State:    common.NewlyCreated,
-		Frontend: string(state.FrontendID),
+func getBindDefinition(bindName string, state *state) v1.Bind {
+	return v1.Bind{
+		Name:  bindName,
+		State: common.NewlyCreated,
+		Port:  int(state.Port),
+		Frontend: v1.Frontend{
+			Identifier: string(state.FrontendID),
+		},
 	}
-	return definition
 }
 
 func findFrontendBindInLoadBalancer(ctx context.Context, lb LoadBalancer, name string) *bind.Bind {
@@ -55,10 +58,10 @@ func ensureFrontendBindInLoadBalancer(ctx context.Context, lb LoadBalancer, bind
 
 	if existingBind.Frontend.Identifier == string(lb.State.FrontendID) {
 		lb.Logger.Info("frontend changed", "name", bindName, "resource", "bind")
-		definition := getBindDefinition(bindName, lb.State)
-		definition.State = common.Updating
-		updatedBind, err := lb.Bind().Update(ctx, existingBind.Identifier, definition)
-		return BindID(updatedBind.Identifier), err
+		bind := getBindDefinition(bindName, lb.State)
+		bind.State = common.Updating
+		err := lb.GenericAPI.Update(ctx, &bind)
+		return BindID(bind.Identifier), err
 	}
 
 	return BindID(existingBind.Identifier), nil
