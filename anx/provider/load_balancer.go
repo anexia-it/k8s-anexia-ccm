@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/loadbalancer"
+	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/sync"
 	"github.com/go-logr/logr"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
@@ -15,6 +16,8 @@ import (
 type loadBalancerManager struct {
 	Provider
 	notify chan struct{}
+
+	rLock *sync.SubjectLock
 }
 
 func (l loadBalancerManager) GetLoadBalancer(ctx context.Context, clusterName string,
@@ -63,10 +66,14 @@ func (l loadBalancerManager) GetLoadBalancerName(ctx context.Context, clusterNam
 
 func (l loadBalancerManager) EnsureLoadBalancer(ctx context.Context, clusterName string, service *v1.Service,
 	nodes []*v1.Node) (*v1.LoadBalancerStatus, error) {
+
 	defer l.notifyOthers()
 	ctx = prepareContext(ctx, l)
 
 	lbName := l.GetLoadBalancerName(ctx, clusterName, service)
+
+	l.rLock.Lock(lbName)
+	defer l.rLock.Unlock(lbName)
 
 	portStatus := make([]v1.PortStatus, len(service.Spec.Ports))
 	for i, svcPort := range service.Spec.Ports {
@@ -118,6 +125,10 @@ func (l loadBalancerManager) UpdateLoadBalancer(ctx context.Context, clusterName
 	defer l.notifyOthers()
 
 	lbName := l.GetLoadBalancerName(ctx, clusterName, service)
+
+	l.rLock.Lock(lbName)
+	defer l.rLock.Unlock(lbName)
+
 	for _, svcPort := range service.Spec.Ports {
 		lbGroup := loadbalancer.NewLoadBalancer(svcPort.Port, l.LBaaS(),
 			loadbalancer.LoadBalancerID(l.Config().LoadBalancerIdentifier),
@@ -140,6 +151,10 @@ func (l loadBalancerManager) EnsureLoadBalancerDeleted(ctx context.Context, clus
 	ctx = prepareContext(ctx, l)
 
 	lbName := l.GetLoadBalancerName(ctx, clusterName, service)
+
+	l.rLock.Lock(lbName)
+	defer l.rLock.Unlock(lbName)
+
 	for _, svcPort := range service.Spec.Ports {
 		lbGroup := loadbalancer.NewLoadBalancer(svcPort.Port, l.LBaaS(),
 			loadbalancer.LoadBalancerID(l.Config().LoadBalancerIdentifier),
