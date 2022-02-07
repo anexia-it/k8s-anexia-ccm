@@ -11,16 +11,24 @@ type SubjectLock struct {
 	locks map[string]byte
 }
 
+func NewSubjectLock() *SubjectLock {
+	return &SubjectLock{
+		m:     sync.Mutex{},
+		locks: make(map[string]byte),
+	}
+}
+
 func (r *SubjectLock) Lock(subject string) {
 	for {
 		r.m.Lock()
+		defer r.m.Unlock()
+
 		locked := r.locks[subject]
 		if locked == 0 {
 			locked = 1
 			r.locks[subject] = 1
 			return
 		}
-		r.m.Unlock()
 		time.Sleep(1 * time.Second)
 	}
 }

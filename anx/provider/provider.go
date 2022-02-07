@@ -4,6 +4,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"os"
+	"sort"
+	"time"
+
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/controller/lbaas/sync"
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/configuration"
 	anexia "go.anx.io/go-anxcloud/pkg"
@@ -12,12 +17,8 @@ import (
 	v1 "go.anx.io/go-anxcloud/pkg/apis/lbaas/v1"
 	anxClient "go.anx.io/go-anxcloud/pkg/client"
 	"go.anx.io/go-anxcloud/pkg/core/resource"
-	"io"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog/v2"
-	"os"
-	"sort"
-	"time"
 )
 
 type Provider interface {
@@ -77,7 +78,7 @@ func (a *anxProvider) Initialize(builder cloudprovider.ControllerClientBuilder, 
 		a.config.LoadBalancerIdentifier = balancer
 	}
 
-	a.loadBalancerManager = loadBalancerManager{Provider: a, notify: nil}
+	a.loadBalancerManager = newLoadBalancerManager(a)
 	klog.Infof("Running with customer prefix '%s'", a.config.CustomerID)
 }
 
