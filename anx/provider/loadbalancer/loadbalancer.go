@@ -9,8 +9,6 @@ import (
 	"go.anx.io/go-anxcloud/pkg/client"
 	"go.anx.io/go-anxcloud/pkg/lbaas"
 	"go.anx.io/go-anxcloud/pkg/lbaas/server"
-	"math/rand"
-	"sync"
 )
 
 const (
@@ -73,14 +71,7 @@ func NewLoadBalancer(port int32, lbaasAPI lbaas.API,
 	}
 }
 
-var mutex = sync.Mutex{}
-
 func (g LoadBalancer) EnsureLBConfig(ctx context.Context, lbName string, endpoints []NodeEndpoint) error {
-	randomZahl := rand.Int()
-	g.Logger.Info("trying to get mutex! look at my random zahl", "randomZahl", randomZahl)
-	mutex.Lock()
-	g.Logger.Info("got mutex! look at my random zahl", "randomZahl", randomZahl)
-	defer mutex.Unlock()
 	wrapErr := func(err error) error { return fmt.Errorf("unable to create loadbalancer: %w", err) }
 
 	// ensure backend exists in every anexia load balancer of the group

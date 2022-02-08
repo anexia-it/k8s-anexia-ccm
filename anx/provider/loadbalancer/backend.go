@@ -54,7 +54,7 @@ func createBackendForLB(ctx context.Context, lb LoadBalancer, backendName string
 		return "", err
 	}
 
-	lb.Logger.Info("configured backend for loadbalancer", "name", backendName, "resource", "backend")
+	lb.Logger.Info("configured backend for load balancer", "name", backendName, "resource", "backend")
 	return BackendID(createdBackend.Identifier), nil
 }
 
