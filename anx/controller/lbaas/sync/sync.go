@@ -79,11 +79,16 @@ func startSyncController(ctx app.ControllerInitContext, stop <-chan struct{},
 		manager:    replicationManager,
 	}
 
+	identifiers := replicationManager.GetIdentifiers()
+
 	// start controller until we get stopped and restart on any errors
 	go func() {
 		defer func() {
 			logr.FromContextOrDiscard(controllerContext).Info("controller stopped")
 		}()
+
+		logr.FromContextOrDiscard(controllerContext).Info("starting initial config sync")
+		_ = syncController.runSync(identifiers[0], identifiers[1:]...)
 	loop:
 		for {
 			select {
@@ -181,8 +186,10 @@ func (s *syncController) runSync(sourceLB string, targetLBs ...string) (ctrlErro
 			if err != nil {
 				panic(err)
 			}
+			logger.Info("load balancer successfully synced", "load-balancer", target.Identifier)
 		}(val)
 	}
+	waitGroup.Wait()
 
 	return nil
 }
