@@ -3,14 +3,15 @@ package provider
 import (
 	"context"
 	"fmt"
+	"strconv"
+	"time"
+
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/loadbalancer"
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/sync"
 	"github.com/go-logr/logr"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/klogr"
-	"strconv"
-	"time"
 )
 
 type loadBalancerManager struct {
@@ -18,6 +19,14 @@ type loadBalancerManager struct {
 	notify chan struct{}
 
 	rLock *sync.SubjectLock
+}
+
+func newLoadBalancerManager(provider Provider) loadBalancerManager {
+	return loadBalancerManager{
+		Provider: provider,
+		notify:   nil,
+		rLock:    sync.NewSubjectLock(),
+	}
 }
 
 func (l loadBalancerManager) GetLoadBalancer(ctx context.Context, clusterName string,
