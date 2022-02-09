@@ -70,7 +70,7 @@ func (a *anxProvider) Initialize(builder cloudprovider.ControllerClientBuilder, 
 			klog.Infof("discovered load balancers for replication %v", secondaryLoadBalancers)
 		}
 
-		a.config.SecondaryLoadBalancersIdentifiers = secondaryLoadBalancers
+		a.config.SecondaryLoadBalancerIdentifiers = secondaryLoadBalancers
 		a.config.LoadBalancerIdentifier = balancer
 	}
 
@@ -84,7 +84,7 @@ func (a *anxProvider) Initialize(builder cloudprovider.ControllerClientBuilder, 
 }
 
 func (a *anxProvider) isLBaaSReplicationEnabled() bool {
-	return a.Config().SecondaryLoadBalancersIdentifiers != nil && a.Config().LoadBalancerIdentifier != ""
+	return len(a.Config().SecondaryLoadBalancerIdentifiers) != 0 && a.Config().LoadBalancerIdentifier != ""
 }
 
 func autoDiscoverLoadBalancer(a *anxProvider, stop <-chan struct{}) (string, []string, error) {

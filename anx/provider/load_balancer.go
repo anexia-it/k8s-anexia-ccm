@@ -218,9 +218,9 @@ func getNodeEndpoints(nodes []*v1.Node, port int32) []loadbalancer.NodeEndpoint 
 }
 
 func (l loadBalancerManager) GetIdentifiers() []string {
-	identifiers := make([]string, 0, len(l.Config().SecondaryLoadBalancersIdentifiers)+1)
+	identifiers := make([]string, 0, len(l.Config().SecondaryLoadBalancerIdentifiers)+1)
 	identifiers = append(identifiers, l.Config().LoadBalancerIdentifier)
-	identifiers = append(identifiers, l.Config().SecondaryLoadBalancersIdentifiers...)
+	identifiers = append(identifiers, l.Config().SecondaryLoadBalancerIdentifiers...)
 	return identifiers
 }
 
