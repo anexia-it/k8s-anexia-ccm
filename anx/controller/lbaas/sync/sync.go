@@ -195,7 +195,13 @@ func (s *syncController) runSync(sourceLB string, targetLBs ...string) (ctrlErro
 }
 
 func emptyChan(notify <-chan struct{}) {
-	for i := 0; i < len(notify); i++ {
-		<-notify
+loop:
+	for {
+		select {
+		case <-notify:
+			continue
+		default:
+			break loop
+		}
 	}
 }
