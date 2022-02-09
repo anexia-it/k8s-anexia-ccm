@@ -84,6 +84,10 @@ func startSyncController(ctx app.ControllerInitContext, stop <-chan struct{},
 		defer func() {
 			logr.FromContextOrDiscard(controllerContext).Info("controller stopped")
 		}()
+
+		logr.FromContextOrDiscard(controllerContext).Info("starting initial config sync")
+		identifiers := replicationManager.GetIdentifiers()
+		_ = syncController.runSync(identifiers[0], identifiers[1:]...)
 	loop:
 		for {
 			select {
@@ -122,7 +126,6 @@ func (s *syncController) Run(stopChan <-chan struct{}) error {
 			return nil
 		}
 	case _, ok := <-notify:
-		emptyChan(notify)
 		if !ok {
 			return errors.New("unexpected close of notify channel by the LoadBalancerReplicationManager")
 		}
@@ -181,14 +184,10 @@ func (s *syncController) runSync(sourceLB string, targetLBs ...string) (ctrlErro
 			if err != nil {
 				panic(err)
 			}
+			logger.Info("load balancer successfully synced", "load-balancer", target.Identifier)
 		}(val)
 	}
+	waitGroup.Wait()
 
 	return nil
-}
-
-func emptyChan(notify <-chan struct{}) {
-	for i := 0; i < len(notify); i++ {
-		<-notify
-	}
 }

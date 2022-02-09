@@ -3,15 +3,13 @@ package provider
 import (
 	"context"
 	"fmt"
-	"strconv"
-	"time"
-
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/loadbalancer"
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/sync"
 	"github.com/go-logr/logr"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/klogr"
+	"strconv"
 )
 
 type loadBalancerManager struct {
@@ -29,9 +27,9 @@ func newLoadBalancerManager(provider Provider) loadBalancerManager {
 	}
 }
 
-func (l loadBalancerManager) GetLoadBalancer(ctx context.Context, clusterName string,
+func (l *loadBalancerManager) GetLoadBalancer(ctx context.Context, clusterName string,
 	service *v1.Service) (*v1.LoadBalancerStatus, bool, error) {
-	ctx = prepareContext(ctx, l)
+	ctx = prepareContext(ctx)
 
 	lbName := l.GetLoadBalancerName(ctx, clusterName, service)
 
@@ -77,7 +75,7 @@ func (l loadBalancerManager) EnsureLoadBalancer(ctx context.Context, clusterName
 	nodes []*v1.Node) (*v1.LoadBalancerStatus, error) {
 
 	defer l.notifyOthers()
-	ctx = prepareContext(ctx, l)
+	ctx = prepareContext(ctx)
 
 	lbName := l.GetLoadBalancerName(ctx, clusterName, service)
 
@@ -130,7 +128,7 @@ func assembleLBStatus(ctx context.Context, hostInformation loadbalancer.HostInfo
 }
 
 func (l loadBalancerManager) UpdateLoadBalancer(ctx context.Context, clusterName string, service *v1.Service, nodes []*v1.Node) error {
-	ctx = prepareContext(ctx, l)
+	ctx = prepareContext(ctx)
 	defer l.notifyOthers()
 
 	lbName := l.GetLoadBalancerName(ctx, clusterName, service)
@@ -157,7 +155,7 @@ func (l loadBalancerManager) UpdateLoadBalancer(ctx context.Context, clusterName
 func (l loadBalancerManager) EnsureLoadBalancerDeleted(ctx context.Context, clusterName string,
 	service *v1.Service) error {
 	defer l.notifyOthers()
-	ctx = prepareContext(ctx, l)
+	ctx = prepareContext(ctx)
 
 	lbName := l.GetLoadBalancerName(ctx, clusterName, service)
 
@@ -179,7 +177,7 @@ func (l loadBalancerManager) EnsureLoadBalancerDeleted(ctx context.Context, clus
 	return nil
 }
 
-func prepareContext(ctx context.Context, l loadBalancerManager) context.Context {
+func prepareContext(ctx context.Context) context.Context {
 	logger, err := logr.FromContext(ctx)
 	if err != nil {
 		// logger is not set but we definitely need one
@@ -204,7 +202,7 @@ func getNodeEndpoints(nodes []*v1.Node, port int32) []loadbalancer.NodeEndpoint 
 			nodeAddress = internalIP.Address
 		}
 
-		// externalIP should be preffered
+		// externalIP should be preferred
 		if externalIP != nil && externalIP.Address != "" {
 			nodeAddress = externalIP.Address
 		}
@@ -220,9 +218,9 @@ func getNodeEndpoints(nodes []*v1.Node, port int32) []loadbalancer.NodeEndpoint 
 }
 
 func (l loadBalancerManager) GetIdentifiers() []string {
-	identifiers := make([]string, 0, len(l.Config().SecondaryLoadBalancersIdentifiers)+1)
+	identifiers := make([]string, 0, len(l.Config().SecondaryLoadBalancerIdentifiers)+1)
 	identifiers = append(identifiers, l.Config().LoadBalancerIdentifier)
-	identifiers = append(identifiers, l.Config().SecondaryLoadBalancersIdentifiers...)
+	identifiers = append(identifiers, l.Config().SecondaryLoadBalancerIdentifiers...)
 	return identifiers
 }
 
@@ -240,14 +238,10 @@ func getNodeAddressOfType(node *v1.Node, addressType v1.NodeAddressType) *v1.Nod
 }
 
 func (l loadBalancerManager) notifyOthers() {
-	go func() {
-		timer := time.NewTimer(30 * time.Second)
-		defer timer.Stop()
-		select {
-		case l.notify <- struct{}{}:
-			klog.V(1).Info("trigger notification")
-		case <-timer.C:
-			klog.V(1).Info("timeout when trying to notify others for changes")
-		}
-	}()
+	select {
+	case l.notify <- struct{}{}:
+		klog.V(1).Info("trigger notification")
+	default:
+		klog.V(3).Info("notification is dropped because there are still pending events to be processed")
+	}
 }

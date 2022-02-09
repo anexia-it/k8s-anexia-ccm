@@ -77,7 +77,7 @@ func findServersByBackendInLB(ctx context.Context, lb LoadBalancer, lbName, suff
 		if err != nil {
 			return nil
 		}
-		if fetchedServer.Backend.Name == lbName {
+		if fetchedServer.Backend.Identifier == string(lb.State.BackendID) {
 			fetchedServers = append(fetchedServers, &fetchedServer)
 		}
 	}
@@ -87,7 +87,10 @@ func findServersByBackendInLB(ctx context.Context, lb LoadBalancer, lbName, suff
 func deleteServersFromBackendInLB(ctx context.Context, g LoadBalancer, name string) error {
 	servers := findServersByBackendInLB(ctx, g, name, "")
 	for _, server := range servers {
-		return g.Server().DeleteByID(ctx, server.Identifier)
+		err := g.Server().DeleteByID(ctx, server.Identifier)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/controller/lbaas/sync/components"
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/controller/lbaas/sync/delta"
+	"github.com/go-logr/logr"
 	"go.anx.io/go-anxcloud/pkg/api"
 	"go.anx.io/go-anxcloud/pkg/api/types"
 	"go.anx.io/go-anxcloud/pkg/lbaas/backend"
@@ -18,6 +19,9 @@ import (
 )
 
 func SyncLoadBalancer(ctx context.Context, anxAPI api.API, source, target components.HashedLoadBalancer) error {
+	logr.FromContextOrDiscard(ctx).Info("syncing load balancer", "target", target.Identifier, "source",
+		source.Identifier)
+
 	// calculate deltas
 	backendDelta := delta.NewDelta(components.ToHasher(source.Backends), components.ToHasher(target.Backends))
 	frontendDelta := delta.NewDelta(components.ToHasher(source.Frontends), components.ToHasher(target.Frontends))
@@ -139,6 +143,7 @@ func SyncLoadBalancer(ctx context.Context, anxAPI api.API, source, target compon
 }
 
 func FetchLoadBalancer(ctx context.Context, lbID string, anxAPI api.API) (components.HashedLoadBalancer, error) {
+	logr.FromContextOrDiscard(ctx).Info("fetching load balancer configuration", "load-balancer", lbID)
 	f := frontend.Frontend{
 		LoadBalancer: &loadbalancer.Loadbalancer{Identifier: lbID},
 	}
