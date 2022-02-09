@@ -3,15 +3,13 @@ package provider
 import (
 	"context"
 	"fmt"
-	"strconv"
-	"time"
-
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/loadbalancer"
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/sync"
 	"github.com/go-logr/logr"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/klogr"
+	"strconv"
 )
 
 type loadBalancerManager struct {
@@ -241,13 +239,11 @@ func getNodeAddressOfType(node *v1.Node, addressType v1.NodeAddressType) *v1.Nod
 
 func (l loadBalancerManager) notifyOthers() {
 	go func() {
-		timer := time.NewTimer(30 * time.Second)
-		defer timer.Stop()
 		select {
 		case l.notify <- struct{}{}:
 			klog.V(1).Info("trigger notification")
-		case <-timer.C:
-			klog.V(1).Info("timeout when trying to notify others for changes")
+		default:
+			klog.V(3).Info("notification is dropped because there are still pending events to be processed")
 		}
 	}()
 }

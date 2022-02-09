@@ -77,7 +77,7 @@ func (a *anxProvider) Initialize(builder cloudprovider.ControllerClientBuilder, 
 	a.loadBalancerManager = newLoadBalancerManager(a)
 
 	if isLBaaSReplicationEnabled(a) {
-		a.loadBalancerManager.notify = make(chan struct{}, 10)
+		a.loadBalancerManager.notify = make(chan struct{}, 1)
 	}
 
 	klog.Infof("Running with customer prefix '%s'", a.config.CustomerID)
