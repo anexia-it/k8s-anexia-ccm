@@ -153,14 +153,13 @@ func (s *syncController) runSync(sourceLB string, targetLBs ...string) (ctrlErro
 		return err
 	}
 	var config components.HashedLoadBalancer
-	var waitGroup sync.WaitGroup
-
-	waitGroup.Add(1)
-
 	ctx := logr.NewContext(context.Background(), logger)
 
+	var sourceConfigFetched sync.WaitGroup
+	sourceConfigFetched.Add(1)
+
 	go func() {
-		defer waitGroup.Done()
+		defer sourceConfigFetched.Done()
 		var err error
 		config, err = replication.FetchLoadBalancer(ctx, sourceLB, anxClient)
 		if err != nil {
@@ -169,17 +168,17 @@ func (s *syncController) runSync(sourceLB string, targetLBs ...string) (ctrlErro
 		}
 	}()
 
-	waitGroup.Wait()
-
-	waitGroup.Add(len(targetLBs))
+	var targetsSyncedWg sync.WaitGroup
+	targetsSyncedWg.Add(len(targetLBs))
 	for _, val := range targetLBs {
 		go func(targetLB string) {
-			defer waitGroup.Done()
+			defer targetsSyncedWg.Done()
 			target, err := replication.FetchLoadBalancer(ctx, targetLB, anxClient)
 			if err != nil {
 				logger.Error(fmt.Errorf("could not fetch data from target loadbalancer %s: %w", targetLB, err),
 					"could not fetch load balancer data")
 			}
+			sourceConfigFetched.Wait()
 			err = replication.SyncLoadBalancer(ctx, anxClient, config, target)
 			if err != nil {
 				panic(err)
@@ -187,7 +186,7 @@ func (s *syncController) runSync(sourceLB string, targetLBs ...string) (ctrlErro
 			logger.Info("load balancer successfully synced", "load-balancer", target.Identifier)
 		}(val)
 	}
-	waitGroup.Wait()
+	targetsSyncedWg.Wait()
 
 	return nil
 }
