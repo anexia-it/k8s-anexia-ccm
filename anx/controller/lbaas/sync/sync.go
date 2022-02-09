@@ -79,8 +79,6 @@ func startSyncController(ctx app.ControllerInitContext, stop <-chan struct{},
 		manager:    replicationManager,
 	}
 
-	identifiers := replicationManager.GetIdentifiers()
-
 	// start controller until we get stopped and restart on any errors
 	go func() {
 		defer func() {
@@ -88,6 +86,7 @@ func startSyncController(ctx app.ControllerInitContext, stop <-chan struct{},
 		}()
 
 		logr.FromContextOrDiscard(controllerContext).Info("starting initial config sync")
+		identifiers := replicationManager.GetIdentifiers()
 		_ = syncController.runSync(identifiers[0], identifiers[1:]...)
 	loop:
 		for {
