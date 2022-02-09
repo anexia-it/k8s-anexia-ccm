@@ -28,6 +28,11 @@ func SyncLoadBalancer(ctx context.Context, anxAPI api.API, source, target compon
 	bindDelta := delta.NewDelta(components.ToHasher(source.Binds), components.ToHasher(target.Binds))
 	serverDelta := delta.NewDelta(components.ToHasher(source.Servers), components.ToHasher(target.Servers))
 
+	logDelta(ctx, "backends", backendDelta)
+	logDelta(ctx, "frontends", frontendDelta)
+	logDelta(ctx, "binds", bindDelta)
+	logDelta(ctx, "servers", serverDelta)
+
 	// delete all resources
 	for _, hasher := range serverDelta.Delete {
 		server := hasher.(components.HashedServer).Server
@@ -251,4 +256,11 @@ func FetchLoadBalancer(ctx context.Context, lbID string, anxAPI api.API) (compon
 	wg.Wait()
 
 	return components.NewHashedLoadBalancer(lbID, hashedFrontends, hashedBackends, hashedServers, hashedBinds), nil
+}
+
+func logDelta(ctx context.Context, resourceType string, delta delta.Delta) {
+	logr.FromContextOrDiscard(ctx).V(1).Info(fmt.Sprintf("%s will be synced", resourceType),
+		"desired", delta.Desired,
+		"creating", len(delta.Create),
+		"deleting", len(delta.Delete))
 }

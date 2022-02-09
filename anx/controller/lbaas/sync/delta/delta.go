@@ -19,13 +19,15 @@ OUTER:
 // Delta holds the information of what components.Hasher needs to be created and what components.Hasher needs to be deleted in
 // order for both sides to be in sync.
 type Delta struct {
-	Create []components.Hasher
-	Delete []components.Hasher
+	Desired uint
+	Create  []components.Hasher
+	Delete  []components.Hasher
 }
 
 func NewDelta(main []components.Hasher, secondary []components.Hasher) Delta {
 	return Delta{
-		Create: GetMissing(main, secondary),
-		Delete: GetMissing(secondary, main),
+		Desired: uint(len(main)),
+		Create:  GetMissing(main, secondary),
+		Delete:  GetMissing(secondary, main),
 	}
 }
