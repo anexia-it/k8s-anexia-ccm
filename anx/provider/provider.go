@@ -56,7 +56,7 @@ func newAnxProvider(config configuration.ProviderConfig) (*anxProvider, error) {
 func (a *anxProvider) Replication() (sync.LoadBalancerReplicationManager, bool) {
 	if a.Config().SecondaryLoadBalancersIdentifiers != nil && a.Config().LoadBalancerIdentifier != "" {
 		a.loadBalancerManager.notify = make(chan struct{}, 10)
-		return a.loadBalancerManager, true
+		return &a.loadBalancerManager, true
 	}
 	return nil, false
 }
@@ -143,7 +143,7 @@ func autoDiscoverLoadBalancer(a *anxProvider, stop <-chan struct{}) (string, []s
 }
 
 func (a anxProvider) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
-	return a.loadBalancerManager, true
+	return &a.loadBalancerManager, true
 }
 
 func (a anxProvider) Instances() (cloudprovider.Instances, bool) {
