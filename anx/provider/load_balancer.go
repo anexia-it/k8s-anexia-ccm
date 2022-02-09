@@ -238,12 +238,10 @@ func getNodeAddressOfType(node *v1.Node, addressType v1.NodeAddressType) *v1.Nod
 }
 
 func (l loadBalancerManager) notifyOthers() {
-	go func() {
-		select {
-		case l.notify <- struct{}{}:
-			klog.V(1).Info("trigger notification")
-		default:
-			klog.V(3).Info("notification is dropped because there are still pending events to be processed")
-		}
-	}()
+	select {
+	case l.notify <- struct{}{}:
+		klog.V(1).Info("trigger notification")
+	default:
+		klog.V(3).Info("notification is dropped because there are still pending events to be processed")
+	}
 }
