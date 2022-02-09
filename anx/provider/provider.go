@@ -54,11 +54,7 @@ func newAnxProvider(config configuration.ProviderConfig) (*anxProvider, error) {
 }
 
 func (a *anxProvider) Replication() (sync.LoadBalancerReplicationManager, bool) {
-	if a.Config().SecondaryLoadBalancersIdentifiers != nil && a.Config().LoadBalancerIdentifier != "" {
-		a.loadBalancerManager.notify = make(chan struct{}, 10)
-		return &a.loadBalancerManager, true
-	}
-	return nil, false
+	return a.loadBalancerManager, isLBaaSReplicationEnabled(a)
 }
 
 func (a *anxProvider) Initialize(builder cloudprovider.ControllerClientBuilder, stop <-chan struct{}) {
@@ -79,7 +75,16 @@ func (a *anxProvider) Initialize(builder cloudprovider.ControllerClientBuilder, 
 	}
 
 	a.loadBalancerManager = newLoadBalancerManager(a)
+
+	if isLBaaSReplicationEnabled(a) {
+		a.loadBalancerManager.notify = make(chan struct{}, 10)
+	}
+
 	klog.Infof("Running with customer prefix '%s'", a.config.CustomerID)
+}
+
+func isLBaaSReplicationEnabled(a *anxProvider) bool {
+	return a.Config().SecondaryLoadBalancersIdentifiers != nil && a.Config().LoadBalancerIdentifier != ""
 }
 
 func autoDiscoverLoadBalancer(a *anxProvider, stop <-chan struct{}) (string, []string, error) {
