@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/metrics"
+	"github.com/prometheus/client_golang/prometheus"
 	"io"
 	"os"
 	"sort"
@@ -26,12 +28,17 @@ type Provider interface {
 	Config() *configuration.ProviderConfig
 }
 
+var Version = "v0.0.0-unreleased"
+
 type anxProvider struct {
 	anexia.API
 	config              *configuration.ProviderConfig
 	client              anxClient.Client
 	instanceManager     instanceManager
 	loadBalancerManager loadBalancerManager
+
+	// providerMetrics is used to collect metrics inside this provider
+	providerMetrics metrics.ProviderMetrics
 }
 
 func newAnxProvider(config configuration.ProviderConfig) (*anxProvider, error) {
@@ -54,10 +61,21 @@ func newAnxProvider(config configuration.ProviderConfig) (*anxProvider, error) {
 }
 
 func (a *anxProvider) Replication() (sync.LoadBalancerReplicationManager, bool) {
+	const featureName = "load_balancer_config_replication"
+	if a.isLBaaSReplicationEnabled() {
+		a.providerMetrics.MarkFeatureEnabled(featureName)
+	} else {
+		a.providerMetrics.MarkFeatureDisabled(featureName)
+	}
+
 	return a.loadBalancerManager, a.isLBaaSReplicationEnabled()
 }
 
 func (a *anxProvider) Initialize(builder cloudprovider.ControllerClientBuilder, stop <-chan struct{}) {
+	klog.Infof("anexia provider version %s", Version)
+	a.providerMetrics = metrics.NewProviderMetrics("anexia", Version)
+	prometheus.MustRegister(&a.providerMetrics)
+
 	a.instanceManager = instanceManager{a}
 	if a.Config().AutoDiscoverLoadBalancer {
 		balancer, secondaryLoadBalancers, err := autoDiscoverLoadBalancer(a, stop)
@@ -148,26 +166,32 @@ func autoDiscoverLoadBalancer(a *anxProvider, stop <-chan struct{}) (string, []s
 }
 
 func (a anxProvider) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
+	a.providerMetrics.MarkFeatureEnabled("load_balancer_provisioning")
 	return &a.loadBalancerManager, true
 }
 
 func (a anxProvider) Instances() (cloudprovider.Instances, bool) {
+	a.providerMetrics.MarkFeatureDisabled("intances_v1")
 	return nil, false
 }
 
 func (a anxProvider) InstancesV2() (cloudprovider.InstancesV2, bool) {
+	a.providerMetrics.MarkFeatureEnabled("instances_v2")
 	return a.instanceManager, true
 }
 
 func (a anxProvider) Zones() (cloudprovider.Zones, bool) {
+	a.providerMetrics.MarkFeatureDisabled("zones")
 	return nil, false
 }
 
 func (a anxProvider) Clusters() (cloudprovider.Clusters, bool) {
+	a.providerMetrics.MarkFeatureDisabled("cluster")
 	return nil, false
 }
 
 func (a anxProvider) Routes() (cloudprovider.Routes, bool) {
+	a.providerMetrics.MarkFeatureDisabled("routes")
 	return nil, false
 }
 
