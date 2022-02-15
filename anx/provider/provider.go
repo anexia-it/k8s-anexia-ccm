@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/metrics"
-	"github.com/prometheus/client_golang/prometheus"
 	"io"
+	"k8s.io/component-base/metrics/legacyregistry"
 	"os"
 	"sort"
 	"time"
@@ -74,7 +74,7 @@ func (a *anxProvider) Replication() (sync.LoadBalancerReplicationManager, bool) 
 func (a *anxProvider) Initialize(builder cloudprovider.ControllerClientBuilder, stop <-chan struct{}) {
 	klog.Infof("anexia provider version %s", Version)
 	a.providerMetrics = metrics.NewProviderMetrics("anexia", Version)
-	prometheus.MustRegister(&a.providerMetrics)
+	legacyregistry.MustRegister(&a.providerMetrics)
 
 	a.instanceManager = instanceManager{a}
 	if a.Config().AutoDiscoverLoadBalancer {
