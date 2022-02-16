@@ -2,20 +2,30 @@ package configuration
 
 import (
 	"fmt"
+	"io"
+
 	"github.com/kelseyhightower/envconfig"
 	"gopkg.in/yaml.v3"
-	"io"
 	"k8s.io/cloud-provider/options"
 )
 
 type ProviderConfig struct {
-	Token                            string   `yaml:"anexiaToken" split_words:"true"`
-	CustomerID                       string   `yaml:"customerID,omitempty" split_words:"true"`
-	LoadBalancerIdentifier           string   `yaml:"loadBalancerIdentifier,omitempty" split_words:"true"`
-	ClusterName                      string   `yaml:"clusterName,omitempty" split_words:"true"`
-	AutoDiscoveryTagPrefix           string   `yaml:"autoDiscoveryTagPrefix,omitempty" split_words:"true" default:"anxkube-ccm-lb"`
-	AutoDiscoverLoadBalancer         bool     `yaml:"autoDiscoverLoadBalancer,omitempty" split_words:"true"`
-	SecondaryLoadBalancerIdentifiers []string `yaml:"secondaryLoadBalancersIdentifiers" split_words:"trues"`
+	Token                  string `yaml:"anexiaToken" split_words:"true"`
+	CustomerID             string `yaml:"customerID,omitempty" split_words:"true"`
+	ClusterName            string `yaml:"clusterName,omitempty" split_words:"true"`
+	AutoDiscoveryTagPrefix string `yaml:"autoDiscoveryTagPrefix,omitempty" split_words:"true" default:"anxkube-ccm-lb"`
+
+	// if ccm shall discover $LoadBalancerIdentifier, $SecondaryLoadBalancerIdentifiers and $LoadBalancerPrefixIdentifiers via tag "$AutoDiscoveryTagPrefix-$ClusterName"
+	AutoDiscoverLoadBalancer bool `yaml:"autoDiscoverLoadBalancer,omitempty" split_words:"true"`
+
+	// the LBaaS LoadBalancer resource to configure for LoadBalancer Services
+	LoadBalancerIdentifier string `yaml:"loadBalancerIdentifier,omitempty" split_words:"true"`
+
+	// identifiers of LBaaS LoadBalancer resources to keep in sync with $LoadBalancerIdentifier
+	SecondaryLoadBalancerIdentifiers []string `yaml:"secondaryLoadBalancersIdentifiers" split_words:"true"`
+
+	// lists the identifiers of prefixes from which external IPs for LoadBalancer Services can be allocated
+	LoadBalancerPrefixIdentifiers []string `yaml:"loadBalancerPrefixIdentifiers,omitempty" split_words:"true"`
 }
 
 const (

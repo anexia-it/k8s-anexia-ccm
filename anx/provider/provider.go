@@ -2,21 +2,17 @@ package provider
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"os"
-	"sort"
 	"time"
 
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/controller/lbaas/sync"
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/configuration"
+	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/discovery"
+
 	anexia "go.anx.io/go-anxcloud/pkg"
-	"go.anx.io/go-anxcloud/pkg/api"
-	"go.anx.io/go-anxcloud/pkg/api/types"
-	v1 "go.anx.io/go-anxcloud/pkg/apis/lbaas/v1"
 	anxClient "go.anx.io/go-anxcloud/pkg/client"
-	"go.anx.io/go-anxcloud/pkg/core/resource"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog/v2"
 )
@@ -60,18 +56,38 @@ func (a *anxProvider) Replication() (sync.LoadBalancerReplicationManager, bool) 
 func (a *anxProvider) Initialize(builder cloudprovider.ControllerClientBuilder, stop <-chan struct{}) {
 	a.instanceManager = instanceManager{a}
 	if a.Config().AutoDiscoverLoadBalancer {
-		balancer, secondaryLoadBalancers, err := autoDiscoverLoadBalancer(a, stop)
+		ctx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Minute)
+		defer cancelFunc()
+		go func() {
+			select {
+			case <-stop:
+				cancelFunc()
+			case <-time.After(1 * time.Minute):
+			}
+		}()
+
+		autodiscoverLBsTag := fmt.Sprintf("%s-%s", a.Config().AutoDiscoveryTagPrefix, a.Config().ClusterName)
+		autodiscoverLBPrefixesTag := fmt.Sprintf("kubernetes-lb-prefix-%s", a.Config().ClusterName)
+
+		balancer, secondaryLoadBalancers, err := discovery.AutoDiscoverLoadBalancer(ctx, autodiscoverLBsTag)
 		if err != nil {
-			panic(fmt.Errorf("unable to autodiscover loadbalancer to configure %w", err))
-		}
+			klog.Errorf("Configured to autodiscover LoadBalancers, but discovery failed", "error", err)
+		} else {
+			a.config.LoadBalancerIdentifier = balancer
+			klog.Infof("discovered load balancer '%s'", balancer)
 
-		klog.Infof("discovered load balancer '%s'", balancer)
-		if secondaryLoadBalancers != nil {
-			klog.Infof("discovered load balancers for replication %v", secondaryLoadBalancers)
-		}
+			if secondaryLoadBalancers != nil {
+				a.config.SecondaryLoadBalancerIdentifiers = secondaryLoadBalancers
+				klog.Infof("discovered load balancers for replication %v", secondaryLoadBalancers)
+			}
 
-		a.config.SecondaryLoadBalancerIdentifiers = secondaryLoadBalancers
-		a.config.LoadBalancerIdentifier = balancer
+			prefixes, err := discovery.AutoDiscoverLoadBalancerPrefixes(ctx, autodiscoverLBPrefixesTag)
+			if err != nil {
+				klog.Errorf("Configured to autodiscover LoadBalancers, but discovering external prefixes failed", "error", err)
+			} else {
+				a.config.LoadBalancerPrefixIdentifiers = prefixes
+			}
+		}
 	}
 
 	a.loadBalancerManager = newLoadBalancerManager(a)
@@ -85,66 +101,6 @@ func (a *anxProvider) Initialize(builder cloudprovider.ControllerClientBuilder, 
 
 func (a *anxProvider) isLBaaSReplicationEnabled() bool {
 	return len(a.Config().SecondaryLoadBalancerIdentifiers) != 0 && a.Config().LoadBalancerIdentifier != ""
-}
-
-func autoDiscoverLoadBalancer(a *anxProvider, stop <-chan struct{}) (string, []string, error) {
-
-	newAPI, err := api.NewAPI(api.WithClientOptions(anxClient.TokenFromEnv(false)))
-	if err != nil {
-		return "", nil, err
-	}
-	ctx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Minute)
-	defer cancelFunc()
-	go func() {
-		select {
-		case <-stop:
-			cancelFunc()
-		case <-time.After(1 * time.Minute):
-		}
-	}()
-
-	tag := fmt.Sprintf("%s-%s", a.Config().AutoDiscoveryTagPrefix, a.Config().ClusterName)
-	var pageIter types.PageInfo
-	err = newAPI.List(ctx, &resource.Info{
-		Tags: []string{tag},
-	}, api.Paged(1, 100, &pageIter))
-
-	if err != nil {
-		return "", nil, fmt.Errorf("unable to autodiscover load balancer by tag '%s': %w", tag, err)
-	}
-
-	var infos []resource.Info
-	pageIter.Next(&infos)
-	if pageIter.TotalPages() > 1 {
-		return "", nil, errors.New("too many load balancers were discovered currently only 100")
-	}
-
-	if len(infos) == 0 {
-		return "", nil, errors.New("no load balancers could be discovered")
-	}
-
-	var identifiers []string
-
-	for _, info := range infos {
-		identifiers = append(identifiers, info.Identifier)
-	}
-	sort.Strings(identifiers)
-
-	var secondaryLoadBalancers []string
-
-	if len(identifiers) > 1 {
-		secondaryLoadBalancers = append(secondaryLoadBalancers, identifiers[1:]...)
-	}
-
-	primaryLB := identifiers[0]
-	err = newAPI.Get(ctx, &v1.LoadBalancer{Identifier: primaryLB})
-	if err != nil {
-		klog.Errorf("checking if load balancer '%s' exists returned an error: %s", primaryLB,
-			err.Error())
-		return "", nil, err
-	}
-
-	return primaryLB, secondaryLoadBalancers, nil
 }
 
 func (a anxProvider) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
