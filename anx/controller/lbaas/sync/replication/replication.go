@@ -148,7 +148,8 @@ func SyncLoadBalancer(ctx context.Context, anxAPI api.API, source, target compon
 }
 
 func FetchLoadBalancer(ctx context.Context, lbID string, anxAPI api.API) (components.HashedLoadBalancer, error) {
-	logr.FromContextOrDiscard(ctx).Info("fetching load balancer configuration", "load-balancer", lbID)
+	logger := logr.FromContextOrDiscard(ctx)
+	logger.Info("fetching load balancer configuration", "load-balancer", lbID)
 	f := frontend.Frontend{
 		LoadBalancer: &loadbalancer.Loadbalancer{Identifier: lbID},
 	}
@@ -207,13 +208,17 @@ func FetchLoadBalancer(ctx context.Context, lbID string, anxAPI api.API) (compon
 			var iter types.ObjectChannel
 			err := anxAPI.List(ctx, &s, api.ObjectChannel(&iter), api.FullObjects(true))
 			if err != nil {
-				panic(err)
+				logger.Error(err, "could not fetch server for backends",
+					"name", baseBackend.Backend.Name)
+				return
 			}
 			for receiver := range iter {
 				var s server.Server
 				err := receiver(&s)
 				if err != nil {
-					panic(err)
+					logger.Error(err, "could not iterate over fetched servers",
+						"backend", baseBackend.Backend.Identifier)
+					return
 				}
 				hashedServer := components.NewHashedServer(s)
 				mutex.Lock()
@@ -237,13 +242,17 @@ func FetchLoadBalancer(ctx context.Context, lbID string, anxAPI api.API) (compon
 			var iter types.ObjectChannel
 			err = anxAPI.List(ctx, &fb, api.ObjectChannel(&iter), api.FullObjects(true))
 			if err != nil {
-				panic(err)
+				logger.Error(err, "could not fetch frontend binds for frontend",
+					"frontend", baseFrontend.Frontend.Identifier)
+				return
 			}
 			for receiver := range iter {
 				var fb bind.Bind
 				err := receiver(&fb)
 				if err != nil {
-					panic(err)
+					logger.Error(err, "could not iterate over frontend binds",
+						"frontend", baseFrontend.Frontend.Identifier)
+					return
 				}
 				hashedBind := components.NewHashedBind(fb)
 				mutex.Lock()
