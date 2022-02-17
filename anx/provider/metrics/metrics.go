@@ -10,14 +10,16 @@ import (
 const FeatureEnabled = 1
 const FeatureDisabled = 0
 
+const fqCollectorName = "cloud_provider_anexia"
+
 var (
 	constLabels = map[string]string{
-		"collector": "anx-provider-collector",
+		"collector": "anexia-provider-collector",
 	}
-	descProviderBuild = prometheus.NewDesc(getFQDNMetricName("provider_build"),
+	descProviderBuild = prometheus.NewDesc(getFQMetricName("provider_build"),
 		"information about the build version of a specific provider", []string{"name", "version"}, constLabels)
 
-	descProviderFeatures = prometheus.NewDesc(getFQDNMetricName("feature"), "provider features and their state",
+	descProviderFeatures = prometheus.NewDesc(getFQMetricName("feature"), "provider features and their state",
 		[]string{"name"}, constLabels)
 )
 
@@ -33,11 +35,10 @@ type ProviderMetrics struct {
 func NewProviderMetrics(providerName, providerVersion string) ProviderMetrics {
 	description := []*prometheus.Desc{descProviderBuild, descProviderFeatures}
 
-	versionMetric := prometheus.MustNewConstMetric(descProviderBuild, prometheus.GaugeValue,
+	versionMetric := prometheus.MustNewConstMetric(descProviderBuild, prometheus.CounterValue,
 		1, providerName, providerVersion)
 
 	return ProviderMetrics{
-		Name:            providerName,
 		providerVersion: versionMetric,
 		descriptions:    description,
 		m:               &sync.RWMutex{},
@@ -84,9 +85,9 @@ func (p *ProviderMetrics) Create(_ *semver.Version) bool {
 func (p *ProviderMetrics) ClearState() {}
 
 func (p *ProviderMetrics) FQName() string {
-	return "cloud_provider"
+	return fqCollectorName
 }
 
-func getFQDNMetricName(metricName string) string {
-	return fmt.Sprintf("cloud_provider_anx_%s", metricName)
+func getFQMetricName(metricName string) string {
+	return fmt.Sprintf("%s_%s", fqCollectorName, metricName)
 }

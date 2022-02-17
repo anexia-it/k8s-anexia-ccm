@@ -23,12 +23,17 @@ import (
 	"k8s.io/klog/v2"
 )
 
+const (
+	featureNameLoadBalancer = "load_balancer_provisioning"
+	featureNameInstancesV2  = "instances_v2"
+)
+
+var Version = "v0.0.0-unreleased"
+
 type Provider interface {
 	anexia.API
 	Config() *configuration.ProviderConfig
 }
-
-var Version = "v0.0.0-unreleased"
 
 type anxProvider struct {
 	anexia.API
@@ -72,9 +77,9 @@ func (a *anxProvider) Replication() (sync.LoadBalancerReplicationManager, bool) 
 }
 
 func (a *anxProvider) Initialize(builder cloudprovider.ControllerClientBuilder, stop <-chan struct{}) {
-	klog.Infof("anexia provider version %s", Version)
-	a.providerMetrics = metrics.NewProviderMetrics("anexia", Version)
-	legacyregistry.MustRegister(&a.providerMetrics)
+	klog.Infof("Anexia provider version %s", Version)
+
+	a.setupProviderMetrics()
 
 	a.instanceManager = instanceManager{a}
 	if a.Config().AutoDiscoverLoadBalancer {
@@ -98,7 +103,7 @@ func (a *anxProvider) Initialize(builder cloudprovider.ControllerClientBuilder, 
 		a.loadBalancerManager.notify = make(chan struct{}, 1)
 	}
 
-	klog.Infof("Running with customer prefix '%s'", a.config.CustomerID)
+	klog.Infof("running with customer prefix '%s'", a.config.CustomerID)
 }
 
 func (a *anxProvider) isLBaaSReplicationEnabled() bool {
@@ -166,32 +171,28 @@ func autoDiscoverLoadBalancer(a *anxProvider, stop <-chan struct{}) (string, []s
 }
 
 func (a anxProvider) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
-	a.providerMetrics.MarkFeatureEnabled("load_balancer_provisioning")
+	a.providerMetrics.MarkFeatureEnabled(featureNameLoadBalancer)
 	return &a.loadBalancerManager, true
 }
 
 func (a anxProvider) Instances() (cloudprovider.Instances, bool) {
-	a.providerMetrics.MarkFeatureDisabled("intances_v1")
 	return nil, false
 }
 
 func (a anxProvider) InstancesV2() (cloudprovider.InstancesV2, bool) {
-	a.providerMetrics.MarkFeatureEnabled("instances_v2")
+	a.providerMetrics.MarkFeatureEnabled(featureNameInstancesV2)
 	return a.instanceManager, true
 }
 
 func (a anxProvider) Zones() (cloudprovider.Zones, bool) {
-	a.providerMetrics.MarkFeatureDisabled("zones")
 	return nil, false
 }
 
 func (a anxProvider) Clusters() (cloudprovider.Clusters, bool) {
-	a.providerMetrics.MarkFeatureDisabled("cluster")
 	return nil, false
 }
 
 func (a anxProvider) Routes() (cloudprovider.Routes, bool) {
-	a.providerMetrics.MarkFeatureDisabled("routes")
 	return nil, false
 }
 
@@ -205,6 +206,14 @@ func (a anxProvider) HasClusterID() bool {
 
 func (a anxProvider) Config() *configuration.ProviderConfig {
 	return a.config
+}
+
+func (a *anxProvider) setupProviderMetrics() {
+	a.providerMetrics = metrics.NewProviderMetrics("anexia", Version)
+	legacyregistry.MustRegister(&a.providerMetrics)
+
+	a.providerMetrics.MarkFeatureDisabled(featureNameLoadBalancer)
+	a.providerMetrics.MarkFeatureDisabled(featureNameInstancesV2)
 }
 
 func registerCloudProvider() {
