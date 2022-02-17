@@ -148,7 +148,9 @@ func SyncLoadBalancer(ctx context.Context, anxAPI api.API, source, target compon
 }
 
 func FetchLoadBalancer(ctx context.Context, lbID string, anxAPI api.API) (components.HashedLoadBalancer, error) {
-	logr.FromContextOrDiscard(ctx).Info("fetching load balancer configuration", "load-balancer", lbID)
+	logger := logr.FromContextOrDiscard(ctx).WithValues("load-balancer", lbID)
+	logger.Info("fetching load balancer configuration")
+
 	f := frontend.Frontend{
 		LoadBalancer: &loadbalancer.Loadbalancer{Identifier: lbID},
 	}
@@ -201,19 +203,25 @@ func FetchLoadBalancer(ctx context.Context, lbID string, anxAPI api.API) (compon
 	for _, loopBackend := range hashedBackends {
 		go func(baseBackend components.HashedBackend) {
 			defer wg.Done()
+
+			logger := logger.WithValues("backend", baseBackend.Backend.Identifier)
+			ctx := logr.NewContext(ctx, logger)
+
 			s := server.Server{
 				Backend: backend.Backend{Identifier: baseBackend.Backend.Identifier},
 			}
 			var iter types.ObjectChannel
 			err := anxAPI.List(ctx, &s, api.ObjectChannel(&iter), api.FullObjects(true))
 			if err != nil {
-				panic(err)
+				logger.Error(err, "could not fetch server for backends")
+				return
 			}
 			for receiver := range iter {
 				var s server.Server
 				err := receiver(&s)
 				if err != nil {
-					panic(err)
+					logger.Error(err, "could not retrieve server for backend")
+					return
 				}
 				hashedServer := components.NewHashedServer(s)
 				mutex.Lock()
@@ -231,19 +239,25 @@ func FetchLoadBalancer(ctx context.Context, lbID string, anxAPI api.API) (compon
 	for _, loopFrontend := range hashedFrontends {
 		go func(baseFrontend components.HashedFrontend) {
 			defer wg.Done()
+
+			logger := logger.WithValues("frontend", baseFrontend.Frontend.Identifier)
+			logr.NewContext(ctx, logger)
+
 			fb := bind.Bind{
 				Frontend: frontend.Frontend{Identifier: baseFrontend.Frontend.Identifier},
 			}
 			var iter types.ObjectChannel
 			err = anxAPI.List(ctx, &fb, api.ObjectChannel(&iter), api.FullObjects(true))
 			if err != nil {
-				panic(err)
+				logger.Error(err, "could not fetch frontend binds for frontend")
+				return
 			}
 			for receiver := range iter {
 				var fb bind.Bind
 				err := receiver(&fb)
 				if err != nil {
-					panic(err)
+					logger.Error(err, "could not retrieve frontend bind for frontend")
+					return
 				}
 				hashedBind := components.NewHashedBind(fb)
 				mutex.Lock()
