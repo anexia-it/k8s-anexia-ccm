@@ -220,7 +220,7 @@ func FetchLoadBalancer(ctx context.Context, lbID string, anxAPI api.API) (compon
 				var s server.Server
 				err := receiver(&s)
 				if err != nil {
-					logger.Error(err, "could not iterate over fetched servers")
+					logger.Error(err, "could not retrieve server for backend")
 					return
 				}
 				hashedServer := components.NewHashedServer(s)
@@ -256,7 +256,7 @@ func FetchLoadBalancer(ctx context.Context, lbID string, anxAPI api.API) (compon
 				var fb bind.Bind
 				err := receiver(&fb)
 				if err != nil {
-					logger.Error(err, "could not iterate over frontend binds")
+					logger.Error(err, "could not retrieve frontend bind for frontend")
 					return
 				}
 				hashedBind := components.NewHashedBind(fb)
