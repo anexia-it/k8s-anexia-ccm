@@ -35,6 +35,7 @@ func main() {
 		ccmOptions.Generic.LeaderElection = config.LeaderElectionConfiguration{LeaderElect: false}
 	}
 
+	ccmOptions.Authorization.AlwaysAllowPaths = []string{"metrics"}
 	ccmOptions.SecureServing.BindPort = 8080
 	if err != nil {
 		klog.Fatalf("unable to initialize command options: %v", err)

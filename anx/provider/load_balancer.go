@@ -178,10 +178,10 @@ func (l loadBalancerManager) EnsureLoadBalancerDeleted(ctx context.Context, clus
 }
 
 func prepareContext(ctx context.Context) context.Context {
-	logger, err := logr.FromContext(ctx)
+	_, err := logr.FromContext(ctx)
 	if err != nil {
 		// logger is not set but we definitely need one
-		logger = klogr.New()
+		logger := klogr.New()
 		ctx = logr.NewContext(ctx, logger)
 	}
 

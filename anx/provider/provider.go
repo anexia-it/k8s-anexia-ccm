@@ -3,7 +3,9 @@ package provider
 import (
 	"context"
 	"fmt"
+	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/metrics"
 	"io"
+	"k8s.io/component-base/metrics/legacyregistry"
 	"os"
 	"time"
 
@@ -17,6 +19,13 @@ import (
 	"k8s.io/klog/v2"
 )
 
+const (
+	featureNameLoadBalancer = "load_balancer_provisioning"
+	featureNameInstancesV2  = "instances_v2"
+)
+
+var Version = "v0.0.0-unreleased"
+
 type Provider interface {
 	anexia.API
 	Config() *configuration.ProviderConfig
@@ -28,6 +37,9 @@ type anxProvider struct {
 	client              anxClient.Client
 	instanceManager     instanceManager
 	loadBalancerManager loadBalancerManager
+
+	// providerMetrics is used to collect metrics inside this provider
+	providerMetrics metrics.ProviderMetrics
 }
 
 func newAnxProvider(config configuration.ProviderConfig) (*anxProvider, error) {
@@ -50,10 +62,21 @@ func newAnxProvider(config configuration.ProviderConfig) (*anxProvider, error) {
 }
 
 func (a *anxProvider) Replication() (sync.LoadBalancerReplicationManager, bool) {
+	const featureName = "load_balancer_config_replication"
+	if a.isLBaaSReplicationEnabled() {
+		a.providerMetrics.MarkFeatureEnabled(featureName)
+	} else {
+		a.providerMetrics.MarkFeatureDisabled(featureName)
+	}
+
 	return a.loadBalancerManager, a.isLBaaSReplicationEnabled()
 }
 
 func (a *anxProvider) Initialize(builder cloudprovider.ControllerClientBuilder, stop <-chan struct{}) {
+	klog.Infof("Anexia provider version %s", Version)
+
+	a.setupProviderMetrics()
+
 	a.instanceManager = instanceManager{a}
 	if a.Config().AutoDiscoverLoadBalancer {
 		ctx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Minute)
@@ -96,7 +119,7 @@ func (a *anxProvider) Initialize(builder cloudprovider.ControllerClientBuilder, 
 		a.loadBalancerManager.notify = make(chan struct{}, 1)
 	}
 
-	klog.Infof("Running with customer prefix '%s'", a.config.CustomerID)
+	klog.Infof("running with customer prefix '%s'", a.config.CustomerID)
 }
 
 func (a *anxProvider) isLBaaSReplicationEnabled() bool {
@@ -104,6 +127,7 @@ func (a *anxProvider) isLBaaSReplicationEnabled() bool {
 }
 
 func (a anxProvider) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
+	a.providerMetrics.MarkFeatureEnabled(featureNameLoadBalancer)
 	return &a.loadBalancerManager, true
 }
 
@@ -112,6 +136,7 @@ func (a anxProvider) Instances() (cloudprovider.Instances, bool) {
 }
 
 func (a anxProvider) InstancesV2() (cloudprovider.InstancesV2, bool) {
+	a.providerMetrics.MarkFeatureEnabled(featureNameInstancesV2)
 	return a.instanceManager, true
 }
 
@@ -137,6 +162,14 @@ func (a anxProvider) HasClusterID() bool {
 
 func (a anxProvider) Config() *configuration.ProviderConfig {
 	return a.config
+}
+
+func (a *anxProvider) setupProviderMetrics() {
+	a.providerMetrics = metrics.NewProviderMetrics("anexia", Version)
+	legacyregistry.MustRegister(&a.providerMetrics)
+
+	a.providerMetrics.MarkFeatureDisabled(featureNameLoadBalancer)
+	a.providerMetrics.MarkFeatureDisabled(featureNameInstancesV2)
 }
 
 func registerCloudProvider() {
