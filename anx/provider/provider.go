@@ -15,6 +15,7 @@ import (
 
 	anexia "go.anx.io/go-anxcloud/pkg"
 	anxClient "go.anx.io/go-anxcloud/pkg/client"
+
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog/v2"
 )
@@ -113,7 +114,7 @@ func (a *anxProvider) Initialize(builder cloudprovider.ControllerClientBuilder, 
 		}
 	}
 
-	a.loadBalancerManager = newLoadBalancerManager(a)
+	a.loadBalancerManager = newLoadBalancerManager(a, builder)
 
 	if a.isLBaaSReplicationEnabled() {
 		a.loadBalancerManager.notify = make(chan struct{}, 1)

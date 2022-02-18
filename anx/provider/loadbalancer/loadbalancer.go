@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	fmt "fmt"
+
 	"github.com/go-logr/logr"
 	"go.anx.io/go-anxcloud/pkg/api"
 	"go.anx.io/go-anxcloud/pkg/client"
@@ -210,12 +211,4 @@ func (g LoadBalancer) GetProvisioningState(ctx context.Context, lbName string) (
 type HostInformation struct {
 	IP       string
 	Hostname string
-}
-
-func GetHostInformation(ctx context.Context, lbaasClient lbaas.API, id string) (HostInformation, error) {
-	fetchedBalancer, err := lbaasClient.LoadBalancer().GetByID(ctx, id)
-	return HostInformation{
-		IP:       fetchedBalancer.IpAddress,
-		Hostname: "",
-	}, err
 }

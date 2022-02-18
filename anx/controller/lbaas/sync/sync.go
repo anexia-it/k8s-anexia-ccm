@@ -4,6 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
+	"time"
+
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/controller/lbaas/sync/components"
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/controller/lbaas/sync/replication"
 	"github.com/go-logr/logr"
@@ -17,8 +20,6 @@ import (
 	"k8s.io/controller-manager/controller"
 	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/klogr"
-	"sync"
-	"time"
 )
 
 type syncController struct {
@@ -68,6 +69,7 @@ func startSyncController(ctx app.ControllerInitContext, stop <-chan struct{},
 	replicationManager, ok := replicationProvider.Replication()
 	if !ok {
 		klog.Info("The provider does not support lbaas replication. Skipping lbaas replication")
+		return nil, false, nil
 	}
 
 	client := config.ClientBuilder.ClientOrDie(ctx.ClientName)

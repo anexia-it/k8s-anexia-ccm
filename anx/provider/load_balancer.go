@@ -2,29 +2,127 @@ package provider
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"net"
+	"strconv"
+
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/loadbalancer"
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/sync"
+
 	"github.com/go-logr/logr"
+
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	cloudprovider "k8s.io/cloud-provider"
+
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/klogr"
-	"strconv"
 )
 
 type loadBalancerManager struct {
 	Provider
+	k8sClient kubernetes.Interface
+
+	prefixes []lbmgrPrefix
+
 	notify chan struct{}
 
 	rLock *sync.SubjectLock
 }
 
-func newLoadBalancerManager(provider Provider) loadBalancerManager {
-	return loadBalancerManager{
+type lbmgrPrefix struct {
+	prefix     net.IPNet
+	family     v1.IPFamily
+	identifier string
+}
+
+var (
+	errSingleVIPConflict = errors.New("only a single LoadBalancer can be used in Anexia Kubernetes Service beta, but found another service using the external IP already")
+	errFamilyMismatch    = errors.New("requested family does not match prefix family")
+)
+
+func newLoadBalancerManager(provider Provider, clientBuilder cloudprovider.ControllerClientBuilder) loadBalancerManager {
+	prefixes := retrieveLoadBalancerPrefixes(provider)
+
+	lbmgr := loadBalancerManager{
 		Provider: provider,
+		prefixes: prefixes,
 		notify:   nil,
 		rLock:    sync.NewSubjectLock(),
 	}
+
+	if clientBuilder != nil {
+		if c, err := clientBuilder.Client("LoadBalancerManager"); err != nil {
+			klog.ErrorS(err, "error creating kubernetes client for LoadBalancerManager")
+		} else {
+			lbmgr.k8sClient = c
+		}
+	}
+
+	return lbmgr
+}
+
+func retrieveLoadBalancerPrefixes(provider Provider) []lbmgrPrefix {
+	prefixes := make([]lbmgrPrefix, 0, len(provider.Config().LoadBalancerPrefixIdentifiers))
+
+	log := klogr.New()
+
+	for _, prefixIdentifier := range provider.Config().LoadBalancerPrefixIdentifiers {
+		log := log.WithValues("prefixIdentifier", prefixIdentifier)
+
+		p, err := provider.IPAM().Prefix().Get(context.TODO(), prefixIdentifier)
+		if err != nil {
+			log.Error(err, "error retrieving external prefix for LoadBalancer")
+		}
+
+		log = log.WithValues("prefix", p.Name)
+
+		_, prefix, err := net.ParseCIDR(p.Name)
+		if err != nil {
+			log.Error(err, "error parsing external prefix for LoadBalancer")
+			continue
+		}
+
+		fam := v1.IPv4Protocol
+
+		if prefix.IP.To4() == nil {
+			fam = v1.IPv6Protocol
+		}
+
+		// XXX: checking if we already have a prefix of the same family configured
+		// This is for Anexia Kubernetes Service MVP, where only a single VIP is configured on the LoadBalancers
+		// and we figure it out from the prefix - hence only one per family is allowed for now.
+		for _, existingPrefix := range prefixes {
+			if existingPrefix.family == fam {
+				log.Error(
+					errors.New("only one prefix for each v4 and v6 is allowed for now"),
+					"Got another prefix for the same family, skipping this one",
+					"existingPrefix", existingPrefix.prefix.String(), "existingPrefixIdentifier", existingPrefix.identifier,
+				)
+
+				continue
+			}
+		}
+
+		prefixes = append(prefixes, lbmgrPrefix{
+			identifier: prefixIdentifier,
+			prefix:     *prefix,
+			family:     fam,
+		})
+	}
+
+	for _, p := range prefixes {
+		klog.InfoS("using prefix for external LoadBalancer IPs",
+			"prefixIdentifier", p.identifier,
+			"prefix", p.prefix.String(),
+			"family", p.family,
+		)
+	}
+
+	return prefixes
 }
 
 func (l *loadBalancerManager) GetLoadBalancer(ctx context.Context, clusterName string,
@@ -54,12 +152,7 @@ func (l *loadBalancerManager) GetLoadBalancer(ctx context.Context, clusterName s
 		}
 	}
 
-	information, err := loadbalancer.GetHostInformation(ctx, l.LBaaS(), l.Config().LoadBalancerIdentifier)
-	if err != nil {
-		return nil, false, err
-	}
-
-	status, err := assembleLBStatus(ctx, information, portStatus)
+	status, err := l.assembleLBStatus(ctx, service, portStatus)
 	return status, overallState, err
 }
 
@@ -100,11 +193,7 @@ func (l loadBalancerManager) EnsureLoadBalancer(ctx context.Context, clusterName
 		}
 	}
 
-	information, err := loadbalancer.GetHostInformation(ctx, l.LBaaS(), l.Config().LoadBalancerIdentifier)
-	if err != nil {
-		return nil, err
-	}
-	status, err := assembleLBStatus(ctx, information, portStatus)
+	status, err := l.assembleLBStatus(ctx, service, portStatus)
 	if err != nil {
 		return status, err
 	}
@@ -112,19 +201,121 @@ func (l loadBalancerManager) EnsureLoadBalancer(ctx context.Context, clusterName
 	return status, nil
 }
 
-func assembleLBStatus(ctx context.Context, hostInformation loadbalancer.HostInformation,
-	portStatus []v1.PortStatus) (*v1.LoadBalancerStatus, error) {
+func (l loadBalancerManager) assembleLBStatus(ctx context.Context, svc *v1.Service, portStatus []v1.PortStatus) (*v1.LoadBalancerStatus, error) {
+	log := logr.FromContextOrDiscard(ctx).WithValues(
+		"service", fmt.Sprintf("%s/%s", svc.Namespace, svc.Name),
+	)
 
-	status := &v1.LoadBalancerStatus{
-		Ingress: []v1.LoadBalancerIngress{
-			{
-				IP:       hostInformation.IP,
-				Hostname: hostInformation.Hostname,
-				Ports:    portStatus,
-			},
-		},
+	status := svc.Status.LoadBalancer
+
+	if status.Ingress == nil || len(status.Ingress) < len(svc.Spec.IPFamilies) {
+		newIPs := make([]net.IP, 0)
+
+		if status.Ingress == nil {
+			status.Ingress = make([]v1.LoadBalancerIngress, 0)
+		}
+
+	familyLoop:
+		for _, fam := range svc.Spec.IPFamilies {
+			log := log.WithValues("family", fam)
+			ctx := logr.NewContext(ctx, log)
+
+			for _, allocated := range status.Ingress {
+				if allocated.IP == "" {
+					continue
+				}
+
+				ip := net.ParseIP(allocated.IP)
+
+				if (fam == v1.IPv4Protocol && len(ip) == 4) ||
+					(fam == v1.IPv6Protocol && len(ip) == 16) {
+					continue familyLoop
+				}
+			}
+
+			externalIP, err := l.allocateExternalIP(ctx, fam)
+			if err != nil {
+				return nil, err
+			}
+
+			// XXX: check if no other service already has the same IP
+			// this, again, is only relevant until we actually allocate new IPs and not use the single one available for use.
+			err = l.checkIPCollision(ctx, externalIP, svc)
+			if err != nil {
+				return nil, err
+			}
+
+			newIPs = append(newIPs, externalIP)
+		}
+
+		for _, extIP := range newIPs {
+			status.Ingress = append(status.Ingress, v1.LoadBalancerIngress{
+				IP:    extIP.String(),
+				Ports: portStatus,
+			})
+		}
 	}
-	return status, nil
+
+	return &status, nil
+}
+
+// checkIPCollision looks at every LoadBalancer service in the cluster (except the given one) and checks if it uses the given IP already.
+func (l loadBalancerManager) checkIPCollision(ctx context.Context, ip net.IP, svc *v1.Service) error {
+	log := logr.FromContextOrDiscard(ctx)
+
+	if l.k8sClient != nil {
+		svcList, err := l.k8sClient.CoreV1().Services("").List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return fmt.Errorf("error listing services to check if the VIP is already in use: %w", err)
+		}
+
+		for _, s := range svcList.Items {
+			if s.Namespace == svc.Namespace && s.Name == svc.Name {
+				continue
+			}
+
+			if s.Spec.Type != v1.ServiceTypeLoadBalancer {
+				continue
+			}
+
+			log := log.WithValues(
+				"other-service", fmt.Sprintf("%s/%s", s.Namespace, s.Name),
+			)
+
+			for _, ingress := range s.Status.LoadBalancer.Ingress {
+				svcIP := net.ParseIP(ingress.IP)
+				if svcIP.Equal(ip) {
+					log.Error(errSingleVIPConflict, "external IP collision detected")
+					return errSingleVIPConflict
+				}
+			}
+		}
+	} else {
+		log.Error(nil, "no usable kubernetes client to check for external IP collisions")
+	}
+
+	return nil
+}
+
+func (l loadBalancerManager) allocateExternalIP(ctx context.Context, fam v1.IPFamily) (net.IP, error) {
+	log := logr.FromContextOrDiscard(ctx)
+
+	// for every prefix, try to allocate an address from it, returning the first that works
+	for _, p := range l.prefixes {
+		if p.family == fam {
+			ip, err := p.allocateAddress(ctx, fam)
+			if err != nil {
+				return nil, err
+			}
+
+			return ip, nil
+		}
+	}
+
+	// When we got here, it means none of the available prefixes could allocate an address for us, meaning
+	// we need a new prefix - but this is NotYetImplemented for Anexia Kubernetes Service MVP
+	log.Info("no configured prefix was able to allocate an IP")
+	return nil, cloudprovider.NotImplemented
 }
 
 func (l loadBalancerManager) UpdateLoadBalancer(ctx context.Context, clusterName string, service *v1.Service, nodes []*v1.Node) error {
@@ -244,4 +435,28 @@ func (l loadBalancerManager) notifyOthers() {
 	default:
 		klog.V(3).Info("notification is dropped because there are still pending events to be processed")
 	}
+}
+
+func (lp lbmgrPrefix) allocateAddress(ctx context.Context, fam v1.IPFamily) (net.IP, error) {
+	if fam != lp.family {
+		return nil, errFamilyMismatch
+	}
+
+	log := logr.FromContextOrDiscard(ctx).WithValues(
+		"prefix", lp.prefix.String(),
+		"prefix-identifier", lp.identifier,
+	)
+	ctx = logr.NewContext(ctx, log)
+
+	// XXX: replace this with IPAM address allocation logic once we can add and remove LoadBalancer IPs
+	// See SYSENG-918 for more info.
+	ip := calculateVIP(lp.prefix)
+
+	log.V(1).Info(
+		"allocated external IP",
+		"prefix", lp.prefix.String(),
+		"address", ip.String(),
+	)
+
+	return ip, nil
 }
