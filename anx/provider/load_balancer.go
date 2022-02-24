@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/loadbalancer"
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/sync"
@@ -39,9 +40,14 @@ type lbmgrPrefix struct {
 	identifier string
 }
 
+const (
+	lbaasExternalIPFamiliesAnnotation = "lbaas.anx.io/external-ip-families"
+)
+
 var (
-	errSingleVIPConflict = errors.New("only a single LoadBalancer can be used in Anexia Kubernetes Service beta, but found another service using the external IP already")
-	errFamilyMismatch    = errors.New("requested family does not match prefix family")
+	errSingleVIPConflict           = errors.New("only a single LoadBalancer can be used in Anexia Kubernetes Service beta, but found another service using the external IP already")
+	errFamilyMismatch              = errors.New("requested family does not match prefix family")
+	errInvalidIPFamiliesAnnotation = errors.New(fmt.Sprintf("invalid IP family in annotation %v", lbaasExternalIPFamiliesAnnotation))
 )
 
 func newLoadBalancerManager(provider Provider, clientBuilder cloudprovider.ControllerClientBuilder) loadBalancerManager {
@@ -206,6 +212,32 @@ func (l loadBalancerManager) assembleLBStatus(ctx context.Context, svc *v1.Servi
 		"service", fmt.Sprintf("%s/%s", svc.Namespace, svc.Name),
 	)
 
+	families := svc.Spec.IPFamilies
+
+	if externalFamiliesAnnotation, ok := svc.Annotations[lbaasExternalIPFamiliesAnnotation]; ok {
+		familyStrings := strings.Split(externalFamiliesAnnotation, ",")
+		families = make([]v1.IPFamily, 0, len(familyStrings))
+
+		validFamilies := []v1.IPFamily{v1.IPv4Protocol, v1.IPv6Protocol}
+
+		for _, fam := range familyStrings {
+			valid := false
+
+			for _, validFam := range validFamilies {
+				if fam == string(validFam) {
+					valid = true
+					break
+				}
+			}
+
+			if !valid {
+				return nil, fmt.Errorf("%w: %v is not a valid IPFamily", errInvalidIPFamiliesAnnotation, fam)
+			}
+
+			families = append(families, v1.IPFamily(fam))
+		}
+	}
+
 	status := svc.Status.LoadBalancer
 
 	if status.Ingress == nil || len(status.Ingress) < len(svc.Spec.IPFamilies) {
@@ -216,7 +248,7 @@ func (l loadBalancerManager) assembleLBStatus(ctx context.Context, svc *v1.Servi
 		}
 
 	familyLoop:
-		for _, fam := range svc.Spec.IPFamilies {
+		for _, fam := range families {
 			log := log.WithValues("family", fam)
 			ctx := logr.NewContext(ctx, log)
 

@@ -38,10 +38,27 @@ The service controller performs the following functions:
 #. Configuring the specified load balancer. (See load balancer discovery)
 
 
+Annotations
+-----------
+
+Like most cloud providers, we allow configuring some features via annotations on the objects:
+
+#. ``lbaas.anx.io/external-ip-families: IPv4,IPv6``
+
+   Allows configuring the families for external IP address allocated for a LoadBalancer service. This list does not
+   have to match the families of the service; configuring "external IPv6, internal IPv4" is perfectly fine.
+
+   A given IP family is only allowed once, so "``IPv4``", "``IPv6``", "``IPv4,IPv6``" and "``IPv6,IPv4``" are the only
+   possible values. The order given is not relevant, the value is case-sensitive and no spaces are allowed though.
+
+   If this annotation is not set, ``.spec.ipFamilies`` of the service is used instead, meaning a service internally
+   being dual-stack is dual-stack externally, too.
+
+
 Load Balancer Discovery
 -----------------------
 
-Currently the cloud-controller-manageris not able to create a `LoadBalancer` resource inside the Anexia LBaaS module,
+Currently the cloud-controller-manager is not able to create a `LoadBalancer` resource inside the Anexia LBaaS module,
 since this involves manual steps. However the CCM will configure these LoadBalancer resources (create Frontends,
 FrontendBinds, Backend, BackendServers). In order to tell the cloud contrroller manager which LoadBalancer Object is to be
 configured you have the following options.
