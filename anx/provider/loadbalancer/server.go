@@ -53,7 +53,7 @@ func createServerForLB(ctx context.Context, lb LoadBalancer, name string,
 
 	createdServer, err := lb.Server().Create(ctx, definition)
 
-	err = await.AwaitServerState(ctx, createdServer.Identifier, await.SuccessStates...)
+	err = await.ServerState(ctx, createdServer.Identifier, await.SuccessStates...)
 	if err != nil {
 		return server.Server{}, err
 	}

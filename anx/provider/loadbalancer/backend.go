@@ -24,7 +24,7 @@ func ensureBackendInLoadBalancer(ctx context.Context, lb LoadBalancer,
 		return createdBackend, nil
 	}
 	// await for backend to be created
-	err := await.AwaitBackendState(ctx, existingBackend.Identifier, await.SuccessStates...)
+	err := await.BackendState(ctx, existingBackend.Identifier, await.SuccessStates...)
 	if err != nil {
 		return "", err
 	}
