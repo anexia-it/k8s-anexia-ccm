@@ -2,6 +2,9 @@ package loadbalancer
 
 import (
 	"context"
+
+	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/loadbalancer/await"
+	v1 "go.anx.io/go-anxcloud/pkg/apis/lbaas/v1"
 	"go.anx.io/go-anxcloud/pkg/lbaas/common"
 	"go.anx.io/go-anxcloud/pkg/lbaas/frontend"
 	"go.anx.io/go-anxcloud/pkg/pagination"
@@ -25,6 +28,13 @@ func createFrontendForLB(ctx context.Context, lb LoadBalancer, frontendName stri
 		return "", err
 	}
 	lb.Logger.Info("configured frontend for loadbalancer", "name", frontendName, "resource", "frontend")
+
+	// await frontend to reach any success state
+	err = await.AwaitFrontendState(ctx, createdFrontend.Identifier, await.SuccessStates...)
+	if err != nil {
+		return "", err
+	}
+
 	return FrontendID(createdFrontend.Identifier), nil
 }
 
@@ -69,6 +79,11 @@ func ensureFrontendDeleted(ctx context.Context, g LoadBalancer, name string) err
 	if existingFrontend == nil {
 		return nil
 	}
+	err := g.Frontend().DeleteByID(ctx, existingFrontend.Identifier)
+	if err != nil {
+		return err
+	}
 
-	return g.Frontend().DeleteByID(ctx, existingFrontend.Identifier)
+	return await.Deleted(ctx, &v1.Frontend{Identifier: existingFrontend.Identifier})
+
 }
