@@ -2,6 +2,8 @@ package loadbalancer
 
 import (
 	"context"
+
+	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/loadbalancer/await"
 	v1 "go.anx.io/go-anxcloud/pkg/apis/lbaas/v1"
 	"go.anx.io/go-anxcloud/pkg/lbaas/bind"
 	"go.anx.io/go-anxcloud/pkg/lbaas/common"
@@ -16,6 +18,12 @@ func createBind(ctx context.Context, lb LoadBalancer, bindName string) (BindID, 
 		return "", err
 	}
 	lb.Logger.Info("Bind created for loadbalancer", "name", bindName, "resource", "bind")
+
+	err = await.AwaitBindState(ctx, bind.Identifier, await.SuccessStates...)
+	if err != nil {
+		return "", err
+	}
+
 	return BindID(bind.Identifier), nil
 }
 
@@ -73,6 +81,9 @@ func ensureFrontendBindDeleted(ctx context.Context, g LoadBalancer, name string)
 	if exisitngBind == nil {
 		return nil
 	}
-
-	return g.Bind().DeleteByID(ctx, exisitngBind.Identifier)
+	err := g.Bind().DeleteByID(ctx, exisitngBind.Identifier)
+	if err != nil {
+		return err
+	}
+	return await.Deleted(ctx, &v1.Bind{Identifier: exisitngBind.Identifier})
 }

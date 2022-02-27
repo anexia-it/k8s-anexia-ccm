@@ -2,6 +2,9 @@ package loadbalancer
 
 import (
 	"context"
+
+	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/loadbalancer/await"
+	v1 "go.anx.io/go-anxcloud/pkg/apis/lbaas/v1"
 	"go.anx.io/go-anxcloud/pkg/lbaas/backend"
 	"go.anx.io/go-anxcloud/pkg/lbaas/common"
 	"go.anx.io/go-anxcloud/pkg/pagination"
@@ -10,7 +13,6 @@ import (
 func ensureBackendInLoadBalancer(ctx context.Context, lb LoadBalancer,
 	backendName string) (BackendID, error) {
 	existingBackend := findBackendInLB(ctx, lb, backendName)
-
 	// check if we need to create a backend
 	if existingBackend == nil {
 		createdBackend, err := createBackendForLB(ctx, lb, backendName)
@@ -21,7 +23,11 @@ func ensureBackendInLoadBalancer(ctx context.Context, lb LoadBalancer,
 		// we can stop here
 		return createdBackend, nil
 	}
-
+	// await for backend to be created
+	err := await.AwaitBackendState(ctx, existingBackend.Identifier, await.SuccessStates...)
+	if err != nil {
+		return "", err
+	}
 	return BackendID(existingBackend.Identifier), nil
 }
 
@@ -63,5 +69,9 @@ func deleteBackendFromLB(ctx context.Context, g LoadBalancer, name string) error
 	if backend == nil {
 		return nil
 	}
-	return g.Backend().DeleteByID(ctx, backend.Identifier)
+	err := g.Backend().DeleteByID(ctx, backend.Identifier)
+	if err != nil {
+		return err
+	}
+	return await.Deleted(ctx, &v1.Backend{Identifier: backend.Identifier})
 }

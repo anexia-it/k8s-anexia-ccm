@@ -5,6 +5,9 @@ import (
 	"crypto/md5"
 	"errors"
 	"fmt"
+
+	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/loadbalancer/await"
+	v1 "go.anx.io/go-anxcloud/pkg/apis/lbaas/v1"
 	"go.anx.io/go-anxcloud/pkg/lbaas/common"
 	"go.anx.io/go-anxcloud/pkg/lbaas/server"
 	"go.anx.io/go-anxcloud/pkg/pagination"
@@ -49,6 +52,11 @@ func createServerForLB(ctx context.Context, lb LoadBalancer, name string,
 	definition := getServerDefinition(name, endpoint, lb.State)
 
 	createdServer, err := lb.Server().Create(ctx, definition)
+
+	err = await.AwaitServerState(ctx, createdServer.Identifier, await.SuccessStates...)
+	if err != nil {
+		return server.Server{}, err
+	}
 	return createdServer, err
 }
 
@@ -86,11 +94,21 @@ func findServersByBackendInLB(ctx context.Context, lb LoadBalancer, lbName, suff
 
 func deleteServersFromBackendInLB(ctx context.Context, g LoadBalancer, name string) error {
 	servers := findServersByBackendInLB(ctx, g, name, "")
+	serverIDs := make([]string, 0, len(servers))
 	for _, server := range servers {
 		err := g.Server().DeleteByID(ctx, server.Identifier)
 		if err != nil {
 			return err
 		}
+		serverIDs = append(serverIDs, server.Identifier)
 	}
+
+	for _, serverID := range serverIDs {
+		err := await.Deleted(ctx, &v1.Server{Identifier: serverID})
+		if err != nil {
+			return err
+		}
+	}
+
 	return nil
 }

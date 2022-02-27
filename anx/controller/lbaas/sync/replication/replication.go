@@ -4,8 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/rand"
+	"sync"
+
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/controller/lbaas/sync/components"
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/controller/lbaas/sync/delta"
+	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/loadbalancer/await"
 	"github.com/go-logr/logr"
 	"go.anx.io/go-anxcloud/pkg/api"
 	"go.anx.io/go-anxcloud/pkg/api/types"
@@ -14,8 +18,6 @@ import (
 	"go.anx.io/go-anxcloud/pkg/lbaas/frontend"
 	"go.anx.io/go-anxcloud/pkg/lbaas/loadbalancer"
 	"go.anx.io/go-anxcloud/pkg/lbaas/server"
-	"math/rand"
-	"sync"
 )
 
 func SyncLoadBalancer(ctx context.Context, anxAPI api.API, source, target components.HashedLoadBalancer) error {
@@ -40,6 +42,12 @@ func SyncLoadBalancer(ctx context.Context, anxAPI api.API, source, target compon
 		if err != nil {
 			return err
 		}
+
+		err = await.Deleted(ctx, server)
+		if err != nil {
+			return err
+		}
+
 		target.Servers = components.DeleteServer(server.Identifier, target.Servers)
 	}
 
@@ -49,6 +57,12 @@ func SyncLoadBalancer(ctx context.Context, anxAPI api.API, source, target compon
 		if err != nil {
 			return err
 		}
+
+		err = await.Deleted(ctx, bind)
+		if err != nil {
+			return err
+		}
+
 		target.Binds = components.DeleteBind(bind.Identifier, target.Binds)
 	}
 
@@ -58,6 +72,12 @@ func SyncLoadBalancer(ctx context.Context, anxAPI api.API, source, target compon
 		if err != nil {
 			return err
 		}
+
+		err = await.Deleted(ctx, frontend)
+		if err != nil {
+			return err
+		}
+
 		target.Frontends = components.DeleteFrontend(frontend.Identifier, target.Frontends)
 	}
 
@@ -67,6 +87,12 @@ func SyncLoadBalancer(ctx context.Context, anxAPI api.API, source, target compon
 		if err != nil {
 			return err
 		}
+
+		err = await.Deleted(ctx, backend)
+		if err != nil {
+			return err
+		}
+
 		target.Backends = components.DeleteBackend(backend.Identifier, target.Backends)
 	}
 
@@ -78,6 +104,7 @@ func SyncLoadBalancer(ctx context.Context, anxAPI api.API, source, target compon
 		backendClone.Identifier = ""
 
 		err := anxAPI.Create(ctx, &backendClone)
+		await.AwaitBackendState(ctx, backendClone.Identifier, await.SuccessStates...)
 		if err != nil {
 			return err
 		}
@@ -100,6 +127,7 @@ func SyncLoadBalancer(ctx context.Context, anxAPI api.API, source, target compon
 		frontendClone.DefaultBackend = defaultBackend.Backend
 
 		err := anxAPI.Create(ctx, &frontendClone)
+		await.AwaitFrontendState(ctx, frontendClone.Identifier, await.SuccessStates...)
 		if err != nil {
 			return err
 		}
@@ -120,6 +148,7 @@ func SyncLoadBalancer(ctx context.Context, anxAPI api.API, source, target compon
 		bindClone.Frontend = *boundFrontend.Frontend
 
 		err := anxAPI.Create(ctx, &bindClone)
+		await.AwaitBindState(ctx, bindClone.Identifier, await.SuccessStates...)
 		if err != nil {
 			return err
 		}
@@ -138,6 +167,7 @@ func SyncLoadBalancer(ctx context.Context, anxAPI api.API, source, target compon
 		serverClone.Backend = *serverBackend.Backend
 
 		err := anxAPI.Create(ctx, &serverClone)
+		await.AwaitServerState(ctx, serverClone.Identifier, await.SuccessStates...)
 		if err != nil {
 			return err
 		}
