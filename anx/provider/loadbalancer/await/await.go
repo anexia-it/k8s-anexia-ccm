@@ -19,7 +19,7 @@ var (
 	FailedStates = []lbaas.State{lbaas.DeploymentError}
 )
 
-func AwaitBackendState(ctx context.Context, identifier string, states ...lbaas.State) error {
+func BackendState(ctx context.Context, identifier string, states ...lbaas.State) error {
 	backend := lbaas.Backend{Identifier: identifier}
 	anxClient, err := getClient()
 
@@ -39,7 +39,7 @@ func AwaitBackendState(ctx context.Context, identifier string, states ...lbaas.S
 	return nil
 }
 
-func AwaitFrontendState(ctx context.Context, identifier string, states ...lbaas.State) error {
+func FrontendState(ctx context.Context, identifier string, states ...lbaas.State) error {
 	frontend := lbaas.Frontend{Identifier: identifier}
 	anxClient, err := api.NewAPI(api.WithClientOptions(client.TokenFromEnv(false)))
 
@@ -59,7 +59,7 @@ func AwaitFrontendState(ctx context.Context, identifier string, states ...lbaas.
 	return nil
 }
 
-func AwaitBindState(ctx context.Context, identifier string, states ...lbaas.State) error {
+func BindState(ctx context.Context, identifier string, states ...lbaas.State) error {
 	bind := lbaas.Bind{Identifier: identifier}
 	anxClient, err := api.NewAPI(api.WithClientOptions(client.TokenFromEnv(false)))
 
@@ -79,7 +79,7 @@ func AwaitBindState(ctx context.Context, identifier string, states ...lbaas.Stat
 	return nil
 }
 
-func AwaitServerState(ctx context.Context, identifier string, states ...lbaas.State) error {
+func ServerState(ctx context.Context, identifier string, states ...lbaas.State) error {
 	server := lbaas.Server{Identifier: identifier}
 	anxClient, err := api.NewAPI(api.WithClientOptions(client.TokenFromEnv(false)))
 

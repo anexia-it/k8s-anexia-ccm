@@ -19,7 +19,7 @@ func createBind(ctx context.Context, lb LoadBalancer, bindName string) (BindID, 
 	}
 	lb.Logger.Info("Bind created for loadbalancer", "name", bindName, "resource", "bind")
 
-	err = await.AwaitBindState(ctx, bind.Identifier, await.SuccessStates...)
+	err = await.BindState(ctx, bind.Identifier, await.SuccessStates...)
 	if err != nil {
 		return "", err
 	}

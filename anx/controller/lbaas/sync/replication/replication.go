@@ -104,7 +104,7 @@ func SyncLoadBalancer(ctx context.Context, anxAPI api.API, source, target compon
 		backendClone.Identifier = ""
 
 		err := anxAPI.Create(ctx, &backendClone)
-		await.AwaitBackendState(ctx, backendClone.Identifier, await.SuccessStates...)
+		await.BackendState(ctx, backendClone.Identifier, await.SuccessStates...)
 		if err != nil {
 			return err
 		}
@@ -127,7 +127,7 @@ func SyncLoadBalancer(ctx context.Context, anxAPI api.API, source, target compon
 		frontendClone.DefaultBackend = defaultBackend.Backend
 
 		err := anxAPI.Create(ctx, &frontendClone)
-		await.AwaitFrontendState(ctx, frontendClone.Identifier, await.SuccessStates...)
+		await.FrontendState(ctx, frontendClone.Identifier, await.SuccessStates...)
 		if err != nil {
 			return err
 		}
@@ -148,7 +148,7 @@ func SyncLoadBalancer(ctx context.Context, anxAPI api.API, source, target compon
 		bindClone.Frontend = *boundFrontend.Frontend
 
 		err := anxAPI.Create(ctx, &bindClone)
-		await.AwaitBindState(ctx, bindClone.Identifier, await.SuccessStates...)
+		await.BindState(ctx, bindClone.Identifier, await.SuccessStates...)
 		if err != nil {
 			return err
 		}
@@ -167,7 +167,7 @@ func SyncLoadBalancer(ctx context.Context, anxAPI api.API, source, target compon
 		serverClone.Backend = *serverBackend.Backend
 
 		err := anxAPI.Create(ctx, &serverClone)
-		await.AwaitServerState(ctx, serverClone.Identifier, await.SuccessStates...)
+		await.ServerState(ctx, serverClone.Identifier, await.SuccessStates...)
 		if err != nil {
 			return err
 		}

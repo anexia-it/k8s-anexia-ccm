@@ -30,7 +30,7 @@ func createFrontendForLB(ctx context.Context, lb LoadBalancer, frontendName stri
 	lb.Logger.Info("configured frontend for loadbalancer", "name", frontendName, "resource", "frontend")
 
 	// await frontend to reach any success state
-	err = await.AwaitFrontendState(ctx, createdFrontend.Identifier, await.SuccessStates...)
+	err = await.FrontendState(ctx, createdFrontend.Identifier, await.SuccessStates...)
 	if err != nil {
 		return "", err
 	}
