@@ -139,6 +139,5 @@ func matchesAny(state lbaas.State, matches []lbaas.State) bool {
 }
 
 func getClient() (api.API, error) {
-
 	return api.NewAPI(api.WithClientOptions(client.TokenFromEnv(false)))
 }
