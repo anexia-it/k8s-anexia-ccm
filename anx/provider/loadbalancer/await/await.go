@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/go-logr/logr"
 	"go.anx.io/go-anxcloud/pkg/api"
 	lbaas "go.anx.io/go-anxcloud/pkg/apis/lbaas/v1"
 	"go.anx.io/go-anxcloud/pkg/client"
@@ -22,8 +23,10 @@ var (
 func BackendState(ctx context.Context, identifier string, states ...lbaas.State) error {
 	backend := lbaas.Backend{Identifier: identifier}
 	anxClient, err := getClient()
+	logger := logr.FromContextOrDiscard(ctx).V(2)
 
 	until(1*time.Minute, func() (bool, error) {
+		logger.Info("waiting for backend to reach desired state", "identifier", identifier)
 		err = anxClient.Get(ctx, &backend)
 		if err != nil {
 			return false, err
@@ -42,8 +45,10 @@ func BackendState(ctx context.Context, identifier string, states ...lbaas.State)
 func FrontendState(ctx context.Context, identifier string, states ...lbaas.State) error {
 	frontend := lbaas.Frontend{Identifier: identifier}
 	anxClient, err := api.NewAPI(api.WithClientOptions(client.TokenFromEnv(false)))
+	logger := logr.FromContextOrDiscard(ctx).V(2)
 
 	until(1*time.Minute, func() (bool, error) {
+		logger.Info("waiting for frontend to reach desired state", "identifier", identifier)
 		err = anxClient.Get(ctx, &frontend)
 		if err != nil {
 			return false, err
@@ -62,8 +67,10 @@ func FrontendState(ctx context.Context, identifier string, states ...lbaas.State
 func BindState(ctx context.Context, identifier string, states ...lbaas.State) error {
 	bind := lbaas.Bind{Identifier: identifier}
 	anxClient, err := api.NewAPI(api.WithClientOptions(client.TokenFromEnv(false)))
+	logger := logr.FromContextOrDiscard(ctx).V(2)
 
 	until(1*time.Minute, func() (bool, error) {
+		logger.Info("waiting for bind to reach desired state", "identifier", identifier)
 		err = anxClient.Get(ctx, &bind)
 		if err != nil {
 			return false, err
@@ -82,8 +89,10 @@ func BindState(ctx context.Context, identifier string, states ...lbaas.State) er
 func ServerState(ctx context.Context, identifier string, states ...lbaas.State) error {
 	server := lbaas.Server{Identifier: identifier}
 	anxClient, err := api.NewAPI(api.WithClientOptions(client.TokenFromEnv(false)))
+	logger := logr.FromContextOrDiscard(ctx).V(2)
 
 	until(1*time.Minute, func() (bool, error) {
+		logger.Info("waiting for server to reach desired state", "identifier", identifier)
 		err = anxClient.Get(ctx, &server)
 		if err != nil {
 			return false, err
