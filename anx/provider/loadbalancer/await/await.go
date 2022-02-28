@@ -115,6 +115,7 @@ func until(timeout time.Duration, conditionCode func() (bool, error)) error {
 			if isDone {
 				return nil
 			}
+			time.Sleep(5 * time.Second)
 		}
 	}
 }
