@@ -14,6 +14,11 @@ Welcome to anxcloud-cloud-controller-manager's documentation!
    ./features.rst
    ./configuration.rst
 
+.. toctree::
+   :caption: Internals:
+
+   ./loadbalancer.rst
+
 
 Indices and tables
 ==================
