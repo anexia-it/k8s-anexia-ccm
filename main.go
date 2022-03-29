@@ -2,20 +2,20 @@ package main
 
 import (
 	"context"
-	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/controller"
+	"math/rand"
+	"os"
+	"time"
+
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/configuration"
 	"github.com/go-logr/logr"
 	"k8s.io/component-base/config"
 	"k8s.io/klog/v2/klogr"
-	"math/rand"
-	"os"
-	"time"
 
 	"github.com/spf13/pflag"
 
 	_ "github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"k8s.io/cloud-provider"
+	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/cloud-provider/app"
 	cloudcontrollerconfig "k8s.io/cloud-provider/app/config"
 	cliflag "k8s.io/component-base/cli/flag"
@@ -42,11 +42,6 @@ func main() {
 	}
 
 	controllerInitializers := app.DefaultInitFuncConstructors
-
-	// merge in Anexia controllers
-	for key, constructor := range controller.AnexiaDefaultInitFuncConstructors {
-		controllerInitializers[key] = constructor
-	}
 
 	fss := cliflag.NamedFlagSets{}
 	command := app.NewCloudControllerManagerCommand(ccmOptions, cloudInitializer, controllerInitializers,

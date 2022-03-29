@@ -3,7 +3,7 @@
 // I'm seriously surprised "get nth address of network" isn't in Go's standard library o.o
 // -- Mara @LittleFox94 Grosch, 2022-02-18
 
-package provider
+package address
 
 import (
 	"net"
@@ -25,7 +25,7 @@ func calculateVIP(n net.IPNet) net.IP {
 	}
 
 	// set LSB of address to zero, resulting in the address below the broadcast address of the network
-	ret[len(ret)-1] -= 1
+	ret[len(ret)-1]--
 
 	return ret
 }

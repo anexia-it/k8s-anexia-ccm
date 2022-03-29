@@ -1,23 +1,24 @@
 package provider
 
 import (
-	"context"
 	"fmt"
-	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/metrics"
 	"io"
-	"k8s.io/component-base/metrics/legacyregistry"
 	"os"
-	"time"
 
-	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/controller/lbaas/sync"
+	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/metrics"
+	"github.com/go-logr/logr"
+	"k8s.io/component-base/metrics/legacyregistry"
+
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/configuration"
-	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/discovery"
+	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/loadbalancer"
 
 	anexia "go.anx.io/go-anxcloud/pkg"
-	anxClient "go.anx.io/go-anxcloud/pkg/client"
+	"go.anx.io/go-anxcloud/pkg/api"
+	"go.anx.io/go-anxcloud/pkg/client"
 
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog/v2"
+	"k8s.io/klog/v2/klogr"
 )
 
 const (
@@ -34,10 +35,15 @@ type Provider interface {
 
 type anxProvider struct {
 	anexia.API
-	config              *configuration.ProviderConfig
-	client              anxClient.Client
-	instanceManager     instanceManager
-	loadBalancerManager loadBalancerManager
+
+	logger logr.Logger
+	config *configuration.ProviderConfig
+
+	genericClient api.API
+	legacyClient  client.Client
+
+	instanceManager     cloudprovider.InstancesV2
+	loadBalancerManager cloudprovider.LoadBalancer
 
 	// providerMetrics is used to collect metrics inside this provider
 	providerMetrics metrics.ProviderMetrics
@@ -50,86 +56,53 @@ func newAnxProvider(config configuration.ProviderConfig) (*anxProvider, error) {
 		return nil, err
 	}
 
-	client, err := anxClient.New(anxClient.TokenFromString(config.Token))
+	logger := klogr.NewWithOptions()
+
+	legacyClient, err := client.New(client.TokenFromString(config.Token))
 	if err != nil {
-		return nil, fmt.Errorf("could not create anexia client. %w", err)
+		return nil, fmt.Errorf("could not create legacy anexia client. %w", err)
+	}
+
+	genericClient, err := api.NewAPI(
+		api.WithClientOptions(
+			client.TokenFromString(config.Token),
+		),
+		api.WithLogger(logger.WithName("go-anxcloud")),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("could not create generic anexia client. %w", err)
 	}
 
 	return &anxProvider{
-		API:    anexia.NewAPI(client),
-		client: client,
-		config: &config,
+		API:           anexia.NewAPI(legacyClient),
+		genericClient: genericClient,
+		legacyClient:  legacyClient,
+		logger:        logger.WithName("anx/provider"),
+		config:        &config,
 	}, nil
 }
 
-func (a *anxProvider) Replication() (sync.LoadBalancerReplicationManager, bool) {
-	const featureName = "load_balancer_config_replication"
-	if a.isLBaaSReplicationEnabled() {
-		a.providerMetrics.MarkFeatureEnabled(featureName)
-	} else {
-		a.providerMetrics.MarkFeatureDisabled(featureName)
-	}
-
-	return a.loadBalancerManager, a.isLBaaSReplicationEnabled()
-}
-
 func (a *anxProvider) Initialize(builder cloudprovider.ControllerClientBuilder, stop <-chan struct{}) {
-	klog.Infof("Anexia provider version %s", Version)
+	a.logger.Info("Anexia provider initializing", "version", Version)
 
 	a.setupProviderMetrics()
 
+	config := a.Config()
+
+	if lb, err := loadbalancer.New(config, a.logger.WithName("LoadBalancer"), a.genericClient, a.legacyClient); err != nil {
+		a.logger.Error(err, "Error initializing LoadBalancer manager")
+	} else {
+		a.loadBalancerManager = lb
+	}
+
 	a.instanceManager = instanceManager{a}
-	if a.Config().AutoDiscoverLoadBalancer {
-		ctx, cancelFunc := context.WithTimeout(context.Background(), 1*time.Minute)
-		defer cancelFunc()
-		go func() {
-			select {
-			case <-stop:
-				cancelFunc()
-			case <-time.After(1 * time.Minute):
-			}
-		}()
-
-		autodiscoverLBsTag := fmt.Sprintf("%s-%s", a.Config().AutoDiscoveryTagPrefix, a.Config().ClusterName)
-		autodiscoverLBPrefixesTag := fmt.Sprintf("kubernetes-lb-prefix-%s", a.Config().ClusterName)
-
-		balancer, secondaryLoadBalancers, err := discovery.AutoDiscoverLoadBalancer(ctx, autodiscoverLBsTag)
-		if err != nil {
-			klog.Errorf("Configured to autodiscover LoadBalancers, but discovery failed", "error", err)
-		} else {
-			a.config.LoadBalancerIdentifier = balancer
-			klog.Infof("discovered load balancer '%s'", balancer)
-
-			if secondaryLoadBalancers != nil {
-				a.config.SecondaryLoadBalancerIdentifiers = secondaryLoadBalancers
-				klog.Infof("discovered load balancers for replication %v", secondaryLoadBalancers)
-			}
-
-			prefixes, err := discovery.AutoDiscoverLoadBalancerPrefixes(ctx, autodiscoverLBPrefixesTag)
-			if err != nil {
-				klog.Errorf("Configured to autodiscover LoadBalancers, but discovering external prefixes failed", "error", err)
-			} else {
-				a.config.LoadBalancerPrefixIdentifiers = prefixes
-			}
-		}
-	}
-
-	a.loadBalancerManager = newLoadBalancerManager(a, builder)
-
-	if a.isLBaaSReplicationEnabled() {
-		a.loadBalancerManager.notify = make(chan struct{}, 1)
-	}
 
 	klog.Infof("running with customer prefix '%s'", a.config.CustomerID)
 }
 
-func (a *anxProvider) isLBaaSReplicationEnabled() bool {
-	return len(a.Config().SecondaryLoadBalancerIdentifiers) != 0 && a.Config().LoadBalancerIdentifier != ""
-}
-
 func (a anxProvider) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
 	a.providerMetrics.MarkFeatureEnabled(featureNameLoadBalancer)
-	return &a.loadBalancerManager, true
+	return a.loadBalancerManager, true
 }
 
 func (a anxProvider) Instances() (cloudprovider.Instances, bool) {
