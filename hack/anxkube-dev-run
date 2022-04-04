@@ -1,0 +1,180 @@
+#!/bin/sh
+
+log() {
+    echo "$*" > /dev/stderr
+}
+
+check_dependencies() {
+    if [ -z "$ANXKUBE_CLUSTER_IDENTIFIER" ]; then
+        log "Please configure your cluster via ANXKUBE_CLUSTER_IDENTIFIER"
+        exit 1
+    fi
+
+    _=${JQ:=$(command -v jq)}
+    _=${KUBECTL:=$(command -v kubectl)}
+    _=${BASE64:=$(command -v base64)}
+
+    if [ ! -x "$JQ" -o ! -x "$KUBECTL" -o ! -x "$BASE64" ]; then
+        log "Dependencies missing or not executable, please configure via variables (name of dependency in CAPS) or have them in PATH"
+        log "jq: $JQ, kubectl: $KUBECTL, base64: $BASE64"
+        exit 1
+    fi
+}
+
+check_config() {
+    file=$1
+    name=$2
+
+    if [ -e "$file" ]; then
+        if [ ! -f "$file" ]; then
+            log "$name exists but isn't a file?! ($file)"
+            exit 1
+        fi
+
+        log "reusing already fetched $name"
+        return 1
+    fi
+
+    return 0
+}
+
+retrieve_configs() {
+    kkp_cluster_id=$(
+        $KUBECTL get cluster -o json |
+        $JQ -r ".items[]|select(.spec.humanReadableName == \"$ANXKUBE_CLUSTER_IDENTIFIER\")|.metadata.name"
+    )
+
+    if [ -z "$kkp_cluster_id" ]; then
+        log "Could not find KKP cluster ID, is your kubectl configured for the correct seed cluster?"
+        exit 1
+    fi
+
+    # common path prefix for all files
+    path_prefix="_anxkube-dev/$kkp_cluster_id"
+
+    # runtime config files we grab and generate
+    kubeconfig="$path_prefix-kubeconfig"
+    cloudconfig="$path_prefix-config"
+    envfile="$path_prefix-env"
+
+    mkdir -p _anxkube-dev
+    if [ $? != 0 ]; then
+        log "Error creating directory to store anxkube-dev runtime configs in"
+        exit 1
+    fi
+
+    if check_config "$kubeconfig" kubeconfig; then
+        log "fetching kubeconfig ..."
+
+        $KUBECTL -n "cluster-$kkp_cluster_id" -o json        \
+            get secret cloud-controller-manager-kubeconfig | \
+        $JQ -r '.data.kubeconfig'                          | \
+        $BASE64 -d                                         > \
+        "$kubeconfig"
+    fi
+
+    if check_config "$cloudconfig" config; then
+        log "fetching config ..."
+
+        $KUBECTL -n "cluster-$kkp_cluster_id" -o json   \
+            get cm cloud-config                       | \
+        $JQ -r '.data.config'                         > \
+        "$cloudconfig"
+    fi
+
+    container_definition=$(
+        $KUBECTL -n "cluster-$kkp_cluster_id" -o json   \
+        get deploy anx-cloud-controller-manager       | \
+        $JQ '.spec.template.spec.containers[] |
+            select(.name == "cloud-controller-manager")'
+    )
+
+    if check_config "$envfile" "environment file"; then
+        log "fetching environment file ..."
+
+        echo "$container_definition" | $JQ -r '
+                    .env[]?                          |
+                    select(.name != "ANEXIA_TOKEN")  |
+                    "export \(.name)=\"\(.value)\""' >> \
+        "$envfile"
+    fi
+
+    log "fetching external apiserver from viewer kubeconfig ..."
+
+    apiserver=$(
+        $KUBECTL -n "cluster-$kkp_cluster_id" -o json        \
+            get secret viewer-kubeconfig | \
+        $JQ -r '.data.kubeconfig'                          | \
+        $BASE64 -d                                         | \
+        grep -o 'server: http.*' | sed 's/\s*server:\s*//'
+    )
+
+    sed -i "s~server: http.*$~server: $apiserver~" $kubeconfig
+
+    echo "$kkp_cluster_id $path_prefix --cloud-config=$cloudconfig --kubeconfig=$kubeconfig"
+
+    # grab arguments from container definition, ignoring cloud-config and kubeconfig args as we
+    # have different paths and set them above already
+    echo "$container_definition" | \
+        $JQ -r '.args[-1]' | \
+        $JQ -r '.args[] | select(
+                    split("=") as $kv |
+                    $kv[0] != "--cloud-config" and
+                    $kv[0] != "--kubeconfig"
+                )'
+}
+
+disable_cluster_ccm() {
+    cluster_id=$1
+
+    patch_output=$($KUBECTL patch cluster "$cluster_id" --type merge -p '{"spec":{"pause":true}}')
+    case $patch_output in
+        *" patched")
+            log "Paused cluster '$cluster_id'"
+            ;;
+    esac
+
+    # using kubectl patch instead of kubectl scale to get the info if anything was changed
+    patch_output=$($KUBECTL -n "cluster-$cluster_id" patch deploy anx-cloud-controller-manager -p '{"spec":{"replicas":0}}')
+    case $patch_output in
+        *" patched")
+            log "Scaled CCM down to 0 for cluster '$cluster_id'"
+            ;;
+    esac
+}
+
+check_dependencies
+
+if [ "$1" = "debug" ]; then
+    debug=1
+    shift
+fi
+
+# start building the command line flags to CCM by using some hard coded and adding whatever
+# arguments this script got
+ccm_flags="$*"
+
+# retrieve config files and flags for them
+set -- $(retrieve_configs)
+
+# .. first two return values of retrieve_configs are the KKP cluster ID and the path prefix
+# for all files relating the given cluster
+cluster_id="$1"
+path_prefix="$2"
+shift 2
+
+# add all other flags returned by retrieve_configs to the set of CCM command line flags
+ccm_flags="$ccm_flags $*"
+
+. "$path_prefix-env"
+
+disable_cluster_ccm $cluster_id
+
+if [ $debug ]; then
+    ccm_flags="$ccm_flags --leader-elect=false"
+    dlv debug -r stdout:"$path_prefix-log" -r stderr:"$path_prefix-log" -- $ccm_flags
+else
+    cmdline="./anxcloud-cloud-controller-manager $ccm_flags"
+    log "Running CCM with cmdline \"$cmdline\""
+    $cmdline | tee "$path_prefix-log"
+fi

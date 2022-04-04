@@ -1,0 +1,2 @@
+export ANXKUBE_CLUSTER_IDENTIFIER=Engine identifier of the cluster to run CCM against
+export ANEXIA_TOKEN=your Anexia API token
