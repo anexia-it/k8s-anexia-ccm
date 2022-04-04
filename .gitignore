@@ -2,3 +2,7 @@
 docs/build
 local-config.yaml
 anxcloud-cloud-controller-manager
+.envrc
+_anxkube-dev
+coverage.out
+coverage.html
