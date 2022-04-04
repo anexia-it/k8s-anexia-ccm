@@ -18,8 +18,8 @@
 # -- Project information -----------------------------------------------------
 
 project = 'anxcloud-cloud-controller-manager'
-copyright = '2021, kevin.stiehl@numericas.de'
-author = 'kevin.stiehl@numericas.de'
+copyright = '2022, Anexia IT'
+author = 'opensource@anexia-it.com'
 
 
 # -- General configuration ---------------------------------------------------
