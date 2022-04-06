@@ -5,8 +5,19 @@ on:
       - published
 name: CI Build & Test
 jobs:
+  test:
+    runs-on: ubuntu-20.04
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/setup-go@v2
+        with:
+          go-version: '1.17'
+      - run: go test ./...
+        name: Run Tests
+
   build:
     runs-on: ubuntu-20.04
+    if:      "github.actor != 'dependabot[bot]'"
     steps:
       - uses: actions/checkout@v2
       - uses: docker/login-action@v1
@@ -42,19 +53,10 @@ jobs:
           push: true
           tags: |
             anx-cr.io/anexia/kubermatic-addon:v2.17.2
-  test:
-    runs-on: ubuntu-20.04
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-go@v2
-        with:
-          go-version: '1.17'
-      - run: go test ./...
-        name: Run Tests
-
 
   docker-scan:
     runs-on: ubuntu-20.04
+    if: "github.actor != 'dependabot[bot]'"
     needs: [build]
     steps:
       - name: Get Image Tag
