@@ -4,7 +4,7 @@ go 1.17
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
-	github.com/go-logr/logr v1.2.0
+	github.com/go-logr/logr v1.2.3
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/prometheus/client_golang v1.11.0
 	github.com/spf13/pflag v1.0.5
