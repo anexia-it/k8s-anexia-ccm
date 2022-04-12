@@ -15,6 +15,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 	k8s.io/api v0.23.6
 	k8s.io/apimachinery v0.23.6
+	k8s.io/client-go v0.23.6
 	k8s.io/cloud-provider v0.23.6
 	k8s.io/component-base v0.23.6
 	k8s.io/klog/v2 v2.60.1
@@ -97,7 +98,6 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.0.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	k8s.io/apiserver v0.23.6 // indirect
-	k8s.io/client-go v0.23.6 // indirect
 	k8s.io/component-helpers v0.23.6 // indirect
 	k8s.io/controller-manager v0.23.6 // indirect
 	k8s.io/kube-openapi v0.0.0-20211115234752-e816edb12b65 // indirect

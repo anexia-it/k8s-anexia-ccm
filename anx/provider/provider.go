@@ -7,6 +7,7 @@ import (
 
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/metrics"
 	"github.com/go-logr/logr"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/component-base/metrics/legacyregistry"
 
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/configuration"
@@ -87,17 +88,32 @@ func (a *anxProvider) Initialize(builder cloudprovider.ControllerClientBuilder, 
 
 	a.setupProviderMetrics()
 
-	config := a.Config()
+	a.initializeLoadBalancerManager(builder)
+	a.instanceManager = instanceManager{a}
 
-	if lb, err := loadbalancer.New(config, a.logger.WithName("LoadBalancer"), a.genericClient, a.legacyClient); err != nil {
+	klog.Infof("running with customer prefix '%s'", a.config.CustomerID)
+}
+
+func (a *anxProvider) initializeLoadBalancerManager(builder cloudprovider.ControllerClientBuilder) {
+	var k8sClient kubernetes.Interface
+
+	if builder != nil {
+		c, err := builder.Client("LoadBalancer")
+		if err != nil {
+			a.logger.Error(err, "Error creating kubernetes client for LoadBalancer manager")
+		} else {
+			k8sClient = c
+		}
+	}
+
+	config := a.Config()
+	logger := a.logger.WithName("LoadBalancer")
+
+	if lb, err := loadbalancer.New(config, logger, k8sClient, a.genericClient, a.legacyClient); err != nil {
 		a.logger.Error(err, "Error initializing LoadBalancer manager")
 	} else {
 		a.loadBalancerManager = lb
 	}
-
-	a.instanceManager = instanceManager{a}
-
-	klog.Infof("running with customer prefix '%s'", a.config.CustomerID)
 }
 
 func (a anxProvider) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
