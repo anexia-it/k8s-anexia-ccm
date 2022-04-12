@@ -7,10 +7,14 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"sync"
 
 	"github.com/go-logr/logr"
 
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+
 	cloudprovider "k8s.io/cloud-provider"
 
 	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/configuration"
@@ -23,13 +27,16 @@ import (
 )
 
 type mgr struct {
-	logger        logr.Logger
-	apiClient     api.API
-	legacyClient  client.Client
-	loadBalancers []string
-	clusterName   string
+	logger       logr.Logger
+	api          api.API
+	legacyClient client.Client
+	clusterName  string
+	k8s          kubernetes.Interface
 
 	addressManager address.Manager
+
+	loadBalancers []string
+	sync          *sync.Mutex
 }
 
 var (
@@ -41,6 +48,9 @@ var (
 
 	// ErrNoUsableNodeAddress is returned when asked to reconcile a Service for set of Nodes from which at least one does not have a usable address.
 	ErrNoUsableNodeAddress = errors.New("Node lacks usable address")
+
+	// ErrSingleVIPConflict is returned when asked to provision a LoadBalancer service while another already uses the single load balancer IP usable for Anexia Kubernetes Service beta.
+	ErrSingleVIPConflict = errors.New("only a single LoadBalancer can be used in Anexia Kubernetes Service beta, but found another service using the external IP already")
 )
 
 // New creates a new LoadBalancer manager for the given Anexia generic client, cluster name and identifier of the
@@ -49,11 +59,13 @@ var (
 //
 // The given overrideClusterName can be given for cases were the kubernetes controller-manager does not know it
 // and there are multiple clusters running in the same Anexia customer, resulting in possibly colliding resources.
-func New(config *configuration.ProviderConfig, logger logr.Logger, apiClient api.API, legacyClient client.Client) (cloudprovider.LoadBalancer, error) {
+func New(config *configuration.ProviderConfig, logger logr.Logger, k8sClient kubernetes.Interface, apiClient api.API, legacyClient client.Client) (cloudprovider.LoadBalancer, error) {
 	m := mgr{
-		apiClient:    apiClient,
+		api:          apiClient,
 		legacyClient: legacyClient,
+		k8s:          k8sClient,
 		logger:       logger,
+		sync:         &sync.Mutex{},
 	}
 
 	m.clusterName = config.ClusterName
@@ -72,7 +84,7 @@ func New(config *configuration.ProviderConfig, logger logr.Logger, apiClient api
 }
 
 func (m mgr) GetLoadBalancerName(ctx context.Context, clusterName string, service *v1.Service) string {
-	ctx, clusterName = m.prepare(ctx, clusterName, service)
+	_, clusterName = m.prepare(ctx, clusterName, service)
 	return strings.Join([]string{service.Name, service.Namespace, clusterName}, ".")
 }
 
@@ -120,6 +132,9 @@ func (m mgr) GetLoadBalancer(ctx context.Context, clusterName string, service *v
 }
 
 func (m mgr) EnsureLoadBalancer(ctx context.Context, clusterName string, service *v1.Service, nodes []*v1.Node) (*v1.LoadBalancerStatus, error) {
+	m.sync.Lock()
+	defer m.sync.Unlock()
+
 	ctx, clusterName = m.prepare(ctx, clusterName, service)
 
 	recon, _, err := m.reconciliationForService(ctx, clusterName, service, nodes)
@@ -147,7 +162,7 @@ func (m mgr) EnsureLoadBalancerDeleted(ctx context.Context, clusterName string, 
 func (m *mgr) configureLoadBalancers(ctx context.Context, config *configuration.ProviderConfig) error {
 	if config.AutoDiscoverLoadBalancer {
 		tag := fmt.Sprintf("%s-%s", config.AutoDiscoveryTagPrefix, m.clusterName)
-		lbs, err := discovery.DiscoverLoadBalancers(ctx, m.apiClient, tag)
+		lbs, err := discovery.DiscoverLoadBalancers(ctx, m.api, tag)
 		if err != nil {
 			return err
 		}
@@ -166,7 +181,7 @@ func (m *mgr) configureLoadBalancers(ctx context.Context, config *configuration.
 
 func (m *mgr) configurePrefixes(ctx context.Context, config *configuration.ProviderConfig) error {
 	if prefixes := config.LoadBalancerPrefixIdentifiers; len(prefixes) > 0 {
-		am, err := address.NewWithPrefixes(ctx, m.apiClient, m.legacyClient, prefixes)
+		am, err := address.NewWithPrefixes(ctx, m.api, m.legacyClient, prefixes)
 		if err != nil {
 			return err
 		}
@@ -174,7 +189,7 @@ func (m *mgr) configurePrefixes(ctx context.Context, config *configuration.Provi
 		m.addressManager = am
 	} else if config.AutoDiscoverLoadBalancer {
 		tag := fmt.Sprintf("kubernetes-lb-prefix-%s", m.clusterName)
-		m.addressManager = address.NewWithPrefixAutodiscovery(ctx, m.apiClient, m.legacyClient, tag)
+		m.addressManager = address.NewWithPrefixAutodiscovery(ctx, m.api, m.legacyClient, tag)
 	}
 
 	return nil
@@ -258,6 +273,10 @@ func (m mgr) reconciliationForService(ctx context.Context, clusterName string, s
 				continue
 			}
 
+			if err := m.checkIPCollision(ctx, ip, svc); err != nil {
+				return nil, nil, err
+			}
+
 			externalAddresses = append(externalAddresses, ip)
 		}
 	} else {
@@ -277,7 +296,7 @@ func (m mgr) reconciliationForService(ctx context.Context, clusterName string, s
 
 		recon, err := reconciliation.New(
 			ctx,
-			m.apiClient,
+			m.api,
 
 			m.GetLoadBalancerName(ctx, clusterName, svc),
 			lb,
@@ -295,6 +314,44 @@ func (m mgr) reconciliationForService(ctx context.Context, clusterName string, s
 	}
 
 	return mrecon, externalAddresses, nil
+}
+
+// checkIPCollision looks at every LoadBalancer service in the cluster (except the given one) and checks if it uses the given IP already.
+func (m mgr) checkIPCollision(ctx context.Context, ip net.IP, svc *v1.Service) error {
+	log := logr.FromContextOrDiscard(ctx)
+
+	if m.k8s != nil {
+		svcList, err := m.k8s.CoreV1().Services("").List(ctx, metav1.ListOptions{})
+		if err != nil {
+			return fmt.Errorf("error listing services to check if the VIP is already in use: %w", err)
+		}
+
+		for _, s := range svcList.Items {
+			if s.Namespace == svc.Namespace && s.Name == svc.Name {
+				continue
+			}
+
+			if s.Spec.Type != v1.ServiceTypeLoadBalancer {
+				continue
+			}
+
+			log := log.WithValues(
+				"other-service", fmt.Sprintf("%s/%s", s.Namespace, s.Name),
+			)
+
+			for _, ingress := range s.Status.LoadBalancer.Ingress {
+				svcIP := net.ParseIP(ingress.IP)
+				if svcIP.Equal(ip) {
+					log.Error(ErrSingleVIPConflict, "external IP collision detected")
+					return ErrSingleVIPConflict
+				}
+			}
+		}
+	} else {
+		log.Error(nil, "no usable kubernetes client to check for external IP collisions")
+	}
+
+	return nil
 }
 
 func lbStatusFromReconcileStatus(reconStatus map[string][]uint16) *v1.LoadBalancerStatus {
