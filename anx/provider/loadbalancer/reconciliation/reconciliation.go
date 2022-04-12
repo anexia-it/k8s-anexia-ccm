@@ -33,6 +33,9 @@ const (
 var (
 	// ErrResourcesNotDestroyable is returned when Reconcile tried to Destroy a resource but Engine returned an error
 	ErrResourcesNotDestroyable = errors.New("failed to Destroy some resources")
+
+	// ErrLBaaSResourceFailed is returned when a LBaaS resource is in a not-ok state.
+	ErrLBaaSResourceFailed = errors.New("LBaaS resource in failure state")
 )
 
 // Reconciliation wraps the current status and gives methods to operate on it, changing it into the desired state. Read the documentation for New for more info.
@@ -160,7 +163,10 @@ func (r *reconciliation) ReconcileCheck() ([]types.Object, []types.Object, error
 		r.reconcileServers,
 	}
 
-	retToDestroy := []types.Object{}
+	retToDestroy := r.reconcileFailedResources()
+	if len(retToDestroy) > 0 {
+		return []types.Object{}, retToDestroy, nil
+	}
 
 	for _, step := range steps {
 		toCreate, toDestroy, err := step()
@@ -249,7 +255,7 @@ func (r *reconciliation) Reconcile() error {
 			r.logger.Info("waiting for created resources to become ready", "count", len(toCreate))
 
 			err := r.waitForResources(toCreate)
-			if err != nil {
+			if err != nil && !errors.Is(err, ErrLBaaSResourceFailed) {
 				return err
 			}
 		} else {
@@ -337,7 +343,7 @@ func (r *reconciliation) waitForResources(toCreate []types.Object) error {
 			}
 
 			if len(failed) > 0 {
-				err = errors.New("LBaaS resources failed")
+				err = ErrLBaaSResourceFailed
 				r.logger.Error(err, "Some object are in failure state, aborting", "objects", failed)
 				return false, err
 			} else if len(notReady) > 0 {
@@ -498,6 +504,40 @@ func (r *reconciliation) makeResourceName(parts ...string) string {
 	}
 
 	return strings.Join(validParts, ".")
+}
+
+func (r *reconciliation) reconcileFailedResources() (toDestroy []types.Object) {
+	toDestroy = make([]types.Object, 0, len(r.backends)+len(r.frontends)+len(r.binds)+len(r.servers))
+
+	for _, backend := range r.backends {
+		if backend.StateFailure() {
+			r.logger.Info("Scheduling failed LBaaS Backend for Destroy", "identifier", backend.Identifier)
+			toDestroy = append(toDestroy, &backend)
+		}
+	}
+
+	for _, frontend := range r.frontends {
+		if frontend.StateFailure() {
+			r.logger.Info("Scheduling failed LBaaS Frontend for Destroy", "identifier", frontend.Identifier)
+			toDestroy = append(toDestroy, &frontend)
+		}
+	}
+
+	for _, bind := range r.binds {
+		if bind.StateFailure() {
+			r.logger.Info("Scheduling failed LBaaS Bind for Destroy", "identifier", bind.Identifier)
+			toDestroy = append(toDestroy, &bind)
+		}
+	}
+
+	for _, server := range r.servers {
+		if server.StateFailure() {
+			r.logger.Info("Scheduling failed LBaaS Server for Destroy", "identifier", server.Identifier)
+			toDestroy = append(toDestroy, &server)
+		}
+	}
+
+	return
 }
 
 func (r *reconciliation) reconcileBackends() (toCreate, toDestroy []types.Object, err error) {
