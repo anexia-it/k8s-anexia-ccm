@@ -8,6 +8,7 @@ import (
 	"net"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -241,17 +242,8 @@ func (r *reconciliation) Reconcile() error {
 					return fmt.Errorf("error creating LBaaS resource: %w", err)
 				}
 
-				identifier, _ := api.GetObjectIdentifier(obj, true)
-
-				for _, tag := range r.tags {
-					rt := corev1.ResourceWithTag{
-						Identifier: identifier,
-						Tag:        tag,
-					}
-
-					if err := r.api.Create(r.ctx, &rt); err != nil {
-						return fmt.Errorf("error tagging LBaaS resource: %w", err)
-					}
+				if err := r.tagResource(obj); err != nil {
+					return fmt.Errorf("error tagging LBaaS resource: %w", err)
 				}
 			}
 			r.logger.Info("waiting for created resources to become ready", "count", len(toCreate))
@@ -262,6 +254,28 @@ func (r *reconciliation) Reconcile() error {
 			}
 		} else {
 			completed = true
+		}
+	}
+
+	return nil
+}
+
+var _engsup5902_mutex = sync.Mutex{}
+
+func (r *reconciliation) tagResource(o types.Object) error {
+	_engsup5902_mutex.Lock()
+	defer _engsup5902_mutex.Unlock()
+
+	identifier, _ := api.GetObjectIdentifier(o, true)
+
+	for _, tag := range r.tags {
+		rt := corev1.ResourceWithTag{
+			Identifier: identifier,
+			Tag:        tag,
+		}
+
+		if err := r.api.Create(r.ctx, &rt); err != nil {
+			return err
 		}
 	}
 
