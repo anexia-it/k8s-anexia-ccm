@@ -21,6 +21,20 @@ hack:
 	cd hack && go build -o . github.com/golangci/golangci-lint/cmd/golangci-lint
 	cd hack && go build -o . github.com/onsi/ginkgo/v2/ginkgo
 
+depscheck:
+	@echo "==> Checking source code dependencies..."
+	@go mod tidy
+	@git diff --exit-code -- go.mod go.sum || \
+		(echo; echo "Found differences in go.mod/go.sum files. Run 'go mod tidy' or revert go.mod/go.sum changes."; exit 1)
+	@# reset go.sum to state before checking if it is clean
+	@git checkout -q go.sum
+
+fmt:
+	gofmt -s -w .
+
+fmtcheck:
+	@hack/gofmtcheck.sh
+
 go-lint: hack
 	@echo "==> Checking source code against linters..."
 	@hack/golangci-lint run ./...
@@ -42,4 +56,4 @@ docs-lint-fix: tools
 	@hack/misspell -w -source=text docs/
 	@docker run -v $(PWD):/markdown 06kellyjac/markdownlint-cli --fix docs/
 
-.PHONY: anxcloud-cloud-controller-manager test run debug hack go-lint docs-lint docs-lint-fix
+.PHONY: anxcloud-cloud-controller-manager test run debug hack go-lint docs-lint docs-lint-fix depscheck fmt fmtcheck
