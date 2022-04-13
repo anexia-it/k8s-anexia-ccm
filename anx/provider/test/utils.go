@@ -2,8 +2,8 @@ package test
 
 import (
 	"fmt"
-	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/configuration"
-	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/mocks"
+	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/configuration"
+	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/mocks"
 	"go.anx.io/go-anxcloud/pkg/clouddns"
 	"go.anx.io/go-anxcloud/pkg/ipam"
 	"go.anx.io/go-anxcloud/pkg/lbaas"

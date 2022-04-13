@@ -17,10 +17,10 @@ import (
 
 	cloudprovider "k8s.io/cloud-provider"
 
-	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/configuration"
-	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/loadbalancer/address"
-	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/loadbalancer/discovery"
-	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/loadbalancer/reconciliation"
+	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/configuration"
+	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/loadbalancer/address"
+	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/loadbalancer/discovery"
+	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/loadbalancer/reconciliation"
 
 	"go.anx.io/go-anxcloud/pkg/api"
 	"go.anx.io/go-anxcloud/pkg/client"

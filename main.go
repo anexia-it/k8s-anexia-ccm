@@ -6,14 +6,14 @@ import (
 	"os"
 	"time"
 
-	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/configuration"
+	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/configuration"
 	"github.com/go-logr/logr"
 	"k8s.io/component-base/config"
 	"k8s.io/klog/v2/klogr"
 
 	"github.com/spf13/pflag"
 
-	_ "github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider"
+	_ "github.com/anexia-it/k8s-anexia-ccm/anx/provider"
 	"k8s.io/apimachinery/pkg/util/wait"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/cloud-provider/app"

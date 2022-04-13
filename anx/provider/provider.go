@@ -5,13 +5,13 @@ import (
 	"io"
 	"os"
 
-	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/metrics"
+	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/metrics"
 	"github.com/go-logr/logr"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/component-base/metrics/legacyregistry"
 
-	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/configuration"
-	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/loadbalancer"
+	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/configuration"
+	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/loadbalancer"
 
 	anexia "go.anx.io/go-anxcloud/pkg"
 	"go.anx.io/go-anxcloud/pkg/api"
