@@ -37,8 +37,7 @@ fmtcheck:
 
 go-lint: hack
 	@echo "==> Checking source code against linters..."
-	@hack/golangci-lint run ./...
-	@hack/golangci-lint run --build-tags integration ./...
+	@hack/golangci-lint run --timeout 5m ./...
 
 docs-lint: hack
 	@echo "==> Checking docs against linters..."
