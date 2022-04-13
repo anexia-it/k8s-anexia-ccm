@@ -1,4 +1,4 @@
-module github.com/anexia-it/anxcloud-cloud-controller-manager
+module github.com/anexia-it/k8s-anexia-ccm
 
 go 1.17
 

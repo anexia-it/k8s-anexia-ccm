@@ -3,7 +3,7 @@ package provider
 import (
 	"bytes"
 	"fmt"
-	"github.com/anexia-it/anxcloud-cloud-controller-manager/anx/provider/configuration"
+	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/configuration"
 	"github.com/stretchr/testify/require"
 	cloudprovider "k8s.io/cloud-provider"
 	"os"
