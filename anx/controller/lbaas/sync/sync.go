@@ -33,7 +33,7 @@ type syncController struct {
 var LoadBalancerSyncConstructor = func(initcontext app.ControllerInitContext,
 	completedConfig *cloudcontrollerconfig.CompletedConfig, cloud cloudprovider.Interface) app.InitFunc {
 
-	return func(ctx managerApp.ControllerContext) (controller controller.Interface, enabled bool, err error) {
+	return func(_ context.Context, ctx managerApp.ControllerContext) (controller controller.Interface, enabled bool, err error) {
 		return startSyncController(initcontext, ctx.Stop, completedConfig, cloud)
 	}
 }
