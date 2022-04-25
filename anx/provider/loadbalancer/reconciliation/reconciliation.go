@@ -168,6 +168,8 @@ func (r *reconciliation) ReconcileCheck() ([]types.Object, []types.Object, error
 		return []types.Object{}, retToDestroy, nil
 	}
 
+	retToCreate := []types.Object{}
+
 	for _, step := range steps {
 		toCreate, toDestroy, err := step()
 
@@ -175,14 +177,11 @@ func (r *reconciliation) ReconcileCheck() ([]types.Object, []types.Object, error
 			return nil, nil, err
 		}
 
+		retToCreate = append(retToCreate, toCreate...)
 		retToDestroy = append(retToDestroy, toDestroy...)
-
-		if len(toCreate) > 0 {
-			return toCreate, retToDestroy, nil
-		}
 	}
 
-	return []types.Object{}, retToDestroy, nil
+	return retToCreate, retToDestroy, nil
 }
 
 // Reconcile calls ReconcileCheck in a loop, every time creating and destroying resources, until reconciliation
