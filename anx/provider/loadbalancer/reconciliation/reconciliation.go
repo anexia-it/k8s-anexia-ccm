@@ -149,7 +149,7 @@ func New(
 // to be created and destroyed. When both of the returned arrays are empty no resources have to be
 // created or destroyed anymore, meaning reconciliation is done.
 //
-// Some resourced need others to already exist, so creating all resources returned by ReconcileCheck
+// Some resources need others to already exist, so creating all resources returned by ReconcileCheck
 // and then calling ReconcileCheck again will not always result in "nothing to change".
 func (r *reconciliation) ReconcileCheck() ([]types.Object, []types.Object, error) {
 	if err := r.retrieveState(); err != nil {
@@ -234,8 +234,14 @@ func (r *reconciliation) Reconcile() error {
 			}
 
 			if len(toDestroy) > 0 && !allowRetry {
+				toDestroyForLog := make([]string, 0, len(toDestroy))
+				for _, td := range toDestroy {
+					identifier, _ := api.GetObjectIdentifier(td, true)
+					toDestroyForLog = append(toDestroyForLog, fmt.Sprintf("%T %v", td, identifier))
+				}
+
 				r.logger.Error(ErrResourcesNotDestroyable, "Some resources could not be deleted",
-					"resources", toDestroy,
+					"resources", toDestroyForLog,
 				)
 
 				return ErrResourcesNotDestroyable
