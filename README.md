@@ -9,9 +9,9 @@ Requires a Go (>= 1.17) toolchain and `make`. For compiling and testing, use the
 `run` and `debug`, but you need some more setup first:
 
 * create API key for Anexia Engine
-* create cluster in Anexia Kubernetes Service and retrieve its identifier (last part of the URL of its detail page)
+* create cluster in Anexia Kubernetes Service
 * copy `envrc-sample` to `.envrc`, fill your values and run `direnv allow`
-  - alternatively, you can export `ANEXIA_TOKEN` with your token and `ANXKUBE_CLUSTER_IDENTIFIER` with your cluster identifier
+  - alternatively, you can export `ANEXIA_TOKEN` with your token and `KKP_HUMAN_READABLE_NAME` with your cluster's name
 
 Interactive debugging requires [`delve`](https://github.com/go-delve/delve) to be installed in path.
 

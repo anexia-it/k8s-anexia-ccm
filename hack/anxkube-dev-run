@@ -5,8 +5,8 @@ log() {
 }
 
 check_dependencies() {
-    if [ -z "$ANXKUBE_CLUSTER_IDENTIFIER" ]; then
-        log "Please configure your cluster via ANXKUBE_CLUSTER_IDENTIFIER"
+    if [ -z "$KKP_HUMAN_READABLE_NAME" ]; then
+        log "Please configure your cluster via its KKP_HUMAN_READABLE_NAME. For an Anexia Kubernetes Service cluster, that's its name in the Engine"
         exit 1
     fi
 
@@ -41,7 +41,7 @@ check_config() {
 retrieve_configs() {
     kkp_cluster_id=$(
         $KUBECTL get cluster -o json |
-        $JQ -r ".items[]|select(.spec.humanReadableName == \"$ANXKUBE_CLUSTER_IDENTIFIER\")|.metadata.name"
+        $JQ -r ".items[]|select(.spec.humanReadableName == \"$KKP_HUMAN_READABLE_NAME\")|.metadata.name"
     )
 
     if [ -z "$kkp_cluster_id" ]; then

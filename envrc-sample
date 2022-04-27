@@ -1,2 +1,2 @@
-export ANXKUBE_CLUSTER_IDENTIFIER=Engine identifier of the cluster to run CCM against
+export KKP_HUMAN_READABLE_NAME=Human readable name of the cluster in KKP. For an Anexia Kubernetes Service cluster, that's its name in the Engine.
 export ANEXIA_TOKEN=your Anexia API token
