@@ -552,6 +552,7 @@ func (r *reconciliation) reconcileBackends() (toCreate, toDestroy []types.Object
 			Name:         r.makeResourceName(name),
 			LoadBalancer: lbaasv1.LoadBalancer{Identifier: r.lb.Identifier},
 			Mode:         lbaasv1.TCP,
+			HealthCheck:  `"adv_check": "tcp-check"`,
 		})
 	}
 
@@ -561,7 +562,7 @@ func (r *reconciliation) reconcileBackends() (toCreate, toDestroy []types.Object
 	err = compare.Reconcile(
 		targetBackends, r.backends,
 		&toCreate, &toDestroy,
-		"Name", "Mode", "LoadBalancer.Identifier",
+		"Name", "Mode", "HealthCheck", "LoadBalancer.Identifier",
 	)
 	if err != nil {
 		return nil, nil, err

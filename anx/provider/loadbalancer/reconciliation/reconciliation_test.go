@@ -193,12 +193,14 @@ var _ = Describe("reconcile", func() {
 			httpBackendIdentifier = mock.FakeExisting(&lbaasv1.Backend{
 				Name:         "http." + testClusterName,
 				Mode:         lbaasv1.TCP,
+				HealthCheck:  `"adv_check": "tcp-check"`,
 				LoadBalancer: lbaasv1.LoadBalancer{Identifier: testLoadBalancerIdentifier},
 			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
 
 			httpsBackendIdentifier = mock.FakeExisting(&lbaasv1.Backend{
 				Name:         "https." + testClusterName,
 				Mode:         lbaasv1.TCP,
+				HealthCheck:  `"adv_check": "tcp-check"`,
 				LoadBalancer: lbaasv1.LoadBalancer{Identifier: testLoadBalancerIdentifier},
 			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
 
@@ -351,12 +353,14 @@ var _ = Describe("reconcile", func() {
 			httpBackendIdentifier = mock.FakeExisting(&lbaasv1.Backend{
 				Name:         "http." + testClusterName,
 				Mode:         lbaasv1.TCP,
+				HealthCheck:  `"adv_check": "tcp-check"`,
 				LoadBalancer: lbaasv1.LoadBalancer{Identifier: testLoadBalancerIdentifier},
 			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
 
 			httpsBackendIdentifier = mock.FakeExisting(&lbaasv1.Backend{
 				Name:         "https." + testClusterName,
 				Mode:         lbaasv1.TCP,
+				HealthCheck:  `"adv_check": "tcp-check"`,
 				LoadBalancer: lbaasv1.LoadBalancer{Identifier: testLoadBalancerIdentifier},
 			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
 
