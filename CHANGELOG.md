@@ -7,10 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+<!--
+Please add your changelog entry under this comment in the correct category (Security, Fixed, Added, Changed, Deprecated, Removed - in this order).
+-->
+
+## [1.4.1] - 2022-05-04
+
+### Fixes
+* fix HealthCheck attribute on LBaaS Backend resources @LittleFox94 (#75)
+
+### Changes
+* upgrade go-anxloud to v0.4.3
+
+
+## [1.4.0] - 2022-05-02
+
+This release was made by accident, clicking "Publish Release" instead of "Save Draft" after tweaking the release notes.
+Still nothing worse than in releases before.
+
 ### Added
 * scripts for better developer experience @LittleFox94 (#48)
 
 ### Changes
+* near-complete rewrite of LoadBalancer/LBaaS reconciliation @LittleFox94 (#46)
+  - no more reconciling one LoadBalancer and syncing that to other LoadBalancers, just reconcile all of them at once
+  - now a reconciliation loop similar to those in Kubernetes
+  - reacting more graceful to error responses
+* some preparations to OpenSource this project @LittleFox94 (#61)
 * activated Dependabot @LittleFox94 (#54)
 * upgraded some dependencies
   - github.com/stretchr/testify from 1.7.0 to 1.7.1 (#58)
