@@ -2,9 +2,10 @@ package metrics
 
 import (
 	"fmt"
-	"github.com/blang/semver"
-	"github.com/prometheus/client_golang/prometheus"
 	"sync"
+
+	"github.com/blang/semver/v4"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 const FeatureEnabled = 1
