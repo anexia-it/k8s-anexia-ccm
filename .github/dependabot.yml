@@ -6,3 +6,9 @@ updates:
       interval: "daily"
     assignees:
     - LittleFox94
+    ignore:
+    # we update all of them via updating k8s.io/cloud-provider
+    - dependency-name: k8s.io/api
+    - dependency-name: k8s.io/apimachinery
+    - dependency-name: k8s.io/client-go
+    - dependency-name: k8s.io/component-base
