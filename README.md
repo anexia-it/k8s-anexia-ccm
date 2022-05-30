@@ -1,11 +1,11 @@
-[![CI Build & Test](https://github.com/anexia-it/anxcloud-cloud-controller-manager/actions/workflows/push.yml/badge.svg?branch=main&event=push)](https://github.com/anexia-it/anxcloud-cloud-controller-manager/actions/workflows/push.yml)
+[![CI Build & Test](https://github.com/anexia-it/k8s-anexia-ccm/actions/workflows/push.yml/badge.svg?branch=main&event=push)](https://github.com/anexia-it/k8s-anexia-ccm/actions/workflows/push.yml)
 
 # Kubernetes cloud-controller-manager for Anexia Cloud
 
 ## Development quickstart
 
 Requires a Go (>= 1.17) toolchain and `make`. For compiling and testing, use the `make` targets
-`anxcloud-cloud-controller-manager` (default target) and `test`. Targets for running and interactive debugging are
+`k8s-anexia-ccm` (default target) and `test`. Targets for running and interactive debugging are
 `run` and `debug`, but you need some more setup first:
 
 * create API key for Anexia Engine
