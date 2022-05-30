@@ -1,7 +1,7 @@
 .idea
 docs/build
 local-config.yaml
-anxcloud-cloud-controller-manager
+k8s-anexia-ccm
 .envrc
 _anxkube-dev
 coverage.out

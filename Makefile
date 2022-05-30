@@ -1,4 +1,4 @@
-anxcloud-cloud-controller-manager:
+k8s-anexia-ccm:
 	go build
 
 test: hack
@@ -10,7 +10,7 @@ test: hack
 	    ./anx/...
 	go tool cover -html=coverage.out -o coverage.html
 
-run: anxcloud-cloud-controller-manager
+run: k8s-anexia-ccm
 	hack/anxkube-dev-run
 
 debug:
@@ -55,4 +55,4 @@ docs-lint-fix: tools
 	@hack/misspell -w -source=text docs/
 	@docker run -v $(PWD):/markdown 06kellyjac/markdownlint-cli --fix docs/
 
-.PHONY: anxcloud-cloud-controller-manager test run debug hack go-lint docs-lint docs-lint-fix depscheck fmt fmtcheck
+.PHONY: k8s-anexia-ccm test run debug hack go-lint docs-lint docs-lint-fix depscheck fmt fmtcheck
