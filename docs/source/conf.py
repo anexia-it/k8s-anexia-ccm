@@ -17,7 +17,7 @@
 
 # -- Project information -----------------------------------------------------
 
-project = 'anxcloud-cloud-controller-manager'
+project = 'k8s-anexia-ccm'
 copyright = '2022, Anexia IT'
 author = 'opensource@anexia-it.com'
 
