@@ -1,4 +1,4 @@
-module github.com/anexia-it/anxcloud-cloud-controller-manager/hack
+module github.com/anexia-it/k8s-anexia-ccm/hack
 
 go 1.18
 
