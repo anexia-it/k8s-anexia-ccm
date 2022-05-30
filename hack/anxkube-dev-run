@@ -174,7 +174,7 @@ if [ $debug ]; then
     ccm_flags="$ccm_flags --leader-elect=false"
     dlv debug -r stdout:"$path_prefix-log" -r stderr:"$path_prefix-log" -- $ccm_flags
 else
-    cmdline="./anxcloud-cloud-controller-manager $ccm_flags"
+    cmdline="./k8s-anexia-ccm $ccm_flags"
     log "Running CCM with cmdline \"$cmdline\""
     $cmdline | tee "$path_prefix-log"
 fi
