@@ -21,6 +21,9 @@ hack:
 	cd hack && go build -o . github.com/golangci/golangci-lint/cmd/golangci-lint
 	cd hack && go build -o . github.com/onsi/ginkgo/v2/ginkgo
 
+docs:
+	+make -C docs html
+
 depscheck:
 	@echo "==> Checking source code dependencies..."
 	@go mod tidy
@@ -55,4 +58,4 @@ docs-lint-fix: tools
 	@hack/misspell -w -source=text docs/
 	@docker run -v $(PWD):/markdown 06kellyjac/markdownlint-cli --fix docs/
 
-.PHONY: k8s-anexia-ccm test run debug hack go-lint docs-lint docs-lint-fix depscheck fmt fmtcheck
+.PHONY: k8s-anexia-ccm test run debug hack docs go-lint docs-lint docs-lint-fix depscheck fmt fmtcheck
