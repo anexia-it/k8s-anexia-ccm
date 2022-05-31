@@ -72,3 +72,37 @@ jobs:
           ignore-unfixed: true
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
+
+  docs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents:    read
+      pages:       write
+      id-token:    write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    if:      "github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')"
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.8'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install sphinx sphinx-rtd-theme
+
+      - uses: actions/checkout@v2
+      - name: build docs
+        run:  make docs
+
+      - uses: actions/upload-pages-artifact@v0.1.0
+        with:
+          path: docs/build/html
+          name: github-pages
+          if-no-files-found: warn
+
+      - id: deployment
+        uses: actions/deploy-pages@v1.0.4
