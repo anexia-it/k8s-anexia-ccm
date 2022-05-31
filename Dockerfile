@@ -11,4 +11,4 @@ EXPOSE 8080
 RUN apk --no-cache add ca-certificates=20211220-r0
 WORKDIR /app/
 COPY --from=builder /go/src/github.com/github.com/anexia-it/k8s-anexia-ccm/ccm .
-CMD ["/app/ccm", "--cloud-provider=anx"]
+CMD ["/app/ccm", "--cloud-provider=anexia"]
