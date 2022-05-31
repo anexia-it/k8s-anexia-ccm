@@ -1,4 +1,5 @@
 [![CI Build & Test](https://github.com/anexia-it/k8s-anexia-ccm/actions/workflows/push.yml/badge.svg?branch=main&event=push)](https://github.com/anexia-it/k8s-anexia-ccm/actions/workflows/push.yml)
+[![Code coverage](https://api.codeclimate.com/v1/badges/ca30474da3d30d5abca3/test_coverage)](https://codeclimate.com/github/anexia-it/k8s-anexia-ccm/test_coverage)
 
 # Kubernetes cloud-controller-manager for Anexia Cloud
 
