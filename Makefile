@@ -24,6 +24,9 @@ hack:
 docs:
 	+make -C docs html
 
+versioned-docs:
+	+make -C docs versioned-html
+
 depscheck:
 	@echo "==> Checking source code dependencies..."
 	@go mod tidy
@@ -58,4 +61,4 @@ docs-lint-fix: tools
 	@hack/misspell -w -source=text docs/
 	@docker run -v $(PWD):/markdown 06kellyjac/markdownlint-cli --fix docs/
 
-.PHONY: k8s-anexia-ccm test run debug hack docs go-lint docs-lint docs-lint-fix depscheck fmt fmtcheck
+.PHONY: k8s-anexia-ccm test run debug hack docs versioned-docs go-lint docs-lint docs-lint-fix depscheck fmt fmtcheck
