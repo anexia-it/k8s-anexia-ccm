@@ -72,10 +72,10 @@ type reconciliation struct {
 
 	// existing resources
 
-	frontends []lbaasv1.Frontend
-	backends  []lbaasv1.Backend
-	binds     []lbaasv1.Bind
-	servers   []lbaasv1.Server
+	frontends []*lbaasv1.Frontend
+	backends  []*lbaasv1.Backend
+	binds     []*lbaasv1.Bind
+	servers   []*lbaasv1.Server
 
 	// information and connections gathered from existing resources
 
@@ -362,10 +362,10 @@ func (r *reconciliation) waitForResources(toCreate []types.Object) error {
 }
 
 func (r *reconciliation) retrieveState() error {
-	r.frontends = make([]lbaasv1.Frontend, 0)
-	r.backends = make([]lbaasv1.Backend, 0)
-	r.binds = make([]lbaasv1.Bind, 0)
-	r.servers = make([]lbaasv1.Server, 0)
+	r.frontends = make([]*lbaasv1.Frontend, 0)
+	r.backends = make([]*lbaasv1.Backend, 0)
+	r.binds = make([]*lbaasv1.Bind, 0)
+	r.servers = make([]*lbaasv1.Server, 0)
 	r.portBackends = make(map[string]*lbaasv1.Backend)
 	r.portFrontends = make(map[string]*lbaasv1.Frontend)
 
@@ -404,25 +404,25 @@ func (r *reconciliation) retrieveResources() error {
 		// frontends and backends are filtered for our LoadBalancer here already
 
 		frontendResourceTypeIdentifier: func(identifier string) (err error) {
-			frontend := lbaasv1.Frontend{Identifier: identifier}
+			frontend := &lbaasv1.Frontend{Identifier: identifier}
 
-			if err = r.api.Get(ctx, &frontend); err == nil && frontend.LoadBalancer.Identifier == r.lb.Identifier {
+			if err = r.api.Get(ctx, frontend); err == nil && frontend.LoadBalancer.Identifier == r.lb.Identifier {
 				r.frontends = append(r.frontends, frontend)
 			}
 			return
 		},
 
 		backendResourceTypeIdentifier: func(identifier string) (err error) {
-			backend := lbaasv1.Backend{Identifier: identifier}
-			if err = r.api.Get(ctx, &backend); err == nil && backend.LoadBalancer.Identifier == r.lb.Identifier {
+			backend := &lbaasv1.Backend{Identifier: identifier}
+			if err = r.api.Get(ctx, backend); err == nil && backend.LoadBalancer.Identifier == r.lb.Identifier {
 				r.backends = append(r.backends, backend)
 			}
 			return
 		},
 
 		bindResourceTypeIdentifier: func(identifier string) (err error) {
-			bind := lbaasv1.Bind{Identifier: identifier}
-			if err = r.api.Get(ctx, &bind); err == nil {
+			bind := &lbaasv1.Bind{Identifier: identifier}
+			if err = r.api.Get(ctx, bind); err == nil {
 				r.binds = append(r.binds, bind)
 			}
 
@@ -433,8 +433,8 @@ func (r *reconciliation) retrieveResources() error {
 		},
 
 		serverResourceTypeIdentifier: func(identifier string) (err error) {
-			server := lbaasv1.Server{Identifier: identifier}
-			if err = r.api.Get(ctx, &server); err == nil {
+			server := &lbaasv1.Server{Identifier: identifier}
+			if err = r.api.Get(ctx, server); err == nil {
 				r.servers = append(r.servers, server)
 			}
 			return
@@ -469,8 +469,8 @@ func (r *reconciliation) retrieveResources() error {
 	// Binds and Servers are filtered for our LoadBalancer here, after we hopefully retrieved their Frontends and Backends already
 	allBinds := r.binds
 	allServers := r.servers
-	r.binds = make([]lbaasv1.Bind, 0, len(allBinds))
-	r.servers = make([]lbaasv1.Server, 0, len(allServers))
+	r.binds = make([]*lbaasv1.Bind, 0, len(allBinds))
+	r.servers = make([]*lbaasv1.Server, 0, len(allServers))
 
 	for _, bind := range allBinds {
 		idx, err := compare.Search(lbaasv1.Frontend{Identifier: bind.Frontend.Identifier}, r.frontends, "Identifier")
@@ -517,28 +517,28 @@ func (r *reconciliation) reconcileFailedResources() (toDestroy []types.Object) {
 	for _, backend := range r.backends {
 		if backend.StateFailure() {
 			r.logger.Info("Scheduling failed LBaaS Backend for Destroy", "identifier", backend.Identifier)
-			toDestroy = append(toDestroy, &backend)
+			toDestroy = append(toDestroy, backend)
 		}
 	}
 
 	for _, frontend := range r.frontends {
 		if frontend.StateFailure() {
 			r.logger.Info("Scheduling failed LBaaS Frontend for Destroy", "identifier", frontend.Identifier)
-			toDestroy = append(toDestroy, &frontend)
+			toDestroy = append(toDestroy, frontend)
 		}
 	}
 
 	for _, bind := range r.binds {
 		if bind.StateFailure() {
 			r.logger.Info("Scheduling failed LBaaS Bind for Destroy", "identifier", bind.Identifier)
-			toDestroy = append(toDestroy, &bind)
+			toDestroy = append(toDestroy, bind)
 		}
 	}
 
 	for _, server := range r.servers {
 		if server.StateFailure() {
 			r.logger.Info("Scheduling failed LBaaS Server for Destroy", "identifier", server.Identifier)
-			toDestroy = append(toDestroy, &server)
+			toDestroy = append(toDestroy, server)
 		}
 	}
 
@@ -546,9 +546,9 @@ func (r *reconciliation) reconcileFailedResources() (toDestroy []types.Object) {
 }
 
 func (r *reconciliation) reconcileBackends() (toCreate, toDestroy []types.Object, err error) {
-	targetBackends := make([]lbaasv1.Backend, 0, len(r.ports))
+	targetBackends := make([]*lbaasv1.Backend, 0, len(r.ports))
 	for name := range r.ports {
-		targetBackends = append(targetBackends, lbaasv1.Backend{
+		targetBackends = append(targetBackends, &lbaasv1.Backend{
 			Name:         r.makeResourceName(name),
 			LoadBalancer: lbaasv1.LoadBalancer{Identifier: r.lb.Identifier},
 			Mode:         lbaasv1.TCP,
@@ -574,7 +574,7 @@ func (r *reconciliation) reconcileBackends() (toCreate, toDestroy []types.Object
 
 			for _, b := range targetBackends {
 				if b.Name == expectedName {
-					r.portBackends[name] = &b
+					r.portBackends[name] = b
 					break
 				}
 			}
@@ -585,7 +585,7 @@ func (r *reconciliation) reconcileBackends() (toCreate, toDestroy []types.Object
 }
 
 func (r *reconciliation) reconcileFrontends() (toCreate, toDestroy []types.Object, err error) {
-	targetFrontends := make([]lbaasv1.Frontend, 0, len(r.ports))
+	targetFrontends := make([]*lbaasv1.Frontend, 0, len(r.ports))
 	for name := range r.ports {
 		backend, ok := r.portBackends[name]
 		if !ok {
@@ -595,7 +595,7 @@ func (r *reconciliation) reconcileFrontends() (toCreate, toDestroy []types.Objec
 			continue
 		}
 
-		targetFrontends = append(targetFrontends, lbaasv1.Frontend{
+		targetFrontends = append(targetFrontends, &lbaasv1.Frontend{
 			Name:           r.makeResourceName(name),
 			Mode:           lbaasv1.TCP,
 			LoadBalancer:   &lbaasv1.LoadBalancer{Identifier: r.lb.Identifier},
@@ -621,7 +621,7 @@ func (r *reconciliation) reconcileFrontends() (toCreate, toDestroy []types.Objec
 
 			for _, f := range targetFrontends {
 				if f.Name == expectedName {
-					r.portFrontends[name] = &f
+					r.portFrontends[name] = f
 					break
 				}
 			}
@@ -632,7 +632,7 @@ func (r *reconciliation) reconcileFrontends() (toCreate, toDestroy []types.Objec
 }
 
 func (r *reconciliation) reconcileBinds() (toCreate, toDestroy []types.Object, err error) {
-	targetBinds := make([]lbaasv1.Bind, 0, len(r.externalAddresses)*len(r.ports))
+	targetBinds := make([]*lbaasv1.Bind, 0, len(r.externalAddresses)*len(r.ports))
 	for _, a := range r.externalAddresses {
 		fam := "v6"
 
@@ -649,7 +649,7 @@ func (r *reconciliation) reconcileBinds() (toCreate, toDestroy []types.Object, e
 				)
 				continue
 			}
-			targetBinds = append(targetBinds, lbaasv1.Bind{
+			targetBinds = append(targetBinds, &lbaasv1.Bind{
 				Name:     r.makeResourceName(fam, name),
 				Address:  a.String(),
 				Port:     int(port.External),
@@ -674,7 +674,7 @@ func (r *reconciliation) reconcileBinds() (toCreate, toDestroy []types.Object, e
 }
 
 func (r *reconciliation) reconcileServers() (toCreate, toDestroy []types.Object, err error) {
-	targetServers := make([]lbaasv1.Server, 0, len(r.ports)*len(r.targetServers))
+	targetServers := make([]*lbaasv1.Server, 0, len(r.ports)*len(r.targetServers))
 	for _, server := range r.targetServers {
 		for portName, port := range r.ports {
 			backend, ok := r.portBackends[portName]
@@ -686,7 +686,7 @@ func (r *reconciliation) reconcileServers() (toCreate, toDestroy []types.Object,
 				continue
 			}
 
-			targetServers = append(targetServers, lbaasv1.Server{
+			targetServers = append(targetServers, &lbaasv1.Server{
 				Name:    r.makeResourceName(server.Name, portName),
 				IP:      server.Address.String(),
 				Port:    int(port.Internal),
