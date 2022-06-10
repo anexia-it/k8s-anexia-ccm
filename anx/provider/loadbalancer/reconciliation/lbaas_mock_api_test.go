@@ -32,7 +32,7 @@ func (ms *lbaasMockServer) handleAPIRequest(o types.Object, op types.Operation, 
 		return ms.handleCoreResourceRequest(o, op, opts)
 	}
 
-	return api.ErrTypeNotSupported
+	return types.ErrTypeNotSupported
 }
 
 func (ms *lbaasMockServer) handleLBaaSRequest(o types.Object, op types.Operation, opts types.Options) error {
@@ -57,7 +57,7 @@ func (ms *lbaasMockServer) handleLBaaSRequest(o types.Object, op types.Operation
 		Fail("unsupported LBaaS resource")
 	}
 
-	identifier, err := api.GetObjectIdentifier(o, op != types.OperationList && op != types.OperationCreate)
+	identifier, err := types.GetObjectIdentifier(o, op != types.OperationList && op != types.OperationCreate)
 	if err != nil {
 		return err
 	}
@@ -86,7 +86,7 @@ func (ms *lbaasMockServer) handleLBaaSRequest(o types.Object, op types.Operation
 				v := reflect.ValueOf(o)
 
 				if v.Type().Elem() != e.Type() {
-					return api.ErrTypeNotSupported
+					return types.ErrTypeNotSupported
 				}
 
 				v.Elem().Set(e)
@@ -205,7 +205,7 @@ func (ms *lbaasMockServer) handleCoreResourceRequest(o types.Object, op types.Op
 				v := reflect.ValueOf(o)
 
 				if v.Type() != reflect.TypeOf(&corev1.Resource{}) {
-					return api.ErrTypeNotSupported
+					return types.ErrTypeNotSupported
 				}
 
 				v.Elem().FieldByName("Identifier").Set(id)

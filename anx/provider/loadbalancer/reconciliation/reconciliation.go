@@ -216,7 +216,7 @@ func (r *reconciliation) Reconcile() error {
 
 				for _, obj := range toDestroy {
 					if err := r.api.Destroy(r.ctx, obj); api.IgnoreNotFound(err) != nil {
-						identifier, _ := api.GetObjectIdentifier(obj, true)
+						identifier, _ := types.GetObjectIdentifier(obj, true)
 
 						r.logger.Info("Destroying LBaaS resource failed, marking for retry and continuing",
 							"resource-id", identifier,
@@ -235,7 +235,7 @@ func (r *reconciliation) Reconcile() error {
 			if len(toDestroy) > 0 && !allowRetry {
 				toDestroyForLog := make([]string, 0, len(toDestroy))
 				for _, td := range toDestroy {
-					identifier, _ := api.GetObjectIdentifier(td, true)
+					identifier, _ := types.GetObjectIdentifier(td, true)
 					toDestroyForLog = append(toDestroyForLog, fmt.Sprintf("%T %v", td, identifier))
 				}
 
@@ -277,7 +277,7 @@ func (r *reconciliation) tagResource(o types.Object) error {
 	_engsup5902_mutex.Lock()
 	defer _engsup5902_mutex.Unlock()
 
-	identifier, _ := api.GetObjectIdentifier(o, true)
+	identifier, _ := types.GetObjectIdentifier(o, true)
 
 	for _, tag := range r.tags {
 		rt := corev1.ResourceWithTag{
@@ -327,7 +327,7 @@ func (r *reconciliation) waitForResources(toCreate []types.Object) error {
 			failed := make([]string, 0)
 
 			for _, obj := range toCreate {
-				identifier, _ := api.GetObjectIdentifier(obj, true)
+				identifier, _ := types.GetObjectIdentifier(obj, true)
 
 				err := r.api.Get(r.ctx, obj)
 				if err != nil {

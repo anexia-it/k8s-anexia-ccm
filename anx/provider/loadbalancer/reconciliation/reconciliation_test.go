@@ -169,7 +169,7 @@ var _ = Describe("reconcile", func() {
 					func(o []types.Object) []string {
 						ret := make([]string, 0, len(o))
 						for _, e := range o {
-							identifier, err := api.GetObjectIdentifier(e, true)
+							identifier, err := types.GetObjectIdentifier(e, true)
 							Expect(err).NotTo(HaveOccurred())
 							ret = append(ret, identifier)
 						}
