@@ -306,6 +306,9 @@ func (r *reconciliation) Status() (map[string][]uint16, error) {
 }
 
 func (r *reconciliation) waitForResources(toCreate []types.Object) error {
+	// we want to retrieve every Object in this loop at least once, to deal with "defaults-to-success" and similar things.
+	firstPass := true
+
 	return wait.ExponentialBackoff(
 		wait.Backoff{
 			Duration: 1 * time.Second,
@@ -325,6 +328,11 @@ func (r *reconciliation) waitForResources(toCreate []types.Object) error {
 					return false, errors.New("coding error: waitForResources called for Object not implementing lbaasv1.StateRetriever")
 				}
 
+				// if we already retrieved Objects: shortcut
+				if state.StateSuccess() && !firstPass {
+					continue
+				}
+
 				err := r.api.Get(r.ctx, obj)
 				if err != nil {
 					r.logger.Error(err, "Error retrieving current state of Object, assuming it's failed", "object", mustStringifyObject(obj))
@@ -338,6 +346,8 @@ func (r *reconciliation) waitForResources(toCreate []types.Object) error {
 					failed = append(failed, obj)
 				}
 			}
+
+			firstPass = false
 
 			if len(failed) > 0 {
 				err = ErrLBaaSResourceFailed
