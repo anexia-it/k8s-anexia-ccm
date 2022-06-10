@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"testing"
+	"time"
 
 	"go.anx.io/go-anxcloud/pkg/api"
 	"go.anx.io/go-anxcloud/pkg/api/types"
@@ -188,6 +189,8 @@ var _ = Describe("reconcile", func() {
 	Context("with some existing and valid resources", func() {
 		var httpBackendIdentifier string
 		var httpsBackendIdentifier string
+		var httpFrontendIdentifier string
+		var httpsFrontendIdentifier string
 
 		JustBeforeEach(func() {
 			httpBackendIdentifier = mock.FakeExisting(&lbaasv1.Backend{
@@ -195,6 +198,7 @@ var _ = Describe("reconcile", func() {
 				Mode:         lbaasv1.TCP,
 				HealthCheck:  `"adv_check": "tcp-check"`,
 				LoadBalancer: lbaasv1.LoadBalancer{Identifier: testLoadBalancerIdentifier},
+				HasState:     lbaasv1.HasState{State: lbaasv1.NewlyCreated},
 			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
 
 			httpsBackendIdentifier = mock.FakeExisting(&lbaasv1.Backend{
@@ -202,20 +206,23 @@ var _ = Describe("reconcile", func() {
 				Mode:         lbaasv1.TCP,
 				HealthCheck:  `"adv_check": "tcp-check"`,
 				LoadBalancer: lbaasv1.LoadBalancer{Identifier: testLoadBalancerIdentifier},
+				HasState:     lbaasv1.HasState{State: lbaasv1.NewlyCreated},
 			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
 
-			httpFrontendIdentifier := mock.FakeExisting(&lbaasv1.Frontend{
+			httpFrontendIdentifier = mock.FakeExisting(&lbaasv1.Frontend{
 				Name:           "http." + testClusterName,
 				Mode:           lbaasv1.TCP,
 				LoadBalancer:   &lbaasv1.LoadBalancer{Identifier: testLoadBalancerIdentifier},
 				DefaultBackend: &lbaasv1.Backend{Identifier: httpBackendIdentifier},
+				HasState:       lbaasv1.HasState{State: lbaasv1.NewlyCreated},
 			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
 
-			httpsFrontendIdentifier := mock.FakeExisting(&lbaasv1.Frontend{
+			httpsFrontendIdentifier = mock.FakeExisting(&lbaasv1.Frontend{
 				Name:           "https." + testClusterName,
 				Mode:           lbaasv1.TCP,
 				LoadBalancer:   &lbaasv1.LoadBalancer{Identifier: testLoadBalancerIdentifier},
 				DefaultBackend: &lbaasv1.Backend{Identifier: httpsBackendIdentifier},
+				HasState:       lbaasv1.HasState{State: lbaasv1.NewlyCreated},
 			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
 
 			mock.FakeExisting(&lbaasv1.Bind{
@@ -223,6 +230,7 @@ var _ = Describe("reconcile", func() {
 				Address:  "8.8.8.8",
 				Port:     80,
 				Frontend: lbaasv1.Frontend{Identifier: httpFrontendIdentifier},
+				HasState: lbaasv1.HasState{State: lbaasv1.Deployed},
 			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
 
 			mock.FakeExisting(&lbaasv1.Bind{
@@ -230,6 +238,7 @@ var _ = Describe("reconcile", func() {
 				Address:  "8.8.8.8",
 				Port:     443,
 				Frontend: lbaasv1.Frontend{Identifier: httpsFrontendIdentifier},
+				HasState: lbaasv1.HasState{State: lbaasv1.Deployed},
 			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
 
 			mock.FakeExisting(&lbaasv1.Bind{
@@ -237,6 +246,7 @@ var _ = Describe("reconcile", func() {
 				Address:  "2001:4860:4860::8888",
 				Port:     80,
 				Frontend: lbaasv1.Frontend{Identifier: httpFrontendIdentifier},
+				HasState: lbaasv1.HasState{State: lbaasv1.Deployed},
 			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
 
 			mock.FakeExisting(&lbaasv1.Bind{
@@ -244,14 +254,16 @@ var _ = Describe("reconcile", func() {
 				Address:  "2001:4860:4860::8888",
 				Port:     443,
 				Frontend: lbaasv1.Frontend{Identifier: httpsFrontendIdentifier},
+				HasState: lbaasv1.HasState{State: lbaasv1.Deployed},
 			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
 
 			mock.FakeExisting(&lbaasv1.Server{
-				Name:    "https.invalid-server." + testClusterName,
-				IP:      "10.244.1.1",
-				Port:    4223,
-				Check:   "disabled",
-				Backend: lbaasv1.Backend{Identifier: httpsBackendIdentifier},
+				Name:     "https.invalid-server." + testClusterName,
+				IP:       "10.244.1.1",
+				Port:     4223,
+				Check:    "disabled",
+				Backend:  lbaasv1.Backend{Identifier: httpsBackendIdentifier},
+				HasState: lbaasv1.HasState{State: lbaasv1.Deployed},
 			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
 
 			err := recon.retrieveState()
@@ -263,6 +275,42 @@ var _ = Describe("reconcile", func() {
 			Expect(recon.binds).To(HaveLen(4))
 			Expect(recon.backends).To(HaveLen(2))
 			Expect(recon.servers).To(HaveLen(1))
+		})
+
+		It("waits for the resources to get ready", func() {
+			const waitTime = 5 * time.Second
+
+			time.AfterFunc(waitTime, func() {
+				GinkgoRecover()
+
+				objects := []types.Object{
+					&lbaasv1.Backend{Identifier: httpBackendIdentifier},
+					&lbaasv1.Backend{Identifier: httpsBackendIdentifier},
+					&lbaasv1.Frontend{Identifier: httpFrontendIdentifier},
+					&lbaasv1.Frontend{Identifier: httpsFrontendIdentifier},
+				}
+
+				for _, o := range objects {
+					err := apiClient.Get(context.TODO(), o)
+					Expect(err).NotTo(HaveOccurred())
+
+					switch obj := o.(type) {
+					case *lbaasv1.Backend:
+						obj.HasState.State = lbaasv1.Deployed
+					case *lbaasv1.Frontend:
+						obj.HasState.State = lbaasv1.Deployed
+					}
+
+					err = apiClient.Update(context.TODO(), o)
+					Expect(err).NotTo(HaveOccurred())
+				}
+			})
+
+			timeStart := time.Now()
+			err := recon.Reconcile()
+
+			Expect(err).NotTo(HaveOccurred())
+			Expect(time.Now()).To(BeTemporally("~", timeStart.Add(waitTime), 1*time.Second))
 		})
 
 		It("accepts the existing resources as already correct", func() {

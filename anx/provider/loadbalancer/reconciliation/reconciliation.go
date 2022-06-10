@@ -34,6 +34,9 @@ var (
 	// ErrResourcesNotDestroyable is returned when Reconcile tried to Destroy a resource but Engine returned an error
 	ErrResourcesNotDestroyable = errors.New("failed to Destroy some resources")
 
+	// ErrLBaaSResourceProgressing is returned by ReconcileCheck() when an existing resource was retrieved as not yet ready.
+	ErrLBaaSResourceProgressing = errors.New("LBaaS resource still progressing")
+
 	// ErrLBaaSResourceFailed is returned when a LBaaS resource is in a not-ok state.
 	ErrLBaaSResourceFailed = errors.New("LBaaS resource in failure state")
 )
@@ -76,6 +79,12 @@ type reconciliation struct {
 	backends  []*lbaasv1.Backend
 	binds     []*lbaasv1.Bind
 	servers   []*lbaasv1.Server
+
+	// we store existing failed Objects here
+	existingFailed []types.Object
+
+	// and store existing Objects that are not yet ready here
+	existingProgressing []types.Object
 
 	// information and connections gathered from existing resources
 
@@ -156,11 +165,15 @@ func (r *reconciliation) ReconcileCheck() ([]types.Object, []types.Object, error
 		return nil, nil, fmt.Errorf("error retrieving current state for reconciliation: %w", err)
 	}
 
-	retToDestroy := r.reconcileFailedResources()
-	if len(retToDestroy) > 0 {
-		return []types.Object{}, retToDestroy, nil
+	if len(r.existingFailed) > 0 {
+		return []types.Object{}, r.existingFailed, nil
 	}
 
+	if len(r.existingProgressing) > 0 {
+		return nil, nil, ErrLBaaSResourceProgressing
+	}
+
+	retToDestroy := []types.Object{}
 	retToCreate := []types.Object{}
 
 	steps := []func() ([]types.Object, []types.Object, error){
@@ -192,7 +205,16 @@ func (r *reconciliation) Reconcile() error {
 	for !completed {
 		toCreate, toDestroy, err := r.ReconcileCheck()
 		if err != nil {
-			return err
+			if !errors.Is(err, ErrLBaaSResourceProgressing) {
+				return err
+			}
+
+			r.logger.Info("Some existing resources are not ready to use, waiting for them to get ready", "objects", mustStringifyObjects(r.existingProgressing))
+
+			err := r.waitForResources(r.existingProgressing)
+			if err != nil {
+				return err
+			}
 		}
 
 		// if there is something to destroy: destroy it and start again from retrieving the state
@@ -371,6 +393,9 @@ func (r *reconciliation) retrieveState() error {
 	r.portBackends = make(map[string]*lbaasv1.Backend)
 	r.portFrontends = make(map[string]*lbaasv1.Frontend)
 
+	r.existingFailed = make([]types.Object, 0)
+	r.existingProgressing = make([]types.Object, 0)
+
 	if err := r.retrieveResources(); err != nil {
 		return err
 	}
@@ -382,6 +407,19 @@ func (r *reconciliation) storePublicAddress(addr string) {
 	if idx := sort.SearchStrings(r.publicAddresses, addr); idx >= len(r.publicAddresses) || r.publicAddresses[idx] != addr {
 		r.publicAddresses = append(r.publicAddresses, addr)
 		sort.Strings(r.publicAddresses)
+	}
+}
+
+func (r *reconciliation) sortObjectIntoStateArray(o types.Object) {
+	sr, ok := o.(lbaasv1.StateRetriever)
+	if !ok {
+		return
+	}
+
+	if sr.StateFailure() {
+		r.existingFailed = append(r.existingFailed, o)
+	} else if sr.StateProgressing() {
+		r.existingProgressing = append(r.existingProgressing, o)
 	}
 }
 
@@ -413,6 +451,7 @@ func (r *reconciliation) retrieveResources() error {
 
 			if err = r.api.Get(ctx, frontend); err == nil && frontend.LoadBalancer.Identifier == r.lb.Identifier {
 				r.frontends = append(r.frontends, frontend)
+				r.sortObjectIntoStateArray(frontend)
 			}
 			return
 		},
@@ -421,6 +460,7 @@ func (r *reconciliation) retrieveResources() error {
 			backend := &lbaasv1.Backend{Identifier: identifier}
 			if err = r.api.Get(ctx, backend); err == nil && backend.LoadBalancer.Identifier == r.lb.Identifier {
 				r.backends = append(r.backends, backend)
+				r.sortObjectIntoStateArray(backend)
 			}
 			return
 		},
@@ -474,6 +514,7 @@ func (r *reconciliation) retrieveResources() error {
 			return fmt.Errorf("error checking if Binds belongs to one of our frontends: %w", err)
 		} else if idx != -1 {
 			r.binds = append(r.binds, bind)
+			r.sortObjectIntoStateArray(bind)
 
 			if bind.Address != "" {
 				r.storePublicAddress(bind.Address)
@@ -487,6 +528,7 @@ func (r *reconciliation) retrieveResources() error {
 			return fmt.Errorf("error checking if Server belongs to one of our frontends: %w", err)
 		} else if idx != -1 {
 			r.servers = append(r.servers, server)
+			r.sortObjectIntoStateArray(server)
 		}
 	}
 
@@ -509,40 +551,6 @@ func (r *reconciliation) makeResourceName(parts ...string) string {
 	}
 
 	return strings.Join(validParts, ".")
-}
-
-func (r *reconciliation) reconcileFailedResources() (toDestroy []types.Object) {
-	toDestroy = make([]types.Object, 0, len(r.backends)+len(r.frontends)+len(r.binds)+len(r.servers))
-
-	for _, backend := range r.backends {
-		if backend.StateFailure() {
-			r.logger.Info("Scheduling failed LBaaS Backend for Destroy", "identifier", backend.Identifier)
-			toDestroy = append(toDestroy, backend)
-		}
-	}
-
-	for _, frontend := range r.frontends {
-		if frontend.StateFailure() {
-			r.logger.Info("Scheduling failed LBaaS Frontend for Destroy", "identifier", frontend.Identifier)
-			toDestroy = append(toDestroy, frontend)
-		}
-	}
-
-	for _, bind := range r.binds {
-		if bind.StateFailure() {
-			r.logger.Info("Scheduling failed LBaaS Bind for Destroy", "identifier", bind.Identifier)
-			toDestroy = append(toDestroy, bind)
-		}
-	}
-
-	for _, server := range r.servers {
-		if server.StateFailure() {
-			r.logger.Info("Scheduling failed LBaaS Server for Destroy", "identifier", server.Identifier)
-			toDestroy = append(toDestroy, server)
-		}
-	}
-
-	return
 }
 
 func (r *reconciliation) reconcileBackends() (toCreate, toDestroy []types.Object, err error) {

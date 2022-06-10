@@ -19,6 +19,7 @@ Please add your changelog entry under this comment in the correct category (Secu
 
 ### Changes
 * upgrade to Go 1.18 @LittleFox94 (#94)
+* handle already existing LBaaS resources that are still progressing @LittleFox94 (#93)
 
 ## [1.4.1] - 2022-05-04
 
