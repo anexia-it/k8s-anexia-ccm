@@ -156,19 +156,19 @@ func (r *reconciliation) ReconcileCheck() ([]types.Object, []types.Object, error
 		return nil, nil, fmt.Errorf("error retrieving current state for reconciliation: %w", err)
 	}
 
-	steps := []func() ([]types.Object, []types.Object, error){
-		r.reconcileBackends,
-		r.reconcileFrontends,
-		r.reconcileBinds,
-		r.reconcileServers,
-	}
-
 	retToDestroy := r.reconcileFailedResources()
 	if len(retToDestroy) > 0 {
 		return []types.Object{}, retToDestroy, nil
 	}
 
 	retToCreate := []types.Object{}
+
+	steps := []func() ([]types.Object, []types.Object, error){
+		r.reconcileBackends,
+		r.reconcileFrontends,
+		r.reconcileBinds,
+		r.reconcileServers,
+	}
 
 	for _, step := range steps {
 		toCreate, toDestroy, err := step()
@@ -315,25 +315,27 @@ func (r *reconciliation) waitForResources(toCreate []types.Object) error {
 			Cap:      5 * time.Minute,
 		},
 		func() (done bool, err error) {
-			notReady := make([]types.Object, 0)
-			failed := make([]types.Object, 0)
+			notReady := make([]types.Object, 0, len(toCreate))
+			failed := make([]types.Object, 0, len(toCreate))
 
 			for _, obj := range toCreate {
+				state, ok := obj.(lbaasv1.StateRetriever)
+				if !ok {
+					r.logger.Error(nil, "Object does not have state", "object", mustStringifyObject(obj))
+					return false, errors.New("coding error: waitForResources called for Object not implementing lbaasv1.StateRetriever")
+				}
+
 				err := r.api.Get(r.ctx, obj)
 				if err != nil {
 					r.logger.Error(err, "Error retrieving current state of Object, assuming it's failed", "object", mustStringifyObject(obj))
 					failed = append(failed, obj)
+					continue
 				}
 
-				if state, ok := obj.(lbaasv1.StateRetriever); ok {
-					if state.StateProgressing() {
-						notReady = append(notReady, obj)
-					} else if state.StateFailure() {
-						failed = append(failed, obj)
-					}
-				} else {
-					r.logger.Error(nil, "Object does not have state", "object", mustStringifyObject(obj))
-					return false, errors.New("coding error")
+				if state.StateProgressing() {
+					notReady = append(notReady, obj)
+				} else if state.StateFailure() {
+					failed = append(failed, obj)
 				}
 			}
 
@@ -390,6 +392,9 @@ func (r *reconciliation) retrieveResources() error {
 		return nil
 	}
 
+	allBinds := make([]*lbaasv1.Bind, 0)
+	allServers := make([]*lbaasv1.Server, 0)
+
 	typedRetrievers := map[string]func(identifier string) error{
 		// frontends and backends are filtered for our LoadBalancer here already
 
@@ -413,11 +418,7 @@ func (r *reconciliation) retrieveResources() error {
 		bindResourceTypeIdentifier: func(identifier string) (err error) {
 			bind := &lbaasv1.Bind{Identifier: identifier}
 			if err = r.api.Get(ctx, bind); err == nil {
-				r.binds = append(r.binds, bind)
-			}
-
-			if bind.Address != "" {
-				r.storePublicAddress(bind.Address)
+				allBinds = append(allBinds, bind)
 			}
 			return
 		},
@@ -425,7 +426,7 @@ func (r *reconciliation) retrieveResources() error {
 		serverResourceTypeIdentifier: func(identifier string) (err error) {
 			server := &lbaasv1.Server{Identifier: identifier}
 			if err = r.api.Get(ctx, server); err == nil {
-				r.servers = append(r.servers, server)
+				allServers = append(allServers, server)
 			}
 			return
 		},
@@ -457,17 +458,16 @@ func (r *reconciliation) retrieveResources() error {
 	}
 
 	// Binds and Servers are filtered for our LoadBalancer here, after we hopefully retrieved their Frontends and Backends already
-	allBinds := r.binds
-	allServers := r.servers
-	r.binds = make([]*lbaasv1.Bind, 0, len(allBinds))
-	r.servers = make([]*lbaasv1.Server, 0, len(allServers))
-
 	for _, bind := range allBinds {
 		idx, err := compare.Search(lbaasv1.Frontend{Identifier: bind.Frontend.Identifier}, r.frontends, "Identifier")
 		if err != nil {
 			return fmt.Errorf("error checking if Binds belongs to one of our frontends: %w", err)
 		} else if idx != -1 {
 			r.binds = append(r.binds, bind)
+
+			if bind.Address != "" {
+				r.storePublicAddress(bind.Address)
+			}
 		}
 	}
 
