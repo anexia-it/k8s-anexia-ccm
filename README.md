@@ -5,7 +5,7 @@
 
 ## Development quickstart
 
-Requires a Go (>= 1.17) toolchain and `make`. For compiling and testing, use the `make` targets
+Requires a Go (>= 1.18) toolchain and `make`. For compiling and testing, use the `make` targets
 `k8s-anexia-ccm` (default target) and `test`. Targets for running and interactive debugging are
 `run` and `debug`, but you need some more setup first:
 
