@@ -3,6 +3,7 @@ package reconciliation
 import (
 	"reflect"
 	"sort"
+	"sync"
 
 	"go.anx.io/go-anxcloud/pkg/api"
 	"go.anx.io/go-anxcloud/pkg/api/types"
@@ -31,6 +32,8 @@ type lbaasMockServer struct {
 
 	identifierToResource map[string]reflect.Value
 	tags                 map[string][]string
+
+	mutex sync.Mutex
 }
 
 func lbaasMockAPI() (api.API, LBaaSMock) {
@@ -42,6 +45,8 @@ func lbaasMockAPI() (api.API, LBaaSMock) {
 
 		identifierToResource: make(map[string]reflect.Value),
 		tags:                 make(map[string][]string),
+
+		mutex: sync.Mutex{},
 	}
 
 	return &ms, &ms

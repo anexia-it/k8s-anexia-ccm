@@ -21,6 +21,9 @@ import (
 )
 
 func (ms *lbaasMockServer) handleAPIRequest(o types.Object, op types.Operation, opts types.Options) error {
+	ms.mutex.Lock()
+	defer ms.mutex.Unlock()
+
 	switch o.(type) {
 	case *lbaasv1.Frontend,
 		*lbaasv1.Bind,
@@ -110,18 +113,30 @@ func (ms *lbaasMockServer) handleLBaaSRequest(o types.Object, op types.Operation
 
 		op = types.OperationGet
 	case types.OperationUpdate:
-		ov := reflect.ValueOf(o).Elem()
-		val := data.Elem().MapIndex(reflect.ValueOf(identifier))
-		if !val.IsValid() {
+		newVal := reflect.ValueOf(o).Elem()
+		oldVal := data.Elem().MapIndex(reflect.ValueOf(identifier))
+
+		if !oldVal.IsValid() {
 			return api.ErrNotFound
 		}
 
-		for i := 0; i < val.NumField(); i++ {
-			newFieldValue := ov.Field(i)
-			newFieldType := ov.Type().Field(i)
+		val := reflect.New(oldVal.Type()).Elem()
 
-			if newFieldType.Name != "Identifier" && !newFieldValue.IsZero() {
-				val.Field(i).Set(newFieldValue)
+		for i := 0; i < val.NumField(); i++ {
+			targetField := val.Field(i)
+			if !targetField.CanSet() {
+				continue
+			}
+
+			oldField := oldVal.Field(i)
+			newField := newVal.Field(i)
+
+			newFieldType := newVal.Type().Field(i)
+
+			if newFieldType.Name != "Identifier" && !newField.IsZero() {
+				targetField.Set(newField)
+			} else if newFieldType.IsExported() {
+				targetField.Set(oldField)
 			}
 		}
 
