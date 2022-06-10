@@ -17,6 +17,9 @@ Please add your changelog entry under this comment in the correct category (Secu
   - definitely leading to bad performance when deleting Objects
   - might lead to wrongly created resources
 
+### Changes
+* upgrade to Go 1.18 @LittleFox94 (#94)
+
 ## [1.4.1] - 2022-05-04
 
 ### Fixes
