@@ -205,7 +205,7 @@ func (r *reconciliation) Reconcile() error {
 		// after there is nothing left to destroy.
 
 		if len(toDestroy) > 0 {
-			r.logger.V(1).Info("destroying resources", "count", len(toDestroy))
+			r.logger.V(1).Info("destroying resources", "objects", mustStringifyObjects(toDestroy))
 
 			allowRetry := true
 
@@ -216,10 +216,8 @@ func (r *reconciliation) Reconcile() error {
 
 				for _, obj := range toDestroy {
 					if err := r.api.Destroy(r.ctx, obj); api.IgnoreNotFound(err) != nil {
-						identifier, _ := types.GetObjectIdentifier(obj, true)
-
 						r.logger.Info("Destroying LBaaS resource failed, marking for retry and continuing",
-							"resource-id", identifier,
+							"object", mustStringifyObject(obj),
 						)
 
 						newToDestroy = append(newToDestroy, obj)
@@ -233,14 +231,8 @@ func (r *reconciliation) Reconcile() error {
 			}
 
 			if len(toDestroy) > 0 && !allowRetry {
-				toDestroyForLog := make([]string, 0, len(toDestroy))
-				for _, td := range toDestroy {
-					identifier, _ := types.GetObjectIdentifier(td, true)
-					toDestroyForLog = append(toDestroyForLog, fmt.Sprintf("%T %v", td, identifier))
-				}
-
 				r.logger.Error(ErrResourcesNotDestroyable, "Some resources could not be deleted",
-					"resources", toDestroyForLog,
+					"objects", mustStringifyObjects(toDestroy),
 				)
 
 				return ErrResourcesNotDestroyable
@@ -257,7 +249,7 @@ func (r *reconciliation) Reconcile() error {
 					return fmt.Errorf("error tagging LBaaS resource: %w", err)
 				}
 			}
-			r.logger.Info("waiting for created resources to become ready", "count", len(toCreate))
+			r.logger.Info("waiting for created resources to become ready", "objects", mustStringifyObjects(toCreate))
 
 			err := r.waitForResources(toCreate)
 			if err != nil && !errors.Is(err, ErrLBaaSResourceFailed) {
@@ -323,36 +315,34 @@ func (r *reconciliation) waitForResources(toCreate []types.Object) error {
 			Cap:      5 * time.Minute,
 		},
 		func() (done bool, err error) {
-			notReady := make([]string, 0)
-			failed := make([]string, 0)
+			notReady := make([]types.Object, 0)
+			failed := make([]types.Object, 0)
 
 			for _, obj := range toCreate {
-				identifier, _ := types.GetObjectIdentifier(obj, true)
-
 				err := r.api.Get(r.ctx, obj)
 				if err != nil {
-					r.logger.Error(err, "Error retrieving current state of Object", "object", identifier)
-					failed = append(failed, identifier)
+					r.logger.Error(err, "Error retrieving current state of Object, assuming it's failed", "object", mustStringifyObject(obj))
+					failed = append(failed, obj)
 				}
 
 				if state, ok := obj.(lbaasv1.StateRetriever); ok {
 					if state.StateProgressing() {
-						notReady = append(notReady, identifier)
+						notReady = append(notReady, obj)
 					} else if state.StateFailure() {
-						failed = append(failed, identifier)
+						failed = append(failed, obj)
 					}
 				} else {
-					r.logger.Error(nil, "Object does not have state", "object", obj)
+					r.logger.Error(nil, "Object does not have state", "object", mustStringifyObject(obj))
 					return false, errors.New("coding error")
 				}
 			}
 
 			if len(failed) > 0 {
 				err = ErrLBaaSResourceFailed
-				r.logger.Error(err, "Some object are in failure state, aborting", "objects", failed)
+				r.logger.Error(err, "Some object are in failure state, aborting", "objects", mustStringifyObjects(failed))
 				return false, err
 			} else if len(notReady) > 0 {
-				r.logger.Info("Still waiting for created resources to become ready", "objects", notReady)
+				r.logger.Info("Still waiting for created resources to become ready", "objects", mustStringifyObjects(notReady))
 				return false, nil
 			} else {
 				return true, nil
