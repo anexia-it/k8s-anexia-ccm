@@ -18,6 +18,7 @@ categories:
       - 'ci'
       - 'ci/cd'
       - 'chore'
+      - 'dependencies'
   - title: '📚 Documentation'
     labels:
       - 'documentation'
