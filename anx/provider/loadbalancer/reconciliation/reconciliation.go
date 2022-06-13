@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math"
 	"net"
-	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -17,17 +16,9 @@ import (
 
 	"go.anx.io/go-anxcloud/pkg/api"
 	"go.anx.io/go-anxcloud/pkg/api/types"
-	"go.anx.io/go-anxcloud/pkg/utils/object/compare"
 
 	corev1 "go.anx.io/go-anxcloud/pkg/apis/core/v1"
 	lbaasv1 "go.anx.io/go-anxcloud/pkg/apis/lbaas/v1"
-)
-
-const (
-	frontendResourceTypeIdentifier = "da9d14b9d95840c08213de67f9cee6e2"
-	bindResourceTypeIdentifier     = "bd24def982aa478fb3352cb5f49aab47"
-	backendResourceTypeIdentifier  = "33164a3066a04a52be43c607f0c5dd8c"
-	serverResourceTypeIdentifier   = "01f321a4875446409d7d8469503a905f"
 )
 
 var (
@@ -403,13 +394,6 @@ func (r *reconciliation) retrieveState() error {
 	return nil
 }
 
-func (r *reconciliation) storePublicAddress(addr string) {
-	if idx := sort.SearchStrings(r.publicAddresses, addr); idx >= len(r.publicAddresses) || r.publicAddresses[idx] != addr {
-		r.publicAddresses = append(r.publicAddresses, addr)
-		sort.Strings(r.publicAddresses)
-	}
-}
-
 func (r *reconciliation) sortObjectIntoStateArray(o types.Object) {
 	sr, ok := o.(lbaasv1.StateRetriever)
 	if !ok {
@@ -507,29 +491,14 @@ func (r *reconciliation) retrieveResources() error {
 		}
 	}
 
-	// Binds and Servers are filtered for our LoadBalancer here, after we hopefully retrieved their Frontends and Backends already
-	for _, bind := range allBinds {
-		idx, err := compare.Search(lbaasv1.Frontend{Identifier: bind.Frontend.Identifier}, r.frontends, "Identifier")
-		if err != nil {
-			return fmt.Errorf("error checking if Binds belongs to one of our frontends: %w", err)
-		} else if idx != -1 {
-			r.binds = append(r.binds, bind)
-			r.sortObjectIntoStateArray(bind)
-
-			if bind.Address != "" {
-				r.storePublicAddress(bind.Address)
-			}
-		}
+	r.binds, err = r.filterBinds(allBinds)
+	if err != nil {
+		return err
 	}
 
-	for _, server := range allServers {
-		idx, err := compare.Search(lbaasv1.Backend{Identifier: server.Backend.Identifier}, r.backends, "Identifier")
-		if err != nil {
-			return fmt.Errorf("error checking if Server belongs to one of our frontends: %w", err)
-		} else if idx != -1 {
-			r.servers = append(r.servers, server)
-			r.sortObjectIntoStateArray(server)
-		}
+	r.servers, err = r.filterServers(allServers)
+	if err != nil {
+		return err
 	}
 
 	r.logger.V(1).Info(
@@ -551,170 +520,4 @@ func (r *reconciliation) makeResourceName(parts ...string) string {
 	}
 
 	return strings.Join(validParts, ".")
-}
-
-func (r *reconciliation) reconcileBackends() (toCreate, toDestroy []types.Object, err error) {
-	targetBackends := make([]*lbaasv1.Backend, 0, len(r.ports))
-	for name := range r.ports {
-		targetBackends = append(targetBackends, &lbaasv1.Backend{
-			Name:         r.makeResourceName(name),
-			LoadBalancer: lbaasv1.LoadBalancer{Identifier: r.lb.Identifier},
-			Mode:         lbaasv1.TCP,
-			HealthCheck:  `"adv_check": "tcp-check"`,
-		})
-	}
-
-	toCreate = make([]types.Object, 0, len(targetBackends))
-	toDestroy = make([]types.Object, 0, len(r.backends))
-
-	err = compare.Reconcile(
-		targetBackends, r.backends,
-		&toCreate, &toDestroy,
-		"Name", "Mode", "HealthCheck", "LoadBalancer.Identifier",
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if len(toCreate) == 0 && len(toDestroy) == 0 {
-		for name := range r.ports {
-			expectedName := r.makeResourceName(name)
-
-			for _, b := range targetBackends {
-				if b.Name == expectedName {
-					r.portBackends[name] = b
-					break
-				}
-			}
-		}
-	}
-
-	return
-}
-
-func (r *reconciliation) reconcileFrontends() (toCreate, toDestroy []types.Object, err error) {
-	targetFrontends := make([]*lbaasv1.Frontend, 0, len(r.ports))
-	for name := range r.ports {
-		backend, ok := r.portBackends[name]
-		if !ok {
-			r.logger.V(2).Info("Not reconciling frontend because backend not (yet?) found",
-				"port", name,
-			)
-			continue
-		}
-
-		targetFrontends = append(targetFrontends, &lbaasv1.Frontend{
-			Name:           r.makeResourceName(name),
-			Mode:           lbaasv1.TCP,
-			LoadBalancer:   &lbaasv1.LoadBalancer{Identifier: r.lb.Identifier},
-			DefaultBackend: &lbaasv1.Backend{Identifier: backend.Identifier},
-		})
-	}
-
-	toCreate = make([]types.Object, 0, len(targetFrontends))
-	toDestroy = make([]types.Object, 0, len(r.frontends))
-
-	err = compare.Reconcile(
-		targetFrontends, r.frontends,
-		&toCreate, &toDestroy,
-		"Name", "Mode", "LoadBalancer.Identifier", "DefaultBackend.Identifier",
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if len(toCreate) == 0 && len(toDestroy) == 0 {
-		for name := range r.ports {
-			expectedName := r.makeResourceName(name)
-
-			for _, f := range targetFrontends {
-				if f.Name == expectedName {
-					r.portFrontends[name] = f
-					break
-				}
-			}
-		}
-	}
-
-	return
-}
-
-func (r *reconciliation) reconcileBinds() (toCreate, toDestroy []types.Object, err error) {
-	targetBinds := make([]*lbaasv1.Bind, 0, len(r.externalAddresses)*len(r.ports))
-	for _, a := range r.externalAddresses {
-		fam := "v6"
-
-		if a.To4() != nil {
-			fam = "v4"
-		}
-
-		for name, port := range r.ports {
-			frontend, ok := r.portFrontends[name]
-			if !ok {
-				r.logger.V(2).Info("Not reconciling bind because frontend not (yet?) found",
-					"address", a,
-					"port", name,
-				)
-				continue
-			}
-			targetBinds = append(targetBinds, &lbaasv1.Bind{
-				Name:     r.makeResourceName(fam, name),
-				Address:  a.String(),
-				Port:     int(port.External),
-				Frontend: lbaasv1.Frontend{Identifier: frontend.Identifier},
-			})
-		}
-	}
-
-	toCreate = make([]types.Object, 0, len(targetBinds))
-	toDestroy = make([]types.Object, 0, len(r.binds))
-
-	err = compare.Reconcile(
-		targetBinds, r.binds,
-		&toCreate, &toDestroy,
-		"Name", "Address", "Port", "Frontend.Identifier",
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return
-}
-
-func (r *reconciliation) reconcileServers() (toCreate, toDestroy []types.Object, err error) {
-	targetServers := make([]*lbaasv1.Server, 0, len(r.ports)*len(r.targetServers))
-	for _, server := range r.targetServers {
-		for portName, port := range r.ports {
-			backend, ok := r.portBackends[portName]
-			if !ok {
-				r.logger.V(2).Info("Not reconciling server because backend not (yet?) found",
-					"server", server.Name,
-					"port", portName,
-				)
-				continue
-			}
-
-			targetServers = append(targetServers, &lbaasv1.Server{
-				Name:    r.makeResourceName(server.Name, portName),
-				IP:      server.Address.String(),
-				Port:    int(port.Internal),
-				Check:   "enabled",
-				Backend: lbaasv1.Backend{Identifier: backend.Identifier},
-			})
-		}
-	}
-
-	toCreate = make([]types.Object, 0, len(targetServers))
-	toDestroy = make([]types.Object, 0, len(r.servers))
-
-	err = compare.Reconcile(
-		targetServers, r.servers,
-		&toCreate, &toDestroy,
-		"Name", "IP", "Port", "Check", "Backend.Identifier",
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return
 }
