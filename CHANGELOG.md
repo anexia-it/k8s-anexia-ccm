@@ -11,8 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Please add your changelog entry under this comment in the correct category (Security, Fixed, Added, Changed, Deprecated, Removed - in this order).
 -->
 
-### Fixes
+## [1.4.2] - 2022-06-22
 
+### Fixes
 * wrong usage of pointer-to-loop variable @LittleFox94 (#91)
   - definitely leading to bad performance when deleting Objects
   - might lead to wrongly created resources
