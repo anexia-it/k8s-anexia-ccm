@@ -17,10 +17,12 @@ Please add your changelog entry under this comment in the correct category (Secu
 * wrong usage of pointer-to-loop variable @LittleFox94 (#91)
   - definitely leading to bad performance when deleting Objects
   - might lead to wrongly created resources
+* fix missed project-rename things, resulting in e.g. wrong version printed on startup @LittleFox94 (#88)
 
 ### Changes
 * upgrade to Go 1.18 @LittleFox94 (#94)
 * handle already existing LBaaS resources that are still progressing @LittleFox94 (#93)
+* build and deploy docs to GitHub Pages at https://anexia-it.github.io/k8s-anexia-ccm @LittleFox94 (#89)
 
 ## [1.4.1] - 2022-05-04
 
