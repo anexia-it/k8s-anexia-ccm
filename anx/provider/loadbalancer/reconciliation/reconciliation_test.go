@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"go.anx.io/go-anxcloud/pkg/api"
+	"go.anx.io/go-anxcloud/pkg/api/mock"
 	"go.anx.io/go-anxcloud/pkg/api/types"
 	lbaasv1 "go.anx.io/go-anxcloud/pkg/apis/lbaas/v1"
 
@@ -15,6 +15,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	. "go.anx.io/go-anxcloud/pkg/api/mock/matcher"
 )
 
 const (
@@ -23,8 +24,7 @@ const (
 )
 
 var _ = Describe("reconcile", func() {
-	var apiClient api.API
-	var mock LBaaSMock
+	var apiClient mock.API
 
 	var recon *reconciliation
 
@@ -35,7 +35,10 @@ var _ = Describe("reconcile", func() {
 	var servers []Server
 
 	BeforeEach(func() {
-		apiClient, mock = lbaasMockAPI()
+		apiClient = mock.NewMockAPI()
+		apiClient.FakeExisting(&lbaasv1.LoadBalancer{
+			Identifier: testLoadBalancerIdentifier,
+		})
 
 		svcUID = rand.String(32)
 
@@ -79,10 +82,10 @@ var _ = Describe("reconcile", func() {
 
 	Context("with existing resources but none matching our tag", func() {
 		JustBeforeEach(func() {
-			mock.FakeExisting(&lbaasv1.Frontend{Name: "foo"})
-			mock.FakeExisting(&lbaasv1.Bind{Name: "foo"})
-			mock.FakeExisting(&lbaasv1.Backend{Name: "foo"})
-			mock.FakeExisting(&lbaasv1.Server{Name: "foo"})
+			apiClient.FakeExisting(&lbaasv1.Frontend{Name: "foo"})
+			apiClient.FakeExisting(&lbaasv1.Bind{Name: "foo"})
+			apiClient.FakeExisting(&lbaasv1.Backend{Name: "foo"})
+			apiClient.FakeExisting(&lbaasv1.Server{Name: "foo"})
 
 			err := recon.retrieveState()
 			Expect(err).NotTo(HaveOccurred())
@@ -104,7 +107,7 @@ var _ = Describe("reconcile", func() {
 
 		JustBeforeEach(func() {
 			expectDestroyFrontends = []string{
-				mock.FakeExisting(&lbaasv1.Frontend{
+				apiClient.FakeExisting(&lbaasv1.Frontend{
 					Name: "foo",
 					LoadBalancer: &lbaasv1.LoadBalancer{
 						Identifier: testLoadBalancerIdentifier,
@@ -113,7 +116,7 @@ var _ = Describe("reconcile", func() {
 			}
 
 			expectDestroyBinds = []string{
-				mock.FakeExisting(&lbaasv1.Bind{
+				apiClient.FakeExisting(&lbaasv1.Bind{
 					Name: "foo",
 					Frontend: lbaasv1.Frontend{
 						Identifier: expectDestroyFrontends[0],
@@ -122,7 +125,7 @@ var _ = Describe("reconcile", func() {
 			}
 
 			expectDestroyBackends = []string{
-				mock.FakeExisting(&lbaasv1.Backend{
+				apiClient.FakeExisting(&lbaasv1.Backend{
 					Name: "foo",
 					LoadBalancer: lbaasv1.LoadBalancer{
 						Identifier: testLoadBalancerIdentifier,
@@ -131,7 +134,7 @@ var _ = Describe("reconcile", func() {
 			}
 
 			expectDestroyServers = []string{
-				mock.FakeExisting(&lbaasv1.Server{
+				apiClient.FakeExisting(&lbaasv1.Server{
 					Name: "foo",
 					Backend: lbaasv1.Backend{
 						Identifier: expectDestroyBackends[0],
@@ -193,7 +196,7 @@ var _ = Describe("reconcile", func() {
 		var httpsFrontendIdentifier string
 
 		JustBeforeEach(func() {
-			httpBackendIdentifier = mock.FakeExisting(&lbaasv1.Backend{
+			httpBackendIdentifier = apiClient.FakeExisting(&lbaasv1.Backend{
 				Name:         "http." + testClusterName,
 				Mode:         lbaasv1.TCP,
 				HealthCheck:  `"adv_check": "tcp-check"`,
@@ -201,7 +204,7 @@ var _ = Describe("reconcile", func() {
 				HasState:     lbaasv1.HasState{State: lbaasv1.NewlyCreated},
 			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
 
-			httpsBackendIdentifier = mock.FakeExisting(&lbaasv1.Backend{
+			httpsBackendIdentifier = apiClient.FakeExisting(&lbaasv1.Backend{
 				Name:         "https." + testClusterName,
 				Mode:         lbaasv1.TCP,
 				HealthCheck:  `"adv_check": "tcp-check"`,
@@ -209,7 +212,7 @@ var _ = Describe("reconcile", func() {
 				HasState:     lbaasv1.HasState{State: lbaasv1.NewlyCreated},
 			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
 
-			httpFrontendIdentifier = mock.FakeExisting(&lbaasv1.Frontend{
+			httpFrontendIdentifier = apiClient.FakeExisting(&lbaasv1.Frontend{
 				Name:           "http." + testClusterName,
 				Mode:           lbaasv1.TCP,
 				LoadBalancer:   &lbaasv1.LoadBalancer{Identifier: testLoadBalancerIdentifier},
@@ -217,7 +220,7 @@ var _ = Describe("reconcile", func() {
 				HasState:       lbaasv1.HasState{State: lbaasv1.NewlyCreated},
 			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
 
-			httpsFrontendIdentifier = mock.FakeExisting(&lbaasv1.Frontend{
+			httpsFrontendIdentifier = apiClient.FakeExisting(&lbaasv1.Frontend{
 				Name:           "https." + testClusterName,
 				Mode:           lbaasv1.TCP,
 				LoadBalancer:   &lbaasv1.LoadBalancer{Identifier: testLoadBalancerIdentifier},
@@ -225,7 +228,7 @@ var _ = Describe("reconcile", func() {
 				HasState:       lbaasv1.HasState{State: lbaasv1.NewlyCreated},
 			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
 
-			mock.FakeExisting(&lbaasv1.Bind{
+			apiClient.FakeExisting(&lbaasv1.Bind{
 				Name:     "v4.http." + testClusterName,
 				Address:  "8.8.8.8",
 				Port:     80,
@@ -233,7 +236,7 @@ var _ = Describe("reconcile", func() {
 				HasState: lbaasv1.HasState{State: lbaasv1.Deployed},
 			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
 
-			mock.FakeExisting(&lbaasv1.Bind{
+			apiClient.FakeExisting(&lbaasv1.Bind{
 				Name:     "v4.https." + testClusterName,
 				Address:  "8.8.8.8",
 				Port:     443,
@@ -241,7 +244,7 @@ var _ = Describe("reconcile", func() {
 				HasState: lbaasv1.HasState{State: lbaasv1.Deployed},
 			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
 
-			mock.FakeExisting(&lbaasv1.Bind{
+			apiClient.FakeExisting(&lbaasv1.Bind{
 				Name:     "v6.http." + testClusterName,
 				Address:  "2001:4860:4860::8888",
 				Port:     80,
@@ -249,7 +252,7 @@ var _ = Describe("reconcile", func() {
 				HasState: lbaasv1.HasState{State: lbaasv1.Deployed},
 			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
 
-			mock.FakeExisting(&lbaasv1.Bind{
+			apiClient.FakeExisting(&lbaasv1.Bind{
 				Name:     "v6.https." + testClusterName,
 				Address:  "2001:4860:4860::8888",
 				Port:     443,
@@ -257,7 +260,7 @@ var _ = Describe("reconcile", func() {
 				HasState: lbaasv1.HasState{State: lbaasv1.Deployed},
 			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
 
-			mock.FakeExisting(&lbaasv1.Server{
+			apiClient.FakeExisting(&lbaasv1.Server{
 				Name:     "https.invalid-server." + testClusterName,
 				IP:       "10.244.1.1",
 				Port:     4223,
@@ -398,63 +401,63 @@ var _ = Describe("reconcile", func() {
 		var httpsBackendIdentifier string
 
 		JustBeforeEach(func() {
-			httpBackendIdentifier = mock.FakeExisting(&lbaasv1.Backend{
+			httpBackendIdentifier = apiClient.FakeExisting(&lbaasv1.Backend{
 				Name:         "http." + testClusterName,
 				Mode:         lbaasv1.TCP,
 				HealthCheck:  `"adv_check": "tcp-check"`,
 				LoadBalancer: lbaasv1.LoadBalancer{Identifier: testLoadBalancerIdentifier},
 			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
 
-			httpsBackendIdentifier = mock.FakeExisting(&lbaasv1.Backend{
+			httpsBackendIdentifier = apiClient.FakeExisting(&lbaasv1.Backend{
 				Name:         "https." + testClusterName,
 				Mode:         lbaasv1.TCP,
 				HealthCheck:  `"adv_check": "tcp-check"`,
 				LoadBalancer: lbaasv1.LoadBalancer{Identifier: testLoadBalancerIdentifier},
 			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
 
-			httpFrontendIdentifier := mock.FakeExisting(&lbaasv1.Frontend{
+			httpFrontendIdentifier := apiClient.FakeExisting(&lbaasv1.Frontend{
 				Name:           "http." + testClusterName,
 				Mode:           lbaasv1.TCP,
 				LoadBalancer:   &lbaasv1.LoadBalancer{Identifier: testLoadBalancerIdentifier},
 				DefaultBackend: &lbaasv1.Backend{Identifier: httpBackendIdentifier},
 			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
 
-			httpsFrontendIdentifier := mock.FakeExisting(&lbaasv1.Frontend{
+			httpsFrontendIdentifier := apiClient.FakeExisting(&lbaasv1.Frontend{
 				Name:           "https." + testClusterName,
 				Mode:           lbaasv1.TCP,
 				LoadBalancer:   &lbaasv1.LoadBalancer{Identifier: testLoadBalancerIdentifier},
 				DefaultBackend: &lbaasv1.Backend{Identifier: httpsBackendIdentifier},
 			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
 
-			mock.FakeExisting(&lbaasv1.Bind{
+			apiClient.FakeExisting(&lbaasv1.Bind{
 				Name:     "v4.http." + testClusterName,
 				Address:  "8.8.8.8",
 				Port:     80,
 				Frontend: lbaasv1.Frontend{Identifier: httpFrontendIdentifier},
 			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
 
-			mock.FakeExisting(&lbaasv1.Bind{
+			apiClient.FakeExisting(&lbaasv1.Bind{
 				Name:     "v4.https." + testClusterName,
 				Address:  "8.8.8.8",
 				Port:     443,
 				Frontend: lbaasv1.Frontend{Identifier: httpsFrontendIdentifier},
 			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
 
-			mock.FakeExisting(&lbaasv1.Bind{
+			apiClient.FakeExisting(&lbaasv1.Bind{
 				Name:     "v6.http." + testClusterName,
 				Address:  "2001:4860:4860::8888",
 				Port:     80,
 				Frontend: lbaasv1.Frontend{Identifier: httpFrontendIdentifier},
 			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
 
-			mock.FakeExisting(&lbaasv1.Bind{
+			apiClient.FakeExisting(&lbaasv1.Bind{
 				Name:     "v6.https." + testClusterName,
 				Address:  "2001:4860:4860::8888",
 				Port:     443,
 				Frontend: lbaasv1.Frontend{Identifier: httpsFrontendIdentifier},
 			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
 
-			mock.FakeExisting(&lbaasv1.Server{
+			apiClient.FakeExisting(&lbaasv1.Server{
 				Name:    "test-server-01.http." + testClusterName,
 				IP:      "10.244.0.4",
 				Port:    42037,
@@ -462,7 +465,7 @@ var _ = Describe("reconcile", func() {
 				Backend: lbaasv1.Backend{Identifier: httpBackendIdentifier},
 			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
 
-			mock.FakeExisting(&lbaasv1.Server{
+			apiClient.FakeExisting(&lbaasv1.Server{
 				Name:    "test-server-01.https." + testClusterName,
 				IP:      "10.244.0.4",
 				Port:    37042,
@@ -470,7 +473,7 @@ var _ = Describe("reconcile", func() {
 				Backend: lbaasv1.Backend{Identifier: httpsBackendIdentifier},
 			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
 
-			mock.FakeExisting(&lbaasv1.Server{
+			apiClient.FakeExisting(&lbaasv1.Server{
 				Name:    "test-server-02.http." + testClusterName,
 				IP:      "8.8.8.8",
 				Port:    42037,
@@ -478,7 +481,7 @@ var _ = Describe("reconcile", func() {
 				Backend: lbaasv1.Backend{Identifier: httpBackendIdentifier},
 			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
 
-			mock.FakeExisting(&lbaasv1.Server{
+			apiClient.FakeExisting(&lbaasv1.Server{
 				Name:    "test-server-02.https." + testClusterName,
 				IP:      "8.8.8.8",
 				Port:    37042,
@@ -512,7 +515,8 @@ var _ = Describe("reconcile", func() {
 			})
 
 			It("detects all resources as having to be destroyed", func() {
-				destroyCount := len(mock.Backends()) + len(mock.Binds()) + len(mock.Frontends()) + len(mock.Servers())
+				// -1: do not destroy the LoadBalancer itself
+				destroyCount := len(apiClient.Existing()) - 1
 
 				toCreate, toDestroy, err := recon.ReconcileCheck()
 				Expect(err).NotTo(HaveOccurred())
@@ -524,10 +528,12 @@ var _ = Describe("reconcile", func() {
 				err := recon.Reconcile()
 				Expect(err).NotTo(HaveOccurred())
 
-				Expect(mock.Frontends()).To(HaveLen(0))
-				Expect(mock.Binds()).To(HaveLen(0))
-				Expect(mock.Backends()).To(HaveLen(0))
-				Expect(mock.Servers()).To(HaveLen(0))
+				Expect(apiClient.Existing()).To(
+					ConsistOf(
+						Object(&lbaasv1.LoadBalancer{Identifier: testLoadBalancerIdentifier}, "Identifier"),
+					),
+				)
+				Expect(apiClient.Existing()).To(HaveLen(1))
 			})
 		})
 	})
