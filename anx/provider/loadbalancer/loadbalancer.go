@@ -96,7 +96,7 @@ func (m mgr) GetLoadBalancer(ctx context.Context, clusterName string, service *v
 		return nil, false, err
 	}
 
-	reconStatus, err := recon.Status()
+	reconStatus, err := recon.Status(ctx)
 	if err != nil {
 		return nil, false, err
 	}
@@ -142,11 +142,11 @@ func (m mgr) EnsureLoadBalancer(ctx context.Context, clusterName string, service
 		return nil, err
 	}
 
-	if err := recon.Reconcile(); err != nil {
+	if err := recon.Reconcile(ctx); err != nil {
 		return nil, err
 	}
 
-	return m.reconciliationStatus(recon)
+	return m.reconciliationStatus(ctx, recon)
 }
 
 func (m mgr) UpdateLoadBalancer(ctx context.Context, clusterName string, service *v1.Service, nodes []*v1.Node) error {
@@ -213,8 +213,8 @@ func (m mgr) prepare(ctx context.Context, clusterName string, svc *v1.Service) (
 	return logr.NewContext(ctx, logger), m.clusterName
 }
 
-func (m mgr) reconciliationStatus(recon reconciliation.Reconciliation) (*v1.LoadBalancerStatus, error) {
-	status, err := recon.Status()
+func (m mgr) reconciliationStatus(ctx context.Context, recon reconciliation.Reconciliation) (*v1.LoadBalancerStatus, error) {
+	status, err := recon.Status(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -285,7 +285,7 @@ func (m mgr) reconciliationForService(ctx context.Context, clusterName string, s
 		externalAddresses = make([]net.IP, 0)
 	}
 
-	mrecon := reconciliation.Multi()
+	mrecon := reconciliation.Multi(m.api, string(svc.UID))
 	for _, lb := range m.loadBalancers {
 		ctx := logr.NewContext(
 			ctx,

@@ -1,6 +1,9 @@
 package reconciliation
 
 import (
+	"context"
+
+	"go.anx.io/go-anxcloud/pkg/api/mock"
 	"go.anx.io/go-anxcloud/pkg/api/types"
 	lbaasv1 "go.anx.io/go-anxcloud/pkg/apis/lbaas/v1"
 
@@ -14,15 +17,15 @@ type testRecon struct {
 	toDestroy []types.Object
 }
 
-func (tr testRecon) Status() (map[string][]uint16, error) {
+func (tr testRecon) Status(context.Context) (map[string][]uint16, error) {
 	return tr.status, nil
 }
 
-func (tr testRecon) Reconcile() error {
+func (tr testRecon) Reconcile(context.Context) error {
 	return nil
 }
 
-func (tr testRecon) ReconcileCheck() ([]types.Object, []types.Object, error) {
+func (tr testRecon) ReconcileCheck(context.Context) ([]types.Object, []types.Object, error) {
 	toCreate, toDestroy := tr.toCreate, tr.toDestroy
 
 	if toCreate == nil {
@@ -38,10 +41,13 @@ func (tr testRecon) ReconcileCheck() ([]types.Object, []types.Object, error) {
 
 var _ = Describe("Multi", func() {
 	var recon Reconciliation
+	var a = mock.NewMockAPI()
+	serviceUID := "test-service-uid"
 
 	Context("Status aggregation", func() {
 		BeforeEach(func() {
 			recon = Multi(
+				a, serviceUID,
 				testRecon{
 					status: map[string][]uint16{
 						"8.8.8.8": {80, 443, 53},
@@ -61,6 +67,7 @@ var _ = Describe("Multi", func() {
 		Context("toCreate", func() {
 			BeforeEach(func() {
 				recon = Multi(
+					a, serviceUID,
 					testRecon{
 						toCreate: []types.Object{
 							&lbaasv1.Frontend{Name: "test-01"},
@@ -76,7 +83,7 @@ var _ = Describe("Multi", func() {
 			})
 
 			It("aggregates correctly", func() {
-				toCreate, toDestroy, err := recon.ReconcileCheck()
+				toCreate, toDestroy, err := recon.ReconcileCheck(context.TODO())
 				Expect(err).NotTo(HaveOccurred())
 				Expect(toCreate).To(HaveLen(3))
 				Expect(toDestroy).To(HaveLen(0))
@@ -86,6 +93,7 @@ var _ = Describe("Multi", func() {
 		Context("toDestroy", func() {
 			BeforeEach(func() {
 				recon = Multi(
+					a, serviceUID,
 					testRecon{
 						toDestroy: []types.Object{
 							&lbaasv1.Frontend{Name: "test-01"},
@@ -101,7 +109,7 @@ var _ = Describe("Multi", func() {
 			})
 
 			It("aggregates correctly", func() {
-				toCreate, toDestroy, err := recon.ReconcileCheck()
+				toCreate, toDestroy, err := recon.ReconcileCheck(context.TODO())
 				Expect(err).NotTo(HaveOccurred())
 				Expect(toCreate).To(HaveLen(0))
 				Expect(toDestroy).To(HaveLen(3))

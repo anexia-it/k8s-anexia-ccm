@@ -1,8 +1,10 @@
 package reconciliation
 
 import (
+	"context"
 	"sync"
 
+	"go.anx.io/go-anxcloud/pkg/api"
 	"go.anx.io/go-anxcloud/pkg/api/types"
 )
 
@@ -16,6 +18,9 @@ type MultiReconciliation interface {
 
 type multirecon struct {
 	recons []Reconciliation
+
+	a          api.API
+	serviceUID string
 }
 
 // Multi creates a new MultiReconcilation from the given Reconcilation instances. Instead of
@@ -32,9 +37,12 @@ type multirecon struct {
 //
 // This can be used to e.g. reconcile a given service for multiple different LBaaS LoadBalancers, removing
 // the need for the LBaaS sync controller.
-func Multi(recon ...Reconciliation) MultiReconciliation {
+func Multi(a api.API, serviceUID string, recon ...Reconciliation) MultiReconciliation {
 	return &multirecon{
 		recons: recon,
+
+		a:          a,
+		serviceUID: serviceUID,
 	}
 }
 
@@ -46,7 +54,9 @@ func (mr *multirecon) Add(recon Reconciliation) {
 	mr.recons = append(mr.recons, recon)
 }
 
-func (mr *multirecon) ReconcileCheck() ([]types.Object, []types.Object, error) {
+func (mr *multirecon) ReconcileCheck(ctx context.Context) ([]types.Object, []types.Object, error) {
+	ctx = withStateRetriever(ctx, mr.a, mr.serviceUID, len(mr.recons))
+
 	type singleResult struct {
 		toCreate  []types.Object
 		toDestroy []types.Object
@@ -64,7 +74,7 @@ func (mr *multirecon) ReconcileCheck() ([]types.Object, []types.Object, error) {
 		recon := mr.recons[i]
 		go func() {
 			defer wg.Done()
-			toCreate, toDestroy, err := recon.ReconcileCheck()
+			toCreate, toDestroy, err := recon.ReconcileCheck(ctx)
 
 			results <- singleResult{
 				toCreate:  toCreate,
@@ -89,7 +99,9 @@ func (mr *multirecon) ReconcileCheck() ([]types.Object, []types.Object, error) {
 	return toCreate, toDestroy, nil
 }
 
-func (mr *multirecon) Reconcile() error {
+func (mr *multirecon) Reconcile(ctx context.Context) error {
+	ctx = withStateRetriever(ctx, mr.a, mr.serviceUID, len(mr.recons))
+
 	wg := sync.WaitGroup{}
 	wg.Add(len(mr.recons))
 
@@ -98,7 +110,7 @@ func (mr *multirecon) Reconcile() error {
 		recon := mr.recons[i]
 		go func() {
 			defer wg.Done()
-			results <- recon.Reconcile()
+			results <- recon.Reconcile(ctx)
 		}()
 	}
 
@@ -114,7 +126,9 @@ func (mr *multirecon) Reconcile() error {
 	return nil
 }
 
-func (mr *multirecon) Status() (map[string][]uint16, error) {
+func (mr *multirecon) Status(ctx context.Context) (map[string][]uint16, error) {
+	ctx = withStateRetriever(ctx, mr.a, mr.serviceUID, len(mr.recons))
+
 	type singleResult struct {
 		status map[string][]uint16
 		err    error
@@ -128,7 +142,7 @@ func (mr *multirecon) Status() (map[string][]uint16, error) {
 		recon := mr.recons[i]
 		go func() {
 			defer wg.Done()
-			status, err := recon.Status()
+			status, err := recon.Status(ctx)
 
 			results <- singleResult{
 				status: status,
