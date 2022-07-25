@@ -4,6 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
+	"math/rand"
+	"net/http"
+	"strconv"
+	"testing"
+
 	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/configuration"
 	tUtils "github.com/anexia-it/k8s-anexia-ccm/anx/provider/test"
 	"github.com/stretchr/testify/require"
@@ -14,11 +20,6 @@ import (
 	"go.anx.io/go-anxcloud/pkg/vsphere/vmlist"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"math"
-	"math/rand"
-	"net/http"
-	"strconv"
-	"testing"
 )
 
 func TestFetchingID(t *testing.T) {
@@ -97,19 +98,98 @@ func TestFetchingID(t *testing.T) {
 		require.Equal(t, nodeIndentifier, providerId)
 	})
 
-	t.Run("GetProviderIDForNode/MultipleVMs", func(t *testing.T) {
+	t.Run("GetProviderIDForNode/NoProviderID/MultipleVMs/IPUnique", func(t *testing.T) {
 		t.Parallel()
 		provider := tUtils.GetMockedAnxProvider()
 		randomNodeIdentifier := randomNodeIdentifier()
 		provider.SearchMock.On("ByName", ctx, fmt.Sprintf("%s-%s",
 			provider.Config().CustomerID, nodeName)).Return([]search.VM{
 			{
-				Name:       "VM1",
+				Name:       fmt.Sprintf("%s-VM", provider.Config().CustomerID),
 				Identifier: randomNodeIdentifier,
 			},
 			{
-				Name:       "VM2",
+				Name:       "test-VM",
 				Identifier: "secondIdentifier",
+			},
+		}, nil)
+
+		provider.InfoMock.On("Get", ctx, randomNodeIdentifier).Return(info.Info{
+			Name:       fmt.Sprintf("%s-VM", provider.Config().CustomerID),
+			Identifier: randomNodeIdentifier,
+			Network: []info.Network{
+				{
+					// the IP address we are looking for
+					IPv4: []string{"10.0.0.1"},
+				},
+			},
+		}, nil)
+
+		provider.InfoMock.On("Get", ctx, "secondIdentifier").Return(info.Info{
+			Name:       "test-VM",
+			Identifier: "secondIdentifier",
+			Network: []info.Network{
+				{
+					// not the IP address we are looking for
+					IPv4: []string{"10.0.0.2"},
+				},
+			},
+		}, nil)
+
+		manager := instanceManager{provider}
+
+		identifier, err := manager.InstanceIDByNode(ctx, &v1.Node{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: nodeName,
+			},
+			Spec: v1.NodeSpec{},
+			Status: v1.NodeStatus{
+				Addresses: []v1.NodeAddress{
+					{Type: v1.NodeExternalDNS, Address: "test-VM"},
+					{Type: v1.NodeInternalIP, Address: "10.0.0.1"},
+				},
+			},
+		})
+
+		require.Equal(t, identifier, randomNodeIdentifier)
+		require.NoError(t, err)
+	})
+
+	t.Run("GetProviderIDForNode/NoProviderID/MultipleVMs/IPsNotUnique", func(t *testing.T) {
+		t.Parallel()
+		provider := tUtils.GetMockedAnxProvider()
+		randomNodeIdentifier := randomNodeIdentifier()
+		provider.SearchMock.On("ByName", ctx, fmt.Sprintf("%s-%s",
+			provider.Config().CustomerID, nodeName)).Return([]search.VM{
+			{
+				Name:       fmt.Sprintf("%s-VM", provider.Config().CustomerID),
+				Identifier: randomNodeIdentifier,
+			},
+			{
+				Name:       "test-VM",
+				Identifier: "secondIdentifier",
+			},
+		}, nil)
+
+		provider.InfoMock.On("Get", ctx, randomNodeIdentifier).Return(info.Info{
+			Name:       fmt.Sprintf("%s-VM", provider.Config().CustomerID),
+			Identifier: randomNodeIdentifier,
+			Network: []info.Network{
+				{
+					// the IP address we are looking for
+					IPv4: []string{"10.0.0.1"},
+				},
+			},
+		}, nil)
+
+		provider.InfoMock.On("Get", ctx, "secondIdentifier").Return(info.Info{
+			Name:       "test-VM",
+			Identifier: "secondIdentifier",
+			Network: []info.Network{
+				{
+					// sadly the IP address we are looking for, too
+					IPv4: []string{"10.0.0.1"},
+				},
 			},
 		}, nil)
 
@@ -120,6 +200,12 @@ func TestFetchingID(t *testing.T) {
 				Name: nodeName,
 			},
 			Spec: v1.NodeSpec{},
+			Status: v1.NodeStatus{
+				Addresses: []v1.NodeAddress{
+					{Type: v1.NodeExternalDNS, Address: "test-VM"},
+					{Type: v1.NodeInternalIP, Address: "10.0.0.1"},
+				},
+			},
 		})
 
 		require.Error(t, err)
