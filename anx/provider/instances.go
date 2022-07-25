@@ -4,20 +4,27 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
+	"strings"
+
 	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/configuration"
 	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/utils"
-	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/utils/resolve"
+	"github.com/go-logr/logr"
 	vminfo "go.anx.io/go-anxcloud/pkg/vsphere/info"
 	"go.anx.io/go-anxcloud/pkg/vsphere/powercontrol"
 	v1 "k8s.io/api/core/v1"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog/v2"
-	"strings"
 )
 
 type instanceManager struct {
 	Provider
 }
+
+var (
+	errNamedVirtualMachineNotFound = errors.New("virtual machine with given name not found")
+	errVirtualMachineNameNotUnique = errors.New("virtual machine name not unique")
+)
 
 func (i instanceManager) NodeAddressesByProviderID(ctx context.Context, providerID string) ([]v1.NodeAddress, error) {
 	if providerID == "" {
@@ -113,29 +120,93 @@ func (i instanceManager) InstanceMetadata(ctx context.Context, node *v1.Node) (*
 	}, nil
 }
 
+// try to fetch the correct instance by name, first by using the configured prefix (or a
+// wildcard when not configured) and, when none found this way, tries the name as-is without
+// any prefix
+func (i instanceManager) instancesByName(ctx context.Context, name string) ([]string, error) {
+	logger := logr.FromContextOrDiscard(ctx).WithValues("nodeName", name)
+
+	namePrefix := i.Config().CustomerID
+	if namePrefix == "" {
+		namePrefix = "%"
+		logger.Info("Customer ID prefix not configured, using a wildcard", "prefix", namePrefix)
+	} else {
+		logger.V(1).Info("Listing VMs with configured prefix", "prefix", namePrefix)
+	}
+
+	vms, err := i.VSphere().Search().ByName(ctx, fmt.Sprintf("%s-%s", namePrefix, name))
+
+	if err == nil && len(vms) == 0 {
+		logger.V(1).Info("Didn't find any VM by name with prefix, retrying without prefix", "prefix", namePrefix)
+		vms, err = i.VSphere().Search().ByName(ctx, name)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("error listing VMs by name: %w", err)
+	}
+
+	ret := make([]string, 0, len(vms))
+	for _, vm := range vms {
+		ret = append(ret, vm.Identifier)
+	}
+
+	return ret, nil
+}
+
+func (i instanceManager) filterInstances(ctx context.Context, node *v1.Node, vms []string) []string {
+	logger := logr.FromContextOrDiscard(ctx).WithValues("nodeName", node.Name)
+
+	nodeIPs := nodeInternalIPs(node)
+
+	filtered := make([]string, 0, len(vms))
+	for _, vm := range vms {
+		fullVM, err := i.VSphere().Info().Get(ctx, vm)
+		if err != nil {
+			logger.Error(err, "Error retrieving full VM details", "identifier", vm)
+		}
+
+		for _, network := range fullVM.Network {
+			for _, ip := range append(network.IPv4, network.IPv6...) {
+				for _, nodeIP := range nodeIPs {
+					if nodeIP.Equal(net.ParseIP(ip)) {
+						filtered = append(filtered, fullVM.Identifier)
+					}
+				}
+			}
+		}
+	}
+
+	return filtered
+}
+
 func (i instanceManager) InstanceIDByNode(ctx context.Context, node *v1.Node) (string, error) {
 	if node.Spec.ProviderID != "" {
 		return strings.TrimPrefix(node.Spec.ProviderID, configuration.CloudProviderScheme), nil
 	}
 
-	resolver := i.GetNodeResolver()
+	logger := logr.FromContextOrDiscard(ctx).WithValues("nodeName", node.Name)
 
-	return resolver.Resolve(ctx, node.Name)
-}
+	vms, err := i.instancesByName(ctx, node.Name)
+	if err != nil {
+		return "", err
+	}
 
-func (i instanceManager) GetNodeResolver() resolve.NodeResolver {
-	switch {
-	case i.Config().CustomerID != "":
-		return resolve.CustomerPrefixResolver{
-			API:            i,
-			CustomerPrefix: i.Config().CustomerID,
-		}
-	default:
-		return &resolve.AutomaticResolver{
-			API:      i,
-			UseCache: true,
+	if len(vms) > 1 {
+		logger.Info("Found multiple VMs matching node.Name, filtering by IPs now")
+
+		vms = i.filterInstances(ctx, node, vms)
+
+		if len(vms) > 1 {
+			logger.Info("Found multiple VMs matching node.Name and having the expected IP address - giving up")
+			return "", errVirtualMachineNameNotUnique
 		}
 	}
+
+	if len(vms) == 1 {
+		return vms[0], nil
+	}
+
+	return "", errNamedVirtualMachineNotFound
 }
 
 func instanceType(info vminfo.Info) string {
@@ -151,4 +222,19 @@ func instanceType(info vminfo.Info) string {
 		return fmt.Sprintf("C%d-M%d-%s", cores, ram, largestDisk.DiskType)
 	}
 	return fmt.Sprintf("C%d-M%d", cores, ram)
+}
+
+func nodeInternalIPs(node *v1.Node) []net.IP {
+	ret := make([]net.IP, 0, len(node.Status.Addresses))
+
+	for _, addr := range node.Status.Addresses {
+		if addr.Type == v1.NodeInternalIP {
+			ip := net.ParseIP(addr.Address)
+			if ip != nil {
+				ret = append(ret, ip)
+			}
+		}
+	}
+
+	return ret
 }
