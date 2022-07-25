@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Please add your changelog entry under this comment in the correct category (Security, Fixed, Added, Changed, Deprecated, Removed - in this order).
 -->
 
+### Fixes
+* fix VM name prefix autodiscovery @LittleFox94 (#107)
+  - by removing it alltogether and completely reworking the logic - see the PR for more details
+
 ## [1.4.2] - 2022-06-22
 
 ### Fixes
