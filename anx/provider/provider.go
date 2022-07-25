@@ -91,7 +91,11 @@ func (a *anxProvider) Initialize(builder cloudprovider.ControllerClientBuilder, 
 	a.initializeLoadBalancerManager(builder)
 	a.instanceManager = instanceManager{a}
 
-	klog.Infof("running with customer prefix '%s'", a.config.CustomerID)
+	if a.config.CustomerID != "" {
+		klog.Infof("running with customer prefix '%s'", a.config.CustomerID)
+	} else {
+		klog.Infof("running without customer prefix, will have to guess a tiny bit when matching virtual machines to Nodes")
+	}
 }
 
 func (a *anxProvider) initializeLoadBalancerManager(builder cloudprovider.ControllerClientBuilder) {
