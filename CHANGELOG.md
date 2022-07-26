@@ -11,9 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Please add your changelog entry under this comment in the correct category (Security, Fixed, Added, Changed, Deprecated, Removed - in this order).
 -->
 
+## [1.4.3]
+
 ### Fixes
 * fix VM name prefix autodiscovery @LittleFox94 (#107)
   - by removing it alltogether and completely reworking the logic - see the PR for more details
+
+### Changes
+* Bump github.com/onsi/gomega from 1.19.0 to 1.20.0 @dependabot (#106)
+* Bump k8s.io/cloud-provider from 0.24.2 to 0.24.3 @dependabot (#104)
+* Bump k8s.io/klog/v2 from 2.60.1 to 2.70.1 @dependabot (#99, #103)
+* Bump github.com/stretchr/testify from 1.7.4 to 1.8.0 @dependabot (#100, #102)
 
 ## [1.4.2] - 2022-06-22
 
@@ -85,7 +93,7 @@ Still nothing worse than in releases before.
 * feat(documentation): update documentation to contain latest configuration options @kstiehl (#38)
 
 ### Fixes
-* 💩✨🐛: store correct LoadBalancer IP in service (SYSENG-922) @LittleFox94 (#40) 
+* 💩✨🐛: store correct LoadBalancer IP in service (SYSENG-922) @LittleFox94 (#40)
 * ♻️🔊: Replace panics by log and return (SYSENG-964) @kstiehl (#39)
 
 
