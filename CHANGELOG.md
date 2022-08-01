@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 <!--
 Please add your changelog entry under this comment in the correct category (Security, Fixed, Added, Changed, Deprecated, Removed - in this order).
 -->
+### Changed
+* optimized retrieving of the load balancer state @marioreggiori (#105)
 
 ## [1.4.4] - 2022-09-19
 

@@ -21,10 +21,10 @@ func (r *reconciliation) reconcileBackends() (toCreate, toDestroy []types.Object
 	}
 
 	toCreate = make([]types.Object, 0, len(targetBackends))
-	toDestroy = make([]types.Object, 0, len(r.backends))
+	toDestroy = make([]types.Object, 0, len(r.remoteStateSnapshot.backends))
 
 	err = compare.Reconcile(
-		targetBackends, r.backends,
+		targetBackends, r.remoteStateSnapshot.backends,
 		&toCreate, &toDestroy,
 		"Name", "Mode", "HealthCheck", "LoadBalancer.Identifier",
 	)

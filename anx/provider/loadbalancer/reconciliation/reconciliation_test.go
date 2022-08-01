@@ -34,6 +34,8 @@ var _ = Describe("reconcile", func() {
 	var ports map[string]Port
 	var servers []Server
 
+	var retriever stateRetriever
+
 	BeforeEach(func() {
 		apiClient = mock.NewMockAPI()
 		apiClient.FakeExisting(&lbaasv1.LoadBalancer{
@@ -41,6 +43,8 @@ var _ = Describe("reconcile", func() {
 		})
 
 		svcUID = rand.String(32)
+
+		retriever = newStateRetriever(context.TODO(), apiClient, svcUID, []string{testLoadBalancerIdentifier})
 
 		externalAddresses = []net.IP{
 			net.ParseIP("8.8.8.8"),
@@ -71,6 +75,10 @@ var _ = Describe("reconcile", func() {
 		}
 	})
 
+	AfterEach(func() {
+		_ = retriever.Done(testLoadBalancerIdentifier)
+	})
+
 	JustBeforeEach(func() {
 		ctx := context.TODO()
 
@@ -87,15 +95,15 @@ var _ = Describe("reconcile", func() {
 			apiClient.FakeExisting(&lbaasv1.Backend{Name: "foo"})
 			apiClient.FakeExisting(&lbaasv1.Server{Name: "foo"})
 
-			err := recon.retrieveState()
+			err := recon.retrieveState(retriever)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
 		It("retrieves no resources", func() {
-			Expect(recon.frontends).To(HaveLen(0))
-			Expect(recon.binds).To(HaveLen(0))
-			Expect(recon.backends).To(HaveLen(0))
-			Expect(recon.servers).To(HaveLen(0))
+			Expect(recon.remoteStateSnapshot.frontends).To(HaveLen(0))
+			Expect(recon.remoteStateSnapshot.binds).To(HaveLen(0))
+			Expect(recon.remoteStateSnapshot.backends).To(HaveLen(0))
+			Expect(recon.remoteStateSnapshot.servers).To(HaveLen(0))
 		})
 	})
 
@@ -142,15 +150,15 @@ var _ = Describe("reconcile", func() {
 				}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID)),
 			}
 
-			err := recon.retrieveState()
+			err := recon.retrieveState(retriever)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
 		It("retrieves everything", func() {
-			Expect(recon.frontends).To(HaveLen(1))
-			Expect(recon.binds).To(HaveLen(1))
-			Expect(recon.backends).To(HaveLen(1))
-			Expect(recon.servers).To(HaveLen(1))
+			Expect(recon.remoteStateSnapshot.frontends).To(HaveLen(1))
+			Expect(recon.remoteStateSnapshot.binds).To(HaveLen(1))
+			Expect(recon.remoteStateSnapshot.backends).To(HaveLen(1))
+			Expect(recon.remoteStateSnapshot.servers).To(HaveLen(1))
 		})
 
 		type reconcileFunction func() ([]types.Object, []types.Object, error)
@@ -269,15 +277,15 @@ var _ = Describe("reconcile", func() {
 				HasState: lbaasv1.HasState{State: lbaasv1.Deployed},
 			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
 
-			err := recon.retrieveState()
+			err := recon.retrieveState(retriever)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
 		It("retrieves everything", func() {
-			Expect(recon.frontends).To(HaveLen(2))
-			Expect(recon.binds).To(HaveLen(4))
-			Expect(recon.backends).To(HaveLen(2))
-			Expect(recon.servers).To(HaveLen(1))
+			Expect(recon.remoteStateSnapshot.frontends).To(HaveLen(2))
+			Expect(recon.remoteStateSnapshot.binds).To(HaveLen(4))
+			Expect(recon.remoteStateSnapshot.backends).To(HaveLen(2))
+			Expect(recon.remoteStateSnapshot.servers).To(HaveLen(1))
 		})
 
 		It("waits for the resources to get ready", func() {
@@ -489,15 +497,15 @@ var _ = Describe("reconcile", func() {
 				Backend: lbaasv1.Backend{Identifier: httpsBackendIdentifier},
 			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
 
-			err := recon.retrieveState()
+			err := recon.retrieveState(retriever)
 			Expect(err).NotTo(HaveOccurred())
 		})
 
 		It("retrieves everything", func() {
-			Expect(recon.frontends).To(HaveLen(2))
-			Expect(recon.binds).To(HaveLen(4))
-			Expect(recon.backends).To(HaveLen(2))
-			Expect(recon.servers).To(HaveLen(4))
+			Expect(recon.remoteStateSnapshot.frontends).To(HaveLen(2))
+			Expect(recon.remoteStateSnapshot.binds).To(HaveLen(4))
+			Expect(recon.remoteStateSnapshot.backends).To(HaveLen(2))
+			Expect(recon.remoteStateSnapshot.servers).To(HaveLen(4))
 		})
 
 		It("accepts the existing resources as already correct", func() {

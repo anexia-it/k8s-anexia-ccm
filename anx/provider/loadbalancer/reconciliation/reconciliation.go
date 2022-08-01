@@ -62,26 +62,16 @@ type reconciliation struct {
 	ports             map[string]Port
 	targetServers     []Server
 
+	serviceUID string
+
 	tags []string
 
-	// existing resources
-
-	frontends []*lbaasv1.Frontend
-	backends  []*lbaasv1.Backend
-	binds     []*lbaasv1.Bind
-	servers   []*lbaasv1.Server
-
-	// we store existing failed Objects here
-	existingFailed []types.Object
-
-	// and store existing Objects that are not yet ready here
-	existingProgressing []types.Object
+	remoteStateSnapshot *remoteLoadBalancerState
 
 	// information and connections gathered from existing resources
 
-	portBackends    map[string]*lbaasv1.Backend
-	portFrontends   map[string]*lbaasv1.Frontend
-	publicAddresses []string
+	portBackends  map[string]*lbaasv1.Backend
+	portFrontends map[string]*lbaasv1.Frontend
 }
 
 // New creates a new Reconcilation instance, usable to reconcile Anexia LBaaS resources for
@@ -122,6 +112,8 @@ func New(
 		api:    apiClient,
 		logger: logr.FromContextOrDiscard(ctx),
 
+		serviceUID: serviceUID,
+
 		tags:               tags,
 		resourceNameSuffix: resourceNameSuffix,
 
@@ -152,57 +144,30 @@ func New(
 // Some resources need others to already exist, so creating all resources returned by ReconcileCheck
 // and then calling ReconcileCheck again will not always result in "nothing to change".
 func (r *reconciliation) ReconcileCheck() ([]types.Object, []types.Object, error) {
-	if err := r.retrieveState(); err != nil {
-		return nil, nil, fmt.Errorf("error retrieving current state for reconciliation: %w", err)
-	}
+	retriever, done := stateRetrieverFromContextOrNew(r.ctx, r)
+	defer done()
 
-	if len(r.existingFailed) > 0 {
-		return []types.Object{}, r.existingFailed, nil
-	}
-
-	if len(r.existingProgressing) > 0 {
-		return nil, nil, ErrLBaaSResourceProgressing
-	}
-
-	retToDestroy := []types.Object{}
-	retToCreate := []types.Object{}
-
-	steps := []func() ([]types.Object, []types.Object, error){
-		r.reconcileBackends,
-		r.reconcileFrontends,
-		r.reconcileBinds,
-		r.reconcileServers,
-	}
-
-	for _, step := range steps {
-		toCreate, toDestroy, err := step()
-
-		if err != nil {
-			return nil, nil, err
-		}
-
-		retToCreate = append(retToCreate, toCreate...)
-		retToDestroy = append(retToDestroy, toDestroy...)
-	}
-
-	return retToCreate, retToDestroy, nil
+	return r.getStateDiff(retriever)
 }
 
 // Reconcile calls ReconcileCheck in a loop, every time creating and destroying resources, until reconciliation
 // is done.
 func (r *reconciliation) Reconcile() error {
+	retriever, done := stateRetrieverFromContextOrNew(r.ctx, r)
+	defer done()
+
 	completed := false
 
 	for !completed {
-		toCreate, toDestroy, err := r.ReconcileCheck()
+		toCreate, toDestroy, err := r.getStateDiff(retriever)
 		if err != nil {
 			if !errors.Is(err, ErrLBaaSResourceProgressing) {
 				return err
 			}
 
-			r.logger.Info("Some existing resources are not ready to use, waiting for them to get ready", "objects", mustStringifyObjects(r.existingProgressing))
+			r.logger.Info("Some existing resources are not ready to use, waiting for them to get ready", "objects", mustStringifyObjects(r.remoteStateSnapshot.existingProgressing))
 
-			err := r.waitForResources(r.existingProgressing)
+			err := r.waitForResources(r.remoteStateSnapshot.existingProgressing)
 			if err != nil {
 				return err
 			}
@@ -276,6 +241,43 @@ func (r *reconciliation) Reconcile() error {
 	return nil
 }
 
+func (r *reconciliation) getStateDiff(retriever stateRetriever) ([]types.Object, []types.Object, error) {
+	if err := r.retrieveState(retriever); err != nil {
+		return nil, nil, fmt.Errorf("error retrieving current state for reconciliation: %w", err)
+	}
+
+	if len(r.remoteStateSnapshot.existingFailed) > 0 {
+		return []types.Object{}, r.remoteStateSnapshot.existingFailed, nil
+	}
+
+	if len(r.remoteStateSnapshot.existingProgressing) > 0 {
+		return nil, nil, ErrLBaaSResourceProgressing
+	}
+
+	retToDestroy := []types.Object{}
+	retToCreate := []types.Object{}
+
+	steps := []func() ([]types.Object, []types.Object, error){
+		r.reconcileBackends,
+		r.reconcileFrontends,
+		r.reconcileBinds,
+		r.reconcileServers,
+	}
+
+	for _, step := range steps {
+		toCreate, toDestroy, err := step()
+
+		if err != nil {
+			return nil, nil, err
+		}
+
+		retToCreate = append(retToCreate, toCreate...)
+		retToDestroy = append(retToDestroy, toDestroy...)
+	}
+
+	return retToCreate, retToDestroy, nil
+}
+
 var _engsup5902_mutex = sync.Mutex{}
 
 func (r *reconciliation) tagResource(o types.Object) error {
@@ -299,13 +301,16 @@ func (r *reconciliation) tagResource(o types.Object) error {
 }
 
 func (r *reconciliation) Status() (map[string][]uint16, error) {
-	if err := r.retrieveState(); err != nil {
+	retriever, done := stateRetrieverFromContextOrNew(r.ctx, r)
+	defer done()
+
+	if err := r.retrieveState(retriever); err != nil {
 		return nil, err
 	}
 
 	ret := make(map[string][]uint16)
 
-	for _, bind := range r.binds {
+	for _, bind := range r.remoteStateSnapshot.binds {
 		addr := bind.Address
 
 		if _, ok := ret[addr]; !ok {
@@ -376,138 +381,17 @@ func (r *reconciliation) waitForResources(toCreate []types.Object) error {
 	)
 }
 
-func (r *reconciliation) retrieveState() error {
-	r.frontends = make([]*lbaasv1.Frontend, 0)
-	r.backends = make([]*lbaasv1.Backend, 0)
-	r.binds = make([]*lbaasv1.Bind, 0)
-	r.servers = make([]*lbaasv1.Server, 0)
+func (r *reconciliation) retrieveState(retriever stateRetriever) error {
+
 	r.portBackends = make(map[string]*lbaasv1.Backend)
 	r.portFrontends = make(map[string]*lbaasv1.Frontend)
 
-	r.existingFailed = make([]types.Object, 0)
-	r.existingProgressing = make([]types.Object, 0)
-
-	if err := r.retrieveResources(); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (r *reconciliation) sortObjectIntoStateArray(o types.Object) {
-	sr, ok := o.(lbaasv1.StateRetriever)
-	if !ok {
-		return
-	}
-
-	if sr.StateFailure() {
-		r.existingFailed = append(r.existingFailed, o)
-	} else if sr.StateProgressing() {
-		r.existingProgressing = append(r.existingProgressing, o)
-	}
-}
-
-func (r *reconciliation) retrieveResources() error {
-	ctx, cancel := context.WithCancel(r.ctx)
-	defer cancel()
-
-	var oc types.ObjectChannel
-	err := r.api.List(ctx, &corev1.Resource{Tags: r.tags}, api.ObjectChannel(&oc), api.FullObjects(true))
-	if err != nil {
-		var he api.HTTPError
-
-		// error 422 is returned when nothing is tagged with the searched-for tag
-		if !(errors.As(err, &he) && he.StatusCode() == 422) {
-			return fmt.Errorf("error retrieving resources: %w", err)
-		}
-
-		return nil
-	}
-
-	allBinds := make([]*lbaasv1.Bind, 0)
-	allServers := make([]*lbaasv1.Server, 0)
-
-	typedRetrievers := map[string]func(identifier string) error{
-		// frontends and backends are filtered for our LoadBalancer here already
-
-		frontendResourceTypeIdentifier: func(identifier string) (err error) {
-			frontend := &lbaasv1.Frontend{Identifier: identifier}
-
-			if err = r.api.Get(ctx, frontend); err == nil && frontend.LoadBalancer.Identifier == r.lb.Identifier {
-				r.frontends = append(r.frontends, frontend)
-				r.sortObjectIntoStateArray(frontend)
-			}
-			return
-		},
-
-		backendResourceTypeIdentifier: func(identifier string) (err error) {
-			backend := &lbaasv1.Backend{Identifier: identifier}
-			if err = r.api.Get(ctx, backend); err == nil && backend.LoadBalancer.Identifier == r.lb.Identifier {
-				r.backends = append(r.backends, backend)
-				r.sortObjectIntoStateArray(backend)
-			}
-			return
-		},
-
-		bindResourceTypeIdentifier: func(identifier string) (err error) {
-			bind := &lbaasv1.Bind{Identifier: identifier}
-			if err = r.api.Get(ctx, bind); err == nil {
-				allBinds = append(allBinds, bind)
-			}
-			return
-		},
-
-		serverResourceTypeIdentifier: func(identifier string) (err error) {
-			server := &lbaasv1.Server{Identifier: identifier}
-			if err = r.api.Get(ctx, server); err == nil {
-				allServers = append(allServers, server)
-			}
-			return
-		},
-	}
-
-	for retriever := range oc {
-		var res corev1.Resource
-		if err := retriever(&res); err != nil {
-			return fmt.Errorf("error retrieving resource: %w", err)
-		}
-
-		logger := r.logger.WithValues(
-			"resource-identifier", res.Identifier,
-			"resource-name", res.Name,
-		)
-
-		if typedRetriever, ok := typedRetrievers[res.Type.Identifier]; ok {
-			err := typedRetriever(res.Identifier)
-			if err != nil {
-				return fmt.Errorf("error retrieving typed resource: %w", err)
-			}
-		} else {
-			logger.Info(
-				"retrieved resource of unknown type, did someone else use our tag? Ignoring it",
-				"resource-type-name", res.Type.Name,
-				"resource-type-id", res.Type.Identifier,
-			)
-		}
-	}
-
-	r.binds, err = r.filterBinds(allBinds)
+	var err error
+	r.remoteStateSnapshot, err = retriever.FilteredState(r.lb.Identifier)
 	if err != nil {
 		return err
 	}
 
-	r.servers, err = r.filterServers(allServers)
-	if err != nil {
-		return err
-	}
-
-	r.logger.V(1).Info(
-		"retrieved resources",
-		"num-frontends", len(r.frontends),
-		"num-binds", len(r.binds),
-		"num-backends", len(r.backends),
-		"num-servers", len(r.servers),
-	)
 	return nil
 }
 

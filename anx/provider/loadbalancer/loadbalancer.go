@@ -285,6 +285,8 @@ func (m mgr) reconciliationForService(ctx context.Context, clusterName string, s
 		externalAddresses = make([]net.IP, 0)
 	}
 
+	ctx = reconciliation.WithStateRetriever(ctx, m.api, string(svc.UID), m.loadBalancers)
+
 	mrecon := reconciliation.Multi()
 	for _, lb := range m.loadBalancers {
 		ctx := logr.NewContext(

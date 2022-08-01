@@ -12,27 +12,27 @@ import (
 
 const bindResourceTypeIdentifier = "bd24def982aa478fb3352cb5f49aab47"
 
-func (r *reconciliation) storePublicAddress(addr string) {
-	if idx := sort.SearchStrings(r.publicAddresses, addr); idx >= len(r.publicAddresses) || r.publicAddresses[idx] != addr {
-		r.publicAddresses = append(r.publicAddresses, addr)
-		sort.Strings(r.publicAddresses)
+func (r *stateRetrieverImpl) storePublicAddress(lbID, addr string) {
+	if idx := sort.SearchStrings(r.loadBalancers[lbID].state.publicAddresses, addr); idx >= len(r.loadBalancers[lbID].state.publicAddresses) || r.loadBalancers[lbID].state.publicAddresses[idx] != addr {
+		r.loadBalancers[lbID].state.publicAddresses = append(r.loadBalancers[lbID].state.publicAddresses, addr)
+		sort.Strings(r.loadBalancers[lbID].state.publicAddresses)
 	}
 }
 
-func (r *reconciliation) filterBinds(allBinds []*lbaasv1.Bind) ([]*lbaasv1.Bind, error) {
+func (r *stateRetrieverImpl) filterBinds(lbID string, allBinds []*lbaasv1.Bind) ([]*lbaasv1.Bind, error) {
 	ret := make([]*lbaasv1.Bind, 0, len(allBinds))
 
 	// Binds and Servers are filtered for our LoadBalancer here, after we hopefully retrieved their Frontends and Backends already
 	for _, bind := range allBinds {
-		idx, err := compare.Search(lbaasv1.Frontend{Identifier: bind.Frontend.Identifier}, r.frontends, "Identifier")
+		idx, err := compare.Search(lbaasv1.Frontend{Identifier: bind.Frontend.Identifier}, r.loadBalancers[lbID].state.frontends, "Identifier")
 		if err != nil {
 			return nil, fmt.Errorf("error checking if Binds belongs to one of our frontends: %w", err)
 		} else if idx != -1 {
 			ret = append(ret, bind)
-			r.sortObjectIntoStateArray(bind)
+			r.sortObjectIntoStateArray(lbID, bind)
 
 			if bind.Address != "" {
-				r.storePublicAddress(bind.Address)
+				r.storePublicAddress(lbID, bind.Address)
 			}
 		}
 	}
@@ -68,10 +68,10 @@ func (r *reconciliation) reconcileBinds() (toCreate, toDestroy []types.Object, e
 	}
 
 	toCreate = make([]types.Object, 0, len(targetBinds))
-	toDestroy = make([]types.Object, 0, len(r.binds))
+	toDestroy = make([]types.Object, 0, len(r.remoteStateSnapshot.binds))
 
 	err = compare.Reconcile(
-		targetBinds, r.binds,
+		targetBinds, r.remoteStateSnapshot.binds,
 		&toCreate, &toDestroy,
 		"Name", "Address", "Port", "Frontend.Identifier",
 	)
