@@ -86,11 +86,11 @@ type reconciliation struct {
 
 // New creates a new Reconcilation instance, usable to reconcile Anexia LBaaS resources for
 //
-//  * a single LBaaS LoadBalancer
-//  * a single service UID (used for tagging the created resources and listing them)
-//  * a set of external IP addresses (translated into LBaaS Binds)
-//  * a set of ports (each having an internal (Kubernetes NodePort) and external (LBaaS Bind) port)
-//  * a set of nodes (each translated to a LBaaS Server)
+//   - a single LBaaS LoadBalancer
+//   - a single service UID (used for tagging the created resources and listing them)
+//   - a set of external IP addresses (translated into LBaaS Binds)
+//   - a set of ports (each having an internal (Kubernetes NodePort) and external (LBaaS Bind) port)
+//   - a set of nodes (each translated to a LBaaS Server)
 //
 // Before doing anything, it will list all resources currently present in the Engine tagged with
 // `anxccm-svc-ui=$serviceUID`.
