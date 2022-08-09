@@ -59,10 +59,13 @@ jobs:
     if: "github.actor != 'dependabot[bot]'"
     needs: [build]
     steps:
+      - uses: actions/checkout@v2
+
       - name: Get Image Tag
         run: echo "::set-output name=tag::sha-${GITHUB_SHA::7}"
         shell: bash
         id: git
+
       - name: Run Trivy vulnerability scanner
         uses: aquasecurity/trivy-action@master
         with:
@@ -72,6 +75,7 @@ jobs:
           ignore-unfixed: true
           vuln-type: 'os,library'
           severity: 'CRITICAL,HIGH'
+          trivyignores: .trivyignore
 
   docs:
     runs-on: ubuntu-latest
