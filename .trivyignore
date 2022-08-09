@@ -1,0 +1,4 @@
+# security issue in a package we indirectly depend on via kubernetes packages
+# we cannot change anything here, but this entry can be removed once the matching issue in 
+# kubernetes itself (https://github.com/kubernetes/kubernetes/issues/110338) is fixed
+CVE-2022-1996
