@@ -241,17 +241,25 @@ func (r *reconciliation) Reconcile() error {
 	return nil
 }
 
+func (r *reconciliation) handleExistingResources() (handled bool, toCreate, toDestroy []types.Object, err error) {
+	if len(r.remoteStateSnapshot.existingFailed) > 0 {
+		return true, []types.Object{}, r.remoteStateSnapshot.existingFailed, nil
+	}
+
+	if len(r.remoteStateSnapshot.existingProgressing) > 0 {
+		return true, nil, nil, ErrLBaaSResourceProgressing
+	}
+
+	return false, nil, nil, nil
+}
+
 func (r *reconciliation) getStateDiff(retriever stateRetriever) ([]types.Object, []types.Object, error) {
 	if err := r.retrieveState(retriever); err != nil {
 		return nil, nil, fmt.Errorf("error retrieving current state for reconciliation: %w", err)
 	}
 
-	if len(r.remoteStateSnapshot.existingFailed) > 0 {
-		return []types.Object{}, r.remoteStateSnapshot.existingFailed, nil
-	}
-
-	if len(r.remoteStateSnapshot.existingProgressing) > 0 {
-		return nil, nil, ErrLBaaSResourceProgressing
+	if handled, toCreate, toDestroy, err := r.handleExistingResources(); handled {
+		return toCreate, toDestroy, err
 	}
 
 	retToDestroy := []types.Object{}

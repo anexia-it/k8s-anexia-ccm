@@ -335,12 +335,13 @@ func (r *stateRetrieverImpl) retrieveResources(ctx context.Context) error {
 	if err != nil {
 		var he api.HTTPError
 
+		var retErr error
 		// error 422 is returned when nothing is tagged with the searched-for tag
 		if !(errors.As(err, &he) && he.StatusCode() == 422) {
-			return fmt.Errorf("error retrieving resources: %w", err)
+			retErr = fmt.Errorf("error retrieving resources: %w", err)
 		}
 
-		return nil
+		return retErr
 	}
 
 	allBinds := make([]*lbaasv1.Bind, 0)
