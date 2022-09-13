@@ -210,9 +210,9 @@ func (r *stateRetrieverImpl) sortObjectIntoStateArray(lbID string, o objectWithS
 	})
 }
 
-type fetcher func(identifier string) error
+type typedRetriever func(identifier string) error
 
-func (r *stateRetrieverImpl) frontendResourceFetcher(ctx context.Context) fetcher {
+func (r *stateRetrieverImpl) frontendResourceFetcher(ctx context.Context) typedRetriever {
 	return func(identifier string) error {
 		frontend := &lbaasv1.Frontend{Identifier: identifier}
 		if err := r.api.Get(ctx, frontend); err != nil {
@@ -230,7 +230,7 @@ func (r *stateRetrieverImpl) frontendResourceFetcher(ctx context.Context) fetche
 	}
 }
 
-func (r *stateRetrieverImpl) backendResourceFetcher(ctx context.Context) fetcher {
+func (r *stateRetrieverImpl) backendResourceFetcher(ctx context.Context) typedRetriever {
 	return func(identifier string) error {
 		backend := &lbaasv1.Backend{Identifier: identifier}
 		if err := r.api.Get(ctx, backend); err != nil {
@@ -247,7 +247,7 @@ func (r *stateRetrieverImpl) backendResourceFetcher(ctx context.Context) fetcher
 	}
 }
 
-func (r *stateRetrieverImpl) bindResourceFetcher(ctx context.Context, allBinds []*lbaasv1.Bind) fetcher {
+func (r *stateRetrieverImpl) bindResourceFetcher(ctx context.Context, allBinds []*lbaasv1.Bind) typedRetriever {
 	return func(identifier string) error {
 		bind := &lbaasv1.Bind{Identifier: identifier}
 		if err := r.api.Get(ctx, bind); err != nil {
@@ -260,7 +260,7 @@ func (r *stateRetrieverImpl) bindResourceFetcher(ctx context.Context, allBinds [
 	}
 }
 
-func (r *stateRetrieverImpl) serverResourceFetcher(ctx context.Context, allServers []*lbaasv1.Server) fetcher {
+func (r *stateRetrieverImpl) serverResourceFetcher(ctx context.Context, allServers []*lbaasv1.Server) typedRetriever {
 	return func(identifier string) error {
 		server := &lbaasv1.Server{Identifier: identifier}
 		if err := r.api.Get(ctx, server); err != nil {
@@ -271,6 +271,59 @@ func (r *stateRetrieverImpl) serverResourceFetcher(ctx context.Context, allServe
 
 		return nil
 	}
+}
+
+func createTypedRetrievers(ctx context.Context, r *stateRetrieverImpl, allBinds []*lbaasv1.Bind, allServers []*lbaasv1.Server) map[string]typedRetriever {
+	return map[string]typedRetriever{
+		frontendResourceTypeIdentifier: r.frontendResourceFetcher(ctx),
+		backendResourceTypeIdentifier:  r.backendResourceFetcher(ctx),
+		bindResourceTypeIdentifier:     r.bindResourceFetcher(ctx, allBinds),
+		serverResourceTypeIdentifier:   r.serverResourceFetcher(ctx, allServers),
+	}
+}
+
+func retrieveResource(ctx context.Context, retriever types.ObjectRetriever, typedRetrievers map[string]typedRetriever) error {
+	var res corev1.Resource
+	if err := retriever(&res); err != nil {
+		return fmt.Errorf("error retrieving resource: %w", err)
+	}
+
+	logger := logr.FromContextOrDiscard(ctx).WithValues(
+		"resource-identifier", res.Identifier,
+		"resource-name", res.Name,
+	)
+
+	if typedRetriever, ok := typedRetrievers[res.Type.Identifier]; ok {
+		err := typedRetriever(res.Identifier)
+		if err != nil {
+			return fmt.Errorf("error retrieving typed resource: %w", err)
+		}
+	} else {
+		logger.Info(
+			"retrieved resource of unknown type, did someone else use our tag? Ignoring it",
+			"resource-type-name", res.Type.Name,
+			"resource-type-id", res.Type.Identifier,
+		)
+	}
+
+	return nil
+}
+
+func (r *stateRetrieverImpl) filterBindsAndServers(allBinds []*lbaasv1.Bind, allServers []*lbaasv1.Server) error {
+	var err error
+	for lbID := range r.loadBalancers {
+		r.loadBalancers[lbID].state.binds, err = r.filterBinds(lbID, allBinds)
+		if err != nil {
+			return err
+		}
+
+		r.loadBalancers[lbID].state.servers, err = r.filterServers(lbID, allServers)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (r *stateRetrieverImpl) retrieveResources(ctx context.Context) error {
@@ -293,50 +346,17 @@ func (r *stateRetrieverImpl) retrieveResources(ctx context.Context) error {
 	allBinds := make([]*lbaasv1.Bind, 0)
 	allServers := make([]*lbaasv1.Server, 0)
 
-	typedRetrievers := map[string]func(identifier string) error{
-		// frontends and backends are filtered for our LoadBalancer here already
+	typedRetrievers := createTypedRetrievers(ctx, r, allBinds, allServers)
 
-		frontendResourceTypeIdentifier: r.frontendResourceFetcher(ctx),
-		backendResourceTypeIdentifier:  r.backendResourceFetcher(ctx),
-		bindResourceTypeIdentifier:     r.bindResourceFetcher(ctx, allBinds),
-		serverResourceTypeIdentifier:   r.serverResourceFetcher(ctx, allServers),
-	}
-
+	// frontends and backends are filtered for our LoadBalancer here already
 	for retriever := range oc {
-		var res corev1.Resource
-		if err := retriever(&res); err != nil {
+		if err := retrieveResource(ctx, retriever, typedRetrievers); err != nil {
 			return fmt.Errorf("error retrieving resource: %w", err)
 		}
-
-		logger := logr.FromContextOrDiscard(ctx).WithValues(
-			"resource-identifier", res.Identifier,
-			"resource-name", res.Name,
-		)
-
-		if typedRetriever, ok := typedRetrievers[res.Type.Identifier]; ok {
-			err := typedRetriever(res.Identifier)
-			if err != nil {
-				return fmt.Errorf("error retrieving typed resource: %w", err)
-			}
-		} else {
-			logger.Info(
-				"retrieved resource of unknown type, did someone else use our tag? Ignoring it",
-				"resource-type-name", res.Type.Name,
-				"resource-type-id", res.Type.Identifier,
-			)
-		}
 	}
 
-	for lbID := range r.loadBalancers {
-		r.loadBalancers[lbID].state.binds, err = r.filterBinds(lbID, allBinds)
-		if err != nil {
-			return err
-		}
-
-		r.loadBalancers[lbID].state.servers, err = r.filterServers(lbID, allServers)
-		if err != nil {
-			return err
-		}
+	if err := r.filterBindsAndServers(allBinds, allServers); err != nil {
+		return fmt.Errorf("error filtering binds and servers: %w", err)
 	}
 
 	for lbID, lb := range r.loadBalancers {
