@@ -211,63 +211,43 @@ func (r *stateRetrieverImpl) sortObjectIntoStateArray(lbID string, o objectWithS
 }
 
 type typedRetriever func(identifier string) error
+type objectCreater[T types.Object] func(identifier string) T
 
-func (r *stateRetrieverImpl) frontendResourceFetcher(ctx context.Context) typedRetriever {
+func genericResourceFetcher[T objectWithStateRetriever](ctx context.Context, r *stateRetrieverImpl, oc objectCreater[T]) typedRetriever {
 	return func(identifier string) error {
-		frontend := &lbaasv1.Frontend{Identifier: identifier}
-		if err := r.api.Get(ctx, frontend); err != nil {
+		o := oc(identifier)
+
+		if err := r.api.Get(ctx, o); err != nil {
 			return err
 		}
 
-		lbID := frontend.LoadBalancer.Identifier
+		lbID, err := o.GetIdentifier(ctx)
+		if err != nil {
+			return fmt.Errorf("error getting identifier from object: %w", err)
+		}
 
 		r.setLoadBalancerState(lbID, func(state *remoteLoadBalancerState) {
-			state.frontends = append(state.frontends, frontend)
-			r.sortObjectIntoStateArray(lbID, frontend)
+			switch x := any(o).(type) {
+			case *lbaasv1.Frontend:
+				state.frontends = append(state.frontends, x)
+			case *lbaasv1.Backend:
+				state.backends = append(state.backends, x)
+			}
+			r.sortObjectIntoStateArray(lbID, o)
 		})
 
 		return nil
 	}
 }
 
-func (r *stateRetrieverImpl) backendResourceFetcher(ctx context.Context) typedRetriever {
+func bindAndServerResourceFetcher[T types.Object](ctx context.Context, r *stateRetrieverImpl, all []T, oc objectCreater[T]) typedRetriever {
 	return func(identifier string) error {
-		backend := &lbaasv1.Backend{Identifier: identifier}
-		if err := r.api.Get(ctx, backend); err != nil {
+		o := oc(identifier)
+		if err := r.api.Get(ctx, o); err != nil {
 			return err
 		}
 
-		lbID := backend.LoadBalancer.Identifier
-		r.setLoadBalancerState(lbID, func(state *remoteLoadBalancerState) {
-			state.backends = append(state.backends, backend)
-			r.sortObjectIntoStateArray(lbID, backend)
-		})
-
-		return nil
-	}
-}
-
-func (r *stateRetrieverImpl) bindResourceFetcher(ctx context.Context, allBinds []*lbaasv1.Bind) typedRetriever {
-	return func(identifier string) error {
-		bind := &lbaasv1.Bind{Identifier: identifier}
-		if err := r.api.Get(ctx, bind); err != nil {
-			return err
-		}
-
-		allBinds = append(allBinds, bind)
-
-		return nil
-	}
-}
-
-func (r *stateRetrieverImpl) serverResourceFetcher(ctx context.Context, allServers []*lbaasv1.Server) typedRetriever {
-	return func(identifier string) error {
-		server := &lbaasv1.Server{Identifier: identifier}
-		if err := r.api.Get(ctx, server); err != nil {
-			return err
-		}
-
-		allServers = append(allServers, server)
+		all = append(all, o)
 
 		return nil
 	}
@@ -275,10 +255,10 @@ func (r *stateRetrieverImpl) serverResourceFetcher(ctx context.Context, allServe
 
 func createTypedRetrievers(ctx context.Context, r *stateRetrieverImpl, allBinds []*lbaasv1.Bind, allServers []*lbaasv1.Server) map[string]typedRetriever {
 	return map[string]typedRetriever{
-		frontendResourceTypeIdentifier: r.frontendResourceFetcher(ctx),
-		backendResourceTypeIdentifier:  r.backendResourceFetcher(ctx),
-		bindResourceTypeIdentifier:     r.bindResourceFetcher(ctx, allBinds),
-		serverResourceTypeIdentifier:   r.serverResourceFetcher(ctx, allServers),
+		frontendResourceTypeIdentifier: genericResourceFetcher(ctx, r, func(identifier string) *lbaasv1.Frontend { return &lbaasv1.Frontend{Identifier: identifier} }),
+		backendResourceTypeIdentifier:  genericResourceFetcher(ctx, r, func(identifier string) *lbaasv1.Backend { return &lbaasv1.Backend{Identifier: identifier} }),
+		bindResourceTypeIdentifier:     bindAndServerResourceFetcher(ctx, r, allBinds, func(identifier string) *lbaasv1.Bind { return &lbaasv1.Bind{Identifier: identifier} }),
+		serverResourceTypeIdentifier:   bindAndServerResourceFetcher(ctx, r, allServers, func(identifier string) *lbaasv1.Server { return &lbaasv1.Server{Identifier: identifier} }),
 	}
 }
 
