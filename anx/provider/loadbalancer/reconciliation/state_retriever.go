@@ -195,19 +195,82 @@ func (r *stateRetrieverImpl) setLoadBalancerState(lbID string, setter func(state
 	}
 }
 
-func (r *stateRetrieverImpl) sortObjectIntoStateArray(lbID string, o types.Object) {
-	sr, ok := o.(lbaasv1.StateRetriever)
-	if !ok {
-		return
-	}
+type objectWithStateRetriever interface {
+	types.Object
+	lbaasv1.StateRetriever
+}
 
+func (r *stateRetrieverImpl) sortObjectIntoStateArray(lbID string, o objectWithStateRetriever) {
 	r.setLoadBalancerState(lbID, func(state *remoteLoadBalancerState) {
-		if sr.StateFailure() {
+		if o.StateFailure() {
 			state.existingFailed = append(r.loadBalancers[lbID].state.existingFailed, o)
-		} else if sr.StateProgressing() {
+		} else if o.StateProgressing() {
 			state.existingProgressing = append(r.loadBalancers[lbID].state.existingProgressing, o)
 		}
 	})
+}
+
+type fetcher func(identifier string) error
+
+func (r *stateRetrieverImpl) frontendResourceFetcher(ctx context.Context) fetcher {
+	return func(identifier string) error {
+		frontend := &lbaasv1.Frontend{Identifier: identifier}
+		if err := r.api.Get(ctx, frontend); err != nil {
+			return err
+		}
+
+		lbID := frontend.LoadBalancer.Identifier
+
+		r.setLoadBalancerState(lbID, func(state *remoteLoadBalancerState) {
+			state.frontends = append(state.frontends, frontend)
+			r.sortObjectIntoStateArray(lbID, frontend)
+		})
+
+		return nil
+	}
+}
+
+func (r *stateRetrieverImpl) backendResourceFetcher(ctx context.Context) fetcher {
+	return func(identifier string) error {
+		backend := &lbaasv1.Backend{Identifier: identifier}
+		if err := r.api.Get(ctx, backend); err != nil {
+			return err
+		}
+
+		lbID := backend.LoadBalancer.Identifier
+		r.setLoadBalancerState(lbID, func(state *remoteLoadBalancerState) {
+			state.backends = append(state.backends, backend)
+			r.sortObjectIntoStateArray(lbID, backend)
+		})
+
+		return nil
+	}
+}
+
+func (r *stateRetrieverImpl) bindResourceFetcher(ctx context.Context, allBinds []*lbaasv1.Bind) fetcher {
+	return func(identifier string) error {
+		bind := &lbaasv1.Bind{Identifier: identifier}
+		if err := r.api.Get(ctx, bind); err != nil {
+			return err
+		}
+
+		allBinds = append(allBinds, bind)
+
+		return nil
+	}
+}
+
+func (r *stateRetrieverImpl) serverResourceFetcher(ctx context.Context, allServers []*lbaasv1.Server) fetcher {
+	return func(identifier string) error {
+		server := &lbaasv1.Server{Identifier: identifier}
+		if err := r.api.Get(ctx, server); err != nil {
+			return err
+		}
+
+		allServers = append(allServers, server)
+
+		return nil
+	}
 }
 
 func (r *stateRetrieverImpl) retrieveResources(ctx context.Context) error {
@@ -233,58 +296,10 @@ func (r *stateRetrieverImpl) retrieveResources(ctx context.Context) error {
 	typedRetrievers := map[string]func(identifier string) error{
 		// frontends and backends are filtered for our LoadBalancer here already
 
-		frontendResourceTypeIdentifier: func(identifier string) error {
-			frontend := &lbaasv1.Frontend{Identifier: identifier}
-			if err = r.api.Get(ctx, frontend); err != nil {
-				return err
-			}
-
-			lbID := frontend.LoadBalancer.Identifier
-
-			r.setLoadBalancerState(lbID, func(state *remoteLoadBalancerState) {
-				state.frontends = append(state.frontends, frontend)
-				r.sortObjectIntoStateArray(lbID, frontend)
-			})
-
-			return nil
-		},
-
-		backendResourceTypeIdentifier: func(identifier string) error {
-			backend := &lbaasv1.Backend{Identifier: identifier}
-			if err = r.api.Get(ctx, backend); err != nil {
-				return err
-			}
-
-			lbID := backend.LoadBalancer.Identifier
-			r.setLoadBalancerState(lbID, func(state *remoteLoadBalancerState) {
-				state.backends = append(state.backends, backend)
-				r.sortObjectIntoStateArray(lbID, backend)
-			})
-
-			return nil
-		},
-
-		bindResourceTypeIdentifier: func(identifier string) error {
-			bind := &lbaasv1.Bind{Identifier: identifier}
-			if err = r.api.Get(ctx, bind); err != nil {
-				return err
-			}
-
-			allBinds = append(allBinds, bind)
-
-			return nil
-		},
-
-		serverResourceTypeIdentifier: func(identifier string) error {
-			server := &lbaasv1.Server{Identifier: identifier}
-			if err = r.api.Get(ctx, server); err != nil {
-				return err
-			}
-
-			allServers = append(allServers, server)
-
-			return nil
-		},
+		frontendResourceTypeIdentifier: r.frontendResourceFetcher(ctx),
+		backendResourceTypeIdentifier:  r.backendResourceFetcher(ctx),
+		bindResourceTypeIdentifier:     r.bindResourceFetcher(ctx, allBinds),
+		serverResourceTypeIdentifier:   r.serverResourceFetcher(ctx, allServers),
 	}
 
 	for retriever := range oc {
