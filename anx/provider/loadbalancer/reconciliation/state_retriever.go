@@ -14,6 +14,9 @@ import (
 )
 
 var (
+	// errLoadBalancerNotRegistered is returned if a loadbalancer which was not initially registered
+	// is called with FilteredState() or Done().
+	// If this error is returned it is almost certainly a programming error within the CCM implementation (most likely inside this package).
 	errLoadBalancerNotRegistered = errors.New("specified load balancer is not registered for stateRetriever")
 )
 
@@ -27,6 +30,7 @@ type stateRetriever interface {
 	Done(string) error
 }
 
+// remoteLoadBalancerState holds the state for a single loadbalancer
 type remoteLoadBalancerState struct {
 	frontends []*lbaasv1.Frontend
 	backends  []*lbaasv1.Backend
@@ -47,13 +51,17 @@ type stateRetrieverImpl struct {
 	api    api.API
 	logger logr.Logger
 
-	loadBalancers        map[string]*stateRetrieverLoadBalancerContainer
+	// holds state & sync objects for loadbalancers (lb identifier is key)
+	loadBalancers map[string]*stateRetrieverLoadBalancerContainer
+	// mutex for loadBalancers map access
 	loadBalancersMapLock sync.Mutex
 
+	// syncs update for all loadbalancers registerd to the state retriever
 	loadBalancersReadyWaitGroup sync.WaitGroup
 	err                         error
 }
 
+// stateRetrieverLoadBalancerContainer holds state & sync objects for a single loadbalancer
 type stateRetrieverLoadBalancerContainer struct {
 	lock           sync.Mutex
 	updateComplete chan interface{}
@@ -70,6 +78,7 @@ func newStateRetriever(ctx context.Context, a api.API, serviceUID string, lbIden
 		tags:          []string{fmt.Sprintf("anxccm-svc-uid=%v", serviceUID)},
 	}
 
+	// initialize stateRetrieverLoadBalancerContainer for each loadbalancer
 	for _, lbIdentifier := range lbIdentifiers {
 		sr.loadBalancers[lbIdentifier] = &stateRetrieverLoadBalancerContainer{
 			updateComplete: make(chan interface{}),
@@ -77,23 +86,27 @@ func newStateRetriever(ctx context.Context, a api.API, serviceUID string, lbIden
 		}
 	}
 
+	// add all registered loadbalancers to waitgroup (used to sync state retrieving)
 	sr.loadBalancersReadyWaitGroup.Add(len(lbIdentifiers))
 
+	// start internal update loop
 	go sr.updateLoop(ctx)
 
 	return sr
 }
 
-func (r *stateRetrieverImpl) Done(lbID string) error {
+// Done unregisters a loadbalancer from the state retriever.
+// The stateRetriever won't wait for the FilteredState(lbIdentifier) call in future state retrieving iterations.
+func (r *stateRetrieverImpl) Done(lbIdentifier string) error {
 	r.loadBalancersMapLock.Lock()
 	defer r.loadBalancersMapLock.Unlock()
 
-	if _, ok := r.loadBalancers[lbID]; !ok {
+	if _, ok := r.loadBalancers[lbIdentifier]; !ok {
 		return errLoadBalancerNotRegistered
 	}
 
-	close(r.loadBalancers[lbID].updateComplete)
-	delete(r.loadBalancers, lbID)
+	close(r.loadBalancers[lbIdentifier].updateComplete)
+	delete(r.loadBalancers, lbIdentifier)
 	r.loadBalancersReadyWaitGroup.Done()
 
 	return nil
@@ -122,6 +135,9 @@ func (r *stateRetrieverImpl) FilteredState(lbIdentifier string) (*remoteLoadBala
 	return loadBalancer.state, nil
 }
 
+// updateLoop is an internal update loop called exactly once for each state retriever instance.
+// It is responsible for waiting for all loadbalancers to be ready for the next state retrival,
+// updating the state and finally start over until all loadbalancers are Done().
 func (r *stateRetrieverImpl) updateLoop(ctx context.Context) {
 	waitChannel := make(chan interface{})
 	defer close(waitChannel)
@@ -133,9 +149,9 @@ func (r *stateRetrieverImpl) updateLoop(ctx context.Context) {
 		}()
 
 		select {
-		case <-waitChannel:
+		case <-waitChannel: // all loadbalancers ready or done
 			break
-		case <-ctx.Done():
+		case <-ctx.Done(): // context expired
 			r.err = ctx.Err()
 			logr.FromContextOrDiscard(ctx).Error(ctx.Err(), "LoadBalancer state retriever for didn't finish properly")
 			for _, lb := range r.loadBalancers {
@@ -150,6 +166,7 @@ func (r *stateRetrieverImpl) updateLoop(ctx context.Context) {
 			return
 		}
 
+		// retrieve remote state
 		r.update(ctx)
 
 		r.loadBalancersReadyWaitGroup.Add(len(r.loadBalancers))
@@ -161,6 +178,7 @@ func (r *stateRetrieverImpl) updateLoop(ctx context.Context) {
 	}
 }
 
+// update clears the previous loadbalancer states and retrieves the current engine state
 func (r *stateRetrieverImpl) update(ctx context.Context) {
 	for lb := range r.loadBalancers {
 		r.loadBalancers[lb].state = &remoteLoadBalancerState{
@@ -179,6 +197,7 @@ func (r *stateRetrieverImpl) update(ctx context.Context) {
 	r.err = r.retrieveResources(ctx)
 }
 
+// getLoadBalancer returns the stateRetrieverLoadBalancerContainer for a lbIdentifier or an error if not present
 func (r *stateRetrieverImpl) getLoadBalancer(lbIdentifier string) (*stateRetrieverLoadBalancerContainer, error) {
 	r.loadBalancersMapLock.Lock()
 	defer r.loadBalancersMapLock.Unlock()
@@ -189,8 +208,10 @@ func (r *stateRetrieverImpl) getLoadBalancer(lbIdentifier string) (*stateRetriev
 	return loadBalancer, nil
 }
 
-func (r *stateRetrieverImpl) setLoadBalancerState(lbID string, setter func(state *remoteLoadBalancerState)) {
-	if lb, ok := r.loadBalancers[lbID]; ok {
+// setLoadBalancerState prevents setting a non-registered loadbalancer state by only calling the setter if the
+// lbIdentifier is present
+func (r *stateRetrieverImpl) setLoadBalancerState(lbIdentifier string, setter func(state *remoteLoadBalancerState)) {
+	if lb, ok := r.loadBalancers[lbIdentifier]; ok {
 		setter(lb.state)
 	}
 }
@@ -213,7 +234,8 @@ func (r *stateRetrieverImpl) sortObjectIntoStateArray(lbID string, o objectWithS
 type typedRetriever func(identifier string) error
 type objectCreater[T types.Object] func(identifier string) T
 
-func genericResourceFetcher[T objectWithStateRetriever](ctx context.Context, r *stateRetrieverImpl, oc objectCreater[T]) typedRetriever {
+// genericResourceRetriever returns a typed retriever used for lbaasv1.Backend and lbaasv1.Frontend
+func genericResourceRetriever[T objectWithStateRetriever](ctx context.Context, r *stateRetrieverImpl, oc objectCreater[T]) typedRetriever {
 	return func(identifier string) error {
 		o := oc(identifier)
 
@@ -243,7 +265,8 @@ func genericResourceFetcher[T objectWithStateRetriever](ctx context.Context, r *
 	}
 }
 
-func bindAndServerResourceFetcher[T types.Object](ctx context.Context, r *stateRetrieverImpl, all *[]T, oc objectCreater[T]) typedRetriever {
+// genericResourceRetriever returns a typed retriever used for lbaasv1.Bind and lbaasv1.Server
+func bindAndServerResourceRetriever[T types.Object](ctx context.Context, r *stateRetrieverImpl, all *[]T, oc objectCreater[T]) typedRetriever {
 	return func(identifier string) error {
 		o := oc(identifier)
 		if err := r.api.Get(ctx, o); err != nil {
@@ -256,15 +279,33 @@ func bindAndServerResourceFetcher[T types.Object](ctx context.Context, r *stateR
 	}
 }
 
+func (r *stateRetrieverImpl) filterBindsAndServers(allBinds []*lbaasv1.Bind, allServers []*lbaasv1.Server) error {
+	var err error
+	for lbID := range r.loadBalancers {
+		r.loadBalancers[lbID].state.binds, err = r.filterBinds(lbID, allBinds)
+		if err != nil {
+			return err
+		}
+
+		r.loadBalancers[lbID].state.servers, err = r.filterServers(lbID, allServers)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func createTypedRetrievers(ctx context.Context, r *stateRetrieverImpl, allBinds *[]*lbaasv1.Bind, allServers *[]*lbaasv1.Server) map[string]typedRetriever {
 	return map[string]typedRetriever{
-		frontendResourceTypeIdentifier: genericResourceFetcher(ctx, r, func(identifier string) *lbaasv1.Frontend { return &lbaasv1.Frontend{Identifier: identifier} }),
-		backendResourceTypeIdentifier:  genericResourceFetcher(ctx, r, func(identifier string) *lbaasv1.Backend { return &lbaasv1.Backend{Identifier: identifier} }),
-		bindResourceTypeIdentifier:     bindAndServerResourceFetcher(ctx, r, allBinds, func(identifier string) *lbaasv1.Bind { return &lbaasv1.Bind{Identifier: identifier} }),
-		serverResourceTypeIdentifier:   bindAndServerResourceFetcher(ctx, r, allServers, func(identifier string) *lbaasv1.Server { return &lbaasv1.Server{Identifier: identifier} }),
+		frontendResourceTypeIdentifier: genericResourceRetriever(ctx, r, func(identifier string) *lbaasv1.Frontend { return &lbaasv1.Frontend{Identifier: identifier} }),
+		backendResourceTypeIdentifier:  genericResourceRetriever(ctx, r, func(identifier string) *lbaasv1.Backend { return &lbaasv1.Backend{Identifier: identifier} }),
+		bindResourceTypeIdentifier:     bindAndServerResourceRetriever(ctx, r, allBinds, func(identifier string) *lbaasv1.Bind { return &lbaasv1.Bind{Identifier: identifier} }),
+		serverResourceTypeIdentifier:   bindAndServerResourceRetriever(ctx, r, allServers, func(identifier string) *lbaasv1.Server { return &lbaasv1.Server{Identifier: identifier} }),
 	}
 }
 
+// retrieveResource retrieves a single
 func retrieveResource(ctx context.Context, retriever types.ObjectRetriever, typedRetrievers map[string]typedRetriever) error {
 	var res corev1.Resource
 	if err := retriever(&res); err != nil {
@@ -292,23 +333,7 @@ func retrieveResource(ctx context.Context, retriever types.ObjectRetriever, type
 	return nil
 }
 
-func (r *stateRetrieverImpl) filterBindsAndServers(allBinds []*lbaasv1.Bind, allServers []*lbaasv1.Server) error {
-	var err error
-	for lbID := range r.loadBalancers {
-		r.loadBalancers[lbID].state.binds, err = r.filterBinds(lbID, allBinds)
-		if err != nil {
-			return err
-		}
-
-		r.loadBalancers[lbID].state.servers, err = r.filterServers(lbID, allServers)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
+// retrieveResources retrieves all resources for a service
 func (r *stateRetrieverImpl) retrieveResources(ctx context.Context) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
