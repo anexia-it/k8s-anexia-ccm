@@ -3,11 +3,13 @@ package provider
 import (
 	"bytes"
 	"fmt"
-	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/configuration"
-	"github.com/stretchr/testify/require"
-	cloudprovider "k8s.io/cloud-provider"
 	"os"
 	"testing"
+
+	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/configuration"
+	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/metrics"
+	"github.com/stretchr/testify/require"
+	cloudprovider "k8s.io/cloud-provider"
 )
 
 func TestNewProvider(t *testing.T) {
@@ -46,6 +48,23 @@ func TestNewProvider(t *testing.T) {
 	require.IsType(t, instanceManager{}, instancesV2)
 	manager := instancesV2.(instanceManager)
 	require.Equal(t, provider, manager.Provider)
+
+	t.Run("with incomplete initialization", func(t *testing.T) {
+		p := &anxProvider{
+			// we initialize `providerMetrics` manually because
+			// `anxProvider.setupProviderMetrics()` panics when called a second time
+			providerMetrics: metrics.NewProviderMetrics("anexia", Version),
+		}
+
+		loadbalancer, loadbalancerEnabled := p.LoadBalancer()
+		require.False(t, loadbalancerEnabled)
+		require.Nil(t, loadbalancer)
+
+		instancesV2, instancesV2Enabled := p.InstancesV2()
+		require.False(t, instancesV2Enabled)
+		require.Nil(t, instancesV2)
+	})
+
 }
 
 func TestRegisterCloudProvider(t *testing.T) {
