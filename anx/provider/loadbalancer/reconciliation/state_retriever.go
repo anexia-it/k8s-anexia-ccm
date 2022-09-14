@@ -243,20 +243,20 @@ func genericResourceFetcher[T objectWithStateRetriever](ctx context.Context, r *
 	}
 }
 
-func bindAndServerResourceFetcher[T types.Object](ctx context.Context, r *stateRetrieverImpl, all []T, oc objectCreater[T]) typedRetriever {
+func bindAndServerResourceFetcher[T types.Object](ctx context.Context, r *stateRetrieverImpl, all *[]T, oc objectCreater[T]) typedRetriever {
 	return func(identifier string) error {
 		o := oc(identifier)
 		if err := r.api.Get(ctx, o); err != nil {
 			return err
 		}
 
-		all = append(all, o)
+		*all = append(*all, o)
 
 		return nil
 	}
 }
 
-func createTypedRetrievers(ctx context.Context, r *stateRetrieverImpl, allBinds []*lbaasv1.Bind, allServers []*lbaasv1.Server) map[string]typedRetriever {
+func createTypedRetrievers(ctx context.Context, r *stateRetrieverImpl, allBinds *[]*lbaasv1.Bind, allServers *[]*lbaasv1.Server) map[string]typedRetriever {
 	return map[string]typedRetriever{
 		frontendResourceTypeIdentifier: genericResourceFetcher(ctx, r, func(identifier string) *lbaasv1.Frontend { return &lbaasv1.Frontend{Identifier: identifier} }),
 		backendResourceTypeIdentifier:  genericResourceFetcher(ctx, r, func(identifier string) *lbaasv1.Backend { return &lbaasv1.Backend{Identifier: identifier} }),
@@ -330,7 +330,7 @@ func (r *stateRetrieverImpl) retrieveResources(ctx context.Context) error {
 	allBinds := make([]*lbaasv1.Bind, 0)
 	allServers := make([]*lbaasv1.Server, 0)
 
-	typedRetrievers := createTypedRetrievers(ctx, r, allBinds, allServers)
+	typedRetrievers := createTypedRetrievers(ctx, r, &allBinds, &allServers)
 
 	// frontends and backends are filtered for our LoadBalancer here already
 	for retriever := range oc {
