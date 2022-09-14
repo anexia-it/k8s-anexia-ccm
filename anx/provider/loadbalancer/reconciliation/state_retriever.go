@@ -221,9 +221,12 @@ func genericResourceFetcher[T objectWithStateRetriever](ctx context.Context, r *
 			return err
 		}
 
-		lbID, err := o.GetIdentifier(ctx)
-		if err != nil {
-			return fmt.Errorf("error getting identifier from object: %w", err)
+		var lbID string
+		switch x := any(o).(type) {
+		case *lbaasv1.Frontend:
+			lbID = x.LoadBalancer.Identifier
+		case *lbaasv1.Backend:
+			lbID = x.LoadBalancer.Identifier
 		}
 
 		r.setLoadBalancerState(lbID, func(state *remoteLoadBalancerState) {
