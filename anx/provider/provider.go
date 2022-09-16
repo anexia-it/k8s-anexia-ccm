@@ -121,6 +121,10 @@ func (a *anxProvider) initializeLoadBalancerManager(builder cloudprovider.Contro
 }
 
 func (a anxProvider) LoadBalancer() (cloudprovider.LoadBalancer, bool) {
+	if a.loadBalancerManager == nil {
+		return nil, false
+	}
+
 	a.providerMetrics.MarkFeatureEnabled(featureNameLoadBalancer)
 	return a.loadBalancerManager, true
 }
@@ -130,6 +134,10 @@ func (a anxProvider) Instances() (cloudprovider.Instances, bool) {
 }
 
 func (a anxProvider) InstancesV2() (cloudprovider.InstancesV2, bool) {
+	if a.instanceManager == nil {
+		return nil, false
+	}
+
 	a.providerMetrics.MarkFeatureEnabled(featureNameInstancesV2)
 	return a.instanceManager, true
 }
