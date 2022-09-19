@@ -11,11 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Please add your changelog entry under this comment in the correct category (Security, Fixed, Added, Changed, Deprecated, Removed - in this order).
 -->
 
+## [1.4.4] - 2022-09-19
+
 ### Fixed
 * Properly handle uninitialized optional features @marioreggiori (#120)
 
 ### Changes
 * k8s-anexia-ccm is now built with Go 1.19 @LittleFox94 (#111)
+* various dependency updates
+  - Bump k8s.io/cloud-provider from 0.24.3 to 0.25.1 @dependabot (#112, #113, #121)
+  - Bump k8s.io/klog/v2 from 2.70.1 to 2.80.1 @dependabot (#118, #119)
+  - Bump github.com/onsi/gomega from 1.20.0 to 1.20.2 @dependabot (#114, #117)
+  - Bump github.com/onsi/ginkgo/v2 from 2.1.4 to 2.1.6 @dependabot (#115, #116)
+  - Bump go.anx.io/go-anxcloud from 0.4.4 to 0.4.5 @dependabot (#110)
+  - Bump github.com/prometheus/client\_golang from 1.12.2 to 1.13.0 @dependabot (#109)
 
 ## [1.4.3]
 
