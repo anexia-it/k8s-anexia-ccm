@@ -11,6 +11,7 @@ import (
 	"go.anx.io/go-anxcloud/pkg/api/types"
 	corev1 "go.anx.io/go-anxcloud/pkg/apis/core/v1"
 	lbaasv1 "go.anx.io/go-anxcloud/pkg/apis/lbaas/v1"
+	"go.anx.io/go-anxcloud/pkg/utils/object/compare"
 )
 
 var (
@@ -22,8 +23,8 @@ var (
 
 // stateRetriever provides the remote state for multiple loadbalancers of a service
 type stateRetriever interface {
-	// FilteredState returns the loadbalancer state filtered by loadbalancer ID
-	FilteredState(string) (*remoteLoadBalancerState, error)
+	// LoadBalancerState returns the loadbalancer state filtered by loadbalancer ID
+	LoadBalancerState(string) (*remoteLoadBalancerState, error)
 
 	// Done is called to tell the StateRetriever that reconciliation has finished for a single load balancer
 	// it MUST be called excactly once per load balancer
@@ -42,8 +43,6 @@ type remoteLoadBalancerState struct {
 
 	// and store existing Objects that are not yet ready here
 	existingProgressing []types.Object
-
-	publicAddresses []string
 }
 
 type stateRetrieverImpl struct {
@@ -70,12 +69,12 @@ type stateRetrieverLoadBalancerContainer struct {
 }
 
 // newStateRetriever creates StateRetriever for service
-func newStateRetriever(ctx context.Context, a api.API, serviceUID string, lbIdentifiers []string) stateRetriever {
+func newStateRetriever(ctx context.Context, a api.API, serviceTag string, lbIdentifiers []string) stateRetriever {
 	sr := &stateRetrieverImpl{
 		api:           a,
 		loadBalancers: make(map[string]*stateRetrieverLoadBalancerContainer),
 		logger:        logr.FromContextOrDiscard(ctx),
-		tags:          []string{fmt.Sprintf("anxccm-svc-uid=%v", serviceUID)},
+		tags:          []string{serviceTag},
 	}
 
 	// initialize stateRetrieverLoadBalancerContainer for each loadbalancer
@@ -112,8 +111,8 @@ func (r *stateRetrieverImpl) Done(lbIdentifier string) error {
 	return nil
 }
 
-// FilteredState returns the loadbalancer state filtered by loadbalancer ID
-func (r *stateRetrieverImpl) FilteredState(lbIdentifier string) (*remoteLoadBalancerState, error) {
+// LoadBalancerState returns the loadbalancer state filtered by loadbalancer ID
+func (r *stateRetrieverImpl) LoadBalancerState(lbIdentifier string) (*remoteLoadBalancerState, error) {
 	loadBalancer, err := r.getLoadBalancer(lbIdentifier)
 	if err != nil {
 		return nil, err
@@ -189,8 +188,6 @@ func (r *stateRetrieverImpl) update(ctx context.Context) {
 
 			existingFailed:      make([]types.Object, 0),
 			existingProgressing: make([]types.Object, 0),
-
-			publicAddresses: make([]string, 0),
 		}
 	}
 
@@ -296,6 +293,39 @@ func (r *stateRetrieverImpl) filterBindsAndServers(allBinds []*lbaasv1.Bind, all
 	return nil
 }
 
+func (r *stateRetrieverImpl) filterBinds(lbID string, allBinds []*lbaasv1.Bind) ([]*lbaasv1.Bind, error) {
+	ret := make([]*lbaasv1.Bind, 0, len(allBinds))
+
+	// Binds and Servers are filtered for our LoadBalancer here, after we hopefully retrieved their Frontends and Backends already
+	for _, bind := range allBinds {
+		idx, err := compare.Search(lbaasv1.Frontend{Identifier: bind.Frontend.Identifier}, r.loadBalancers[lbID].state.frontends, "Identifier")
+		if err != nil {
+			return nil, fmt.Errorf("error checking if Binds belongs to one of our frontends: %w", err)
+		} else if idx != -1 {
+			ret = append(ret, bind)
+			r.sortObjectIntoStateArray(lbID, bind)
+		}
+	}
+
+	return ret, nil
+}
+
+func (r *stateRetrieverImpl) filterServers(lbID string, allServers []*lbaasv1.Server) ([]*lbaasv1.Server, error) {
+	ret := make([]*lbaasv1.Server, 0, len(allServers))
+
+	for _, server := range allServers {
+		idx, err := compare.Search(lbaasv1.Backend{Identifier: server.Backend.Identifier}, r.loadBalancers[lbID].state.backends, "Identifier")
+		if err != nil {
+			return nil, fmt.Errorf("error checking if Server belongs to one of our frontends: %w", err)
+		} else if idx != -1 {
+			ret = append(ret, server)
+			r.sortObjectIntoStateArray(lbID, server)
+		}
+	}
+
+	return ret, nil
+}
+
 func createTypedRetrievers(ctx context.Context, r *stateRetrieverImpl, allBinds *[]*lbaasv1.Bind, allServers *[]*lbaasv1.Server) map[string]typedRetriever {
 	return map[string]typedRetriever{
 		frontendResourceTypeIdentifier: genericResourceRetriever(ctx, r, func(identifier string) *lbaasv1.Frontend { return &lbaasv1.Frontend{Identifier: identifier} }),
@@ -305,7 +335,7 @@ func createTypedRetrievers(ctx context.Context, r *stateRetrieverImpl, allBinds 
 	}
 }
 
-// retrieveResource retrieves a single
+// retrieveResource retrieves a single resource
 func retrieveResource(ctx context.Context, retriever types.ObjectRetriever, typedRetrievers map[string]typedRetriever) error {
 	var res corev1.Resource
 	if err := retriever(&res); err != nil {

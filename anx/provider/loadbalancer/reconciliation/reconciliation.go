@@ -62,8 +62,6 @@ type reconciliation struct {
 	ports             map[string]Port
 	targetServers     []Server
 
-	serviceUID string
-
 	tags []string
 
 	remoteStateSnapshot *remoteLoadBalancerState
@@ -97,22 +95,18 @@ func New(
 
 	resourceNameSuffix string,
 	loadBalancerIdentifier string,
-	serviceUID string,
+	serviceTag string,
 
 	externalAddresses []net.IP,
 	ports map[string]Port,
 	servers []Server,
 ) (Reconciliation, error) {
-	tags := []string{
-		fmt.Sprintf("anxccm-svc-uid=%v", serviceUID),
-	}
+	tags := []string{serviceTag}
 
 	recon := reconciliation{
 		ctx:    ctx,
 		api:    apiClient,
 		logger: logr.FromContextOrDiscard(ctx),
-
-		serviceUID: serviceUID,
 
 		tags:               tags,
 		resourceNameSuffix: resourceNameSuffix,
@@ -395,7 +389,7 @@ func (r *reconciliation) retrieveState(retriever stateRetriever) error {
 	r.portFrontends = make(map[string]*lbaasv1.Frontend)
 
 	var err error
-	r.remoteStateSnapshot, err = retriever.FilteredState(r.lb.Identifier)
+	r.remoteStateSnapshot, err = retriever.LoadBalancerState(r.lb.Identifier)
 	if err != nil {
 		return err
 	}

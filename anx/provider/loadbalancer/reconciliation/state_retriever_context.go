@@ -12,8 +12,8 @@ type stateRetrieverContextKey string
 var withStateRetrieverKey stateRetrieverContextKey = "withStateRetrieverKey"
 
 // WithStateRetriever adds a shared state retriever to the context
-func WithStateRetriever(ctx context.Context, a api.API, svcUID string, lbIdentifiers []string) context.Context {
-	sr := newStateRetriever(ctx, a, svcUID, lbIdentifiers)
+func WithStateRetriever(ctx context.Context, a api.API, serviceTag string, lbIdentifiers []string) context.Context {
+	sr := newStateRetriever(ctx, a, serviceTag, lbIdentifiers)
 	return context.WithValue(ctx, withStateRetrieverKey, sr)
 }
 
@@ -22,7 +22,7 @@ func WithStateRetriever(ctx context.Context, a api.API, svcUID string, lbIdentif
 func stateRetrieverFromContextOrNew(ctx context.Context, recon *reconciliation) (stateRetriever, func()) {
 	sr := ctx.Value(withStateRetrieverKey)
 	if sr == nil {
-		sr = newStateRetriever(ctx, recon.api, recon.serviceUID, []string{recon.lb.Identifier})
+		sr = newStateRetriever(ctx, recon.api, recon.tags[0], []string{recon.lb.Identifier})
 	}
 
 	return sr.(stateRetriever), func() {

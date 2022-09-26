@@ -124,7 +124,7 @@ var _ = Describe("stateRetriever", func() {
 						wg.Done()
 					}()
 					for j := 0; j < i; j++ {
-						_, err := retriever.FilteredState(lbID)
+						_, err := retriever.LoadBalancerState(lbID)
 						if err != nil {
 							return
 						}
@@ -157,7 +157,7 @@ var _ = Describe("stateRetriever", func() {
 		err := retriever.(stateRetriever).Done("x")
 		Expect(err).To(MatchError(errLoadBalancerNotRegistered))
 
-		_, err = retriever.(stateRetriever).FilteredState("x")
+		_, err = retriever.(stateRetriever).LoadBalancerState("x")
 		Expect(err).To(MatchError(errLoadBalancerNotRegistered))
 
 		wg := sync.WaitGroup{}
@@ -167,7 +167,7 @@ var _ = Describe("stateRetriever", func() {
 			go func(id string) {
 				defer GinkgoRecover()
 
-				_, err := retriever.(stateRetriever).FilteredState(id)
+				_, err := retriever.(stateRetriever).LoadBalancerState(id)
 				Expect(err).ToNot(HaveOccurred())
 
 				err = retriever.(stateRetriever).Done(id)
@@ -187,7 +187,7 @@ var _ = Describe("stateRetriever", func() {
 
 			cancel()
 
-			_, err := retriever.FilteredState("foo")
+			_, err := retriever.LoadBalancerState("foo")
 			Expect(err).To(MatchError(context.Canceled))
 		})
 	})

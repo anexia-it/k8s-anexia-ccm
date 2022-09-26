@@ -285,7 +285,9 @@ func (m mgr) reconciliationForService(ctx context.Context, clusterName string, s
 		externalAddresses = make([]net.IP, 0)
 	}
 
-	ctx = reconciliation.WithStateRetriever(ctx, m.api, string(svc.UID), m.loadBalancers)
+	serviceTag := fmt.Sprintf("anxccm-svc-uid=%v", string(svc.UID))
+
+	ctx = reconciliation.WithStateRetriever(ctx, m.api, serviceTag, m.loadBalancers)
 
 	mrecon := reconciliation.Multi()
 	for _, lb := range m.loadBalancers {
@@ -302,7 +304,7 @@ func (m mgr) reconciliationForService(ctx context.Context, clusterName string, s
 
 			m.GetLoadBalancerName(ctx, clusterName, svc),
 			lb,
-			string(svc.UID),
+			serviceTag,
 
 			externalAddresses,
 			ports,

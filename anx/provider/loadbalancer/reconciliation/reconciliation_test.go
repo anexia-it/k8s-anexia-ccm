@@ -44,7 +44,7 @@ var _ = Describe("reconcile", func() {
 
 		svcUID = rand.String(32)
 
-		retriever = newStateRetriever(context.TODO(), apiClient, svcUID, []string{testLoadBalancerIdentifier})
+		retriever = newStateRetriever(context.TODO(), apiClient, fmt.Sprintf("anxccm-svc-uid=%v", svcUID), []string{testLoadBalancerIdentifier})
 
 		externalAddresses = []net.IP{
 			net.ParseIP("8.8.8.8"),
@@ -82,7 +82,7 @@ var _ = Describe("reconcile", func() {
 	JustBeforeEach(func() {
 		ctx := context.TODO()
 
-		r, err := New(ctx, apiClient, testClusterName, testLoadBalancerIdentifier, svcUID, externalAddresses, ports, servers)
+		r, err := New(ctx, apiClient, testClusterName, testLoadBalancerIdentifier, fmt.Sprintf("anxccm-svc-uid=%v", svcUID), externalAddresses, ports, servers)
 		Expect(err).NotTo(HaveOccurred())
 
 		recon = r.(*reconciliation)
