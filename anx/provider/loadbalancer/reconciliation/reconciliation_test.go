@@ -29,7 +29,7 @@ var _ = Describe("reconcile", func() {
 	var recon *reconciliation
 
 	// these are configured in BeforeEach for different tests
-	var svcUID string
+	var serviceTag string
 	var externalAddresses []net.IP
 	var ports map[string]Port
 	var servers []Server
@@ -42,9 +42,9 @@ var _ = Describe("reconcile", func() {
 			Identifier: testLoadBalancerIdentifier,
 		})
 
-		svcUID = rand.String(32)
+		serviceTag = fmt.Sprintf("anxccm-svc-uid=%v", rand.String(32))
 
-		retriever = newStateRetriever(context.TODO(), apiClient, fmt.Sprintf("anxccm-svc-uid=%v", svcUID), []string{testLoadBalancerIdentifier})
+		retriever = newStateRetriever(context.TODO(), apiClient, serviceTag, []string{testLoadBalancerIdentifier})
 
 		externalAddresses = []net.IP{
 			net.ParseIP("8.8.8.8"),
@@ -82,7 +82,7 @@ var _ = Describe("reconcile", func() {
 	JustBeforeEach(func() {
 		ctx := context.TODO()
 
-		r, err := New(ctx, apiClient, testClusterName, testLoadBalancerIdentifier, fmt.Sprintf("anxccm-svc-uid=%v", svcUID), externalAddresses, ports, servers)
+		r, err := New(ctx, apiClient, testClusterName, testLoadBalancerIdentifier, serviceTag, externalAddresses, ports, servers)
 		Expect(err).NotTo(HaveOccurred())
 
 		recon = r.(*reconciliation)
@@ -120,7 +120,7 @@ var _ = Describe("reconcile", func() {
 					LoadBalancer: &lbaasv1.LoadBalancer{
 						Identifier: testLoadBalancerIdentifier,
 					},
-				}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID)),
+				}, serviceTag),
 			}
 
 			expectDestroyBinds = []string{
@@ -129,7 +129,7 @@ var _ = Describe("reconcile", func() {
 					Frontend: lbaasv1.Frontend{
 						Identifier: expectDestroyFrontends[0],
 					},
-				}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID)),
+				}, serviceTag),
 			}
 
 			expectDestroyBackends = []string{
@@ -138,7 +138,7 @@ var _ = Describe("reconcile", func() {
 					LoadBalancer: lbaasv1.LoadBalancer{
 						Identifier: testLoadBalancerIdentifier,
 					},
-				}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID)),
+				}, serviceTag),
 			}
 
 			expectDestroyServers = []string{
@@ -147,7 +147,7 @@ var _ = Describe("reconcile", func() {
 					Backend: lbaasv1.Backend{
 						Identifier: expectDestroyBackends[0],
 					},
-				}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID)),
+				}, serviceTag),
 			}
 
 			err := recon.retrieveState(retriever)
@@ -210,7 +210,7 @@ var _ = Describe("reconcile", func() {
 				HealthCheck:  `"adv_check": "tcp-check"`,
 				LoadBalancer: lbaasv1.LoadBalancer{Identifier: testLoadBalancerIdentifier},
 				HasState:     lbaasv1.HasState{State: lbaasv1.NewlyCreated},
-			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
+			}, serviceTag)
 
 			httpsBackendIdentifier = apiClient.FakeExisting(&lbaasv1.Backend{
 				Name:         "https." + testClusterName,
@@ -218,7 +218,7 @@ var _ = Describe("reconcile", func() {
 				HealthCheck:  `"adv_check": "tcp-check"`,
 				LoadBalancer: lbaasv1.LoadBalancer{Identifier: testLoadBalancerIdentifier},
 				HasState:     lbaasv1.HasState{State: lbaasv1.NewlyCreated},
-			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
+			}, serviceTag)
 
 			httpFrontendIdentifier = apiClient.FakeExisting(&lbaasv1.Frontend{
 				Name:           "http." + testClusterName,
@@ -226,7 +226,7 @@ var _ = Describe("reconcile", func() {
 				LoadBalancer:   &lbaasv1.LoadBalancer{Identifier: testLoadBalancerIdentifier},
 				DefaultBackend: &lbaasv1.Backend{Identifier: httpBackendIdentifier},
 				HasState:       lbaasv1.HasState{State: lbaasv1.NewlyCreated},
-			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
+			}, serviceTag)
 
 			httpsFrontendIdentifier = apiClient.FakeExisting(&lbaasv1.Frontend{
 				Name:           "https." + testClusterName,
@@ -234,7 +234,7 @@ var _ = Describe("reconcile", func() {
 				LoadBalancer:   &lbaasv1.LoadBalancer{Identifier: testLoadBalancerIdentifier},
 				DefaultBackend: &lbaasv1.Backend{Identifier: httpsBackendIdentifier},
 				HasState:       lbaasv1.HasState{State: lbaasv1.NewlyCreated},
-			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
+			}, serviceTag)
 
 			apiClient.FakeExisting(&lbaasv1.Bind{
 				Name:     "v4.http." + testClusterName,
@@ -242,7 +242,7 @@ var _ = Describe("reconcile", func() {
 				Port:     80,
 				Frontend: lbaasv1.Frontend{Identifier: httpFrontendIdentifier},
 				HasState: lbaasv1.HasState{State: lbaasv1.Deployed},
-			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
+			}, serviceTag)
 
 			apiClient.FakeExisting(&lbaasv1.Bind{
 				Name:     "v4.https." + testClusterName,
@@ -250,7 +250,7 @@ var _ = Describe("reconcile", func() {
 				Port:     443,
 				Frontend: lbaasv1.Frontend{Identifier: httpsFrontendIdentifier},
 				HasState: lbaasv1.HasState{State: lbaasv1.Deployed},
-			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
+			}, serviceTag)
 
 			apiClient.FakeExisting(&lbaasv1.Bind{
 				Name:     "v6.http." + testClusterName,
@@ -258,7 +258,7 @@ var _ = Describe("reconcile", func() {
 				Port:     80,
 				Frontend: lbaasv1.Frontend{Identifier: httpFrontendIdentifier},
 				HasState: lbaasv1.HasState{State: lbaasv1.Deployed},
-			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
+			}, serviceTag)
 
 			apiClient.FakeExisting(&lbaasv1.Bind{
 				Name:     "v6.https." + testClusterName,
@@ -266,7 +266,7 @@ var _ = Describe("reconcile", func() {
 				Port:     443,
 				Frontend: lbaasv1.Frontend{Identifier: httpsFrontendIdentifier},
 				HasState: lbaasv1.HasState{State: lbaasv1.Deployed},
-			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
+			}, serviceTag)
 
 			apiClient.FakeExisting(&lbaasv1.Server{
 				Name:     "https.invalid-server." + testClusterName,
@@ -275,7 +275,7 @@ var _ = Describe("reconcile", func() {
 				Check:    "disabled",
 				Backend:  lbaasv1.Backend{Identifier: httpsBackendIdentifier},
 				HasState: lbaasv1.HasState{State: lbaasv1.Deployed},
-			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
+			}, serviceTag)
 
 			err := recon.retrieveState(retriever)
 			Expect(err).NotTo(HaveOccurred())
@@ -414,56 +414,56 @@ var _ = Describe("reconcile", func() {
 				Mode:         lbaasv1.TCP,
 				HealthCheck:  `"adv_check": "tcp-check"`,
 				LoadBalancer: lbaasv1.LoadBalancer{Identifier: testLoadBalancerIdentifier},
-			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
+			}, serviceTag)
 
 			httpsBackendIdentifier = apiClient.FakeExisting(&lbaasv1.Backend{
 				Name:         "https." + testClusterName,
 				Mode:         lbaasv1.TCP,
 				HealthCheck:  `"adv_check": "tcp-check"`,
 				LoadBalancer: lbaasv1.LoadBalancer{Identifier: testLoadBalancerIdentifier},
-			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
+			}, serviceTag)
 
 			httpFrontendIdentifier := apiClient.FakeExisting(&lbaasv1.Frontend{
 				Name:           "http." + testClusterName,
 				Mode:           lbaasv1.TCP,
 				LoadBalancer:   &lbaasv1.LoadBalancer{Identifier: testLoadBalancerIdentifier},
 				DefaultBackend: &lbaasv1.Backend{Identifier: httpBackendIdentifier},
-			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
+			}, serviceTag)
 
 			httpsFrontendIdentifier := apiClient.FakeExisting(&lbaasv1.Frontend{
 				Name:           "https." + testClusterName,
 				Mode:           lbaasv1.TCP,
 				LoadBalancer:   &lbaasv1.LoadBalancer{Identifier: testLoadBalancerIdentifier},
 				DefaultBackend: &lbaasv1.Backend{Identifier: httpsBackendIdentifier},
-			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
+			}, serviceTag)
 
 			apiClient.FakeExisting(&lbaasv1.Bind{
 				Name:     "v4.http." + testClusterName,
 				Address:  "8.8.8.8",
 				Port:     80,
 				Frontend: lbaasv1.Frontend{Identifier: httpFrontendIdentifier},
-			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
+			}, serviceTag)
 
 			apiClient.FakeExisting(&lbaasv1.Bind{
 				Name:     "v4.https." + testClusterName,
 				Address:  "8.8.8.8",
 				Port:     443,
 				Frontend: lbaasv1.Frontend{Identifier: httpsFrontendIdentifier},
-			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
+			}, serviceTag)
 
 			apiClient.FakeExisting(&lbaasv1.Bind{
 				Name:     "v6.http." + testClusterName,
 				Address:  "2001:4860:4860::8888",
 				Port:     80,
 				Frontend: lbaasv1.Frontend{Identifier: httpFrontendIdentifier},
-			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
+			}, serviceTag)
 
 			apiClient.FakeExisting(&lbaasv1.Bind{
 				Name:     "v6.https." + testClusterName,
 				Address:  "2001:4860:4860::8888",
 				Port:     443,
 				Frontend: lbaasv1.Frontend{Identifier: httpsFrontendIdentifier},
-			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
+			}, serviceTag)
 
 			apiClient.FakeExisting(&lbaasv1.Server{
 				Name:    "test-server-01.http." + testClusterName,
@@ -471,7 +471,7 @@ var _ = Describe("reconcile", func() {
 				Port:    42037,
 				Check:   "enabled",
 				Backend: lbaasv1.Backend{Identifier: httpBackendIdentifier},
-			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
+			}, serviceTag)
 
 			apiClient.FakeExisting(&lbaasv1.Server{
 				Name:    "test-server-01.https." + testClusterName,
@@ -479,7 +479,7 @@ var _ = Describe("reconcile", func() {
 				Port:    37042,
 				Check:   "enabled",
 				Backend: lbaasv1.Backend{Identifier: httpsBackendIdentifier},
-			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
+			}, serviceTag)
 
 			apiClient.FakeExisting(&lbaasv1.Server{
 				Name:    "test-server-02.http." + testClusterName,
@@ -487,7 +487,7 @@ var _ = Describe("reconcile", func() {
 				Port:    42037,
 				Check:   "enabled",
 				Backend: lbaasv1.Backend{Identifier: httpBackendIdentifier},
-			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
+			}, serviceTag)
 
 			apiClient.FakeExisting(&lbaasv1.Server{
 				Name:    "test-server-02.https." + testClusterName,
@@ -495,7 +495,7 @@ var _ = Describe("reconcile", func() {
 				Port:    37042,
 				Check:   "enabled",
 				Backend: lbaasv1.Backend{Identifier: httpsBackendIdentifier},
-			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
+			}, serviceTag)
 
 			err := recon.retrieveState(retriever)
 			Expect(err).NotTo(HaveOccurred())

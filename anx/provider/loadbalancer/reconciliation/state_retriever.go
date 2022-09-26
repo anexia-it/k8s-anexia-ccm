@@ -16,7 +16,7 @@ import (
 
 var (
 	// errLoadBalancerNotRegistered is returned if a loadbalancer which was not initially registered
-	// is called with FilteredState() or Done().
+	// is called with LoadBalancerState() or Done().
 	// If this error is returned it is almost certainly a programming error within the CCM implementation (most likely inside this package).
 	errLoadBalancerNotRegistered = errors.New("specified load balancer is not registered for stateRetriever")
 )
@@ -95,7 +95,7 @@ func newStateRetriever(ctx context.Context, a api.API, serviceTag string, lbIden
 }
 
 // Done unregisters a loadbalancer from the state retriever.
-// The stateRetriever won't wait for the FilteredState(lbIdentifier) call in future state retrieving iterations.
+// The stateRetriever won't wait for the LoadBalancerState(lbIdentifier) call in future state retrieving iterations.
 func (r *stateRetrieverImpl) Done(lbIdentifier string) error {
 	r.loadBalancersMapLock.Lock()
 	defer r.loadBalancersMapLock.Unlock()
@@ -118,13 +118,13 @@ func (r *stateRetrieverImpl) LoadBalancerState(lbIdentifier string) (*remoteLoad
 		return nil, err
 	}
 
-	// lock FilteredState for lbIdentifier
+	// lock LoadBalancerState for lbIdentifier
 	loadBalancer.lock.Lock()
 	defer loadBalancer.lock.Unlock()
 
 	r.loadBalancersReadyWaitGroup.Done()
 
-	// wait until all registered lb's called FilteredState
+	// wait until all registered lb's called LoadBalancerState
 	<-loadBalancer.updateComplete
 
 	if r.err != nil {
@@ -152,7 +152,7 @@ func (r *stateRetrieverImpl) updateLoop(ctx context.Context) {
 			break
 		case <-ctx.Done(): // context expired
 			r.err = ctx.Err()
-			logr.FromContextOrDiscard(ctx).Error(ctx.Err(), "LoadBalancer state retriever for didn't finish properly")
+			logr.FromContextOrDiscard(ctx).Error(ctx.Err(), fmt.Sprintf("LoadBalancer state retriever for %q didn't finish properly", r.tags[0]))
 			for _, lb := range r.loadBalancers {
 				close(lb.updateComplete)
 			}
@@ -296,7 +296,6 @@ func (r *stateRetrieverImpl) filterBindsAndServers(allBinds []*lbaasv1.Bind, all
 func (r *stateRetrieverImpl) filterBinds(lbID string, allBinds []*lbaasv1.Bind) ([]*lbaasv1.Bind, error) {
 	ret := make([]*lbaasv1.Bind, 0, len(allBinds))
 
-	// Binds and Servers are filtered for our LoadBalancer here, after we hopefully retrieved their Frontends and Backends already
 	for _, bind := range allBinds {
 		idx, err := compare.Search(lbaasv1.Frontend{Identifier: bind.Frontend.Identifier}, r.loadBalancers[lbID].state.frontends, "Identifier")
 		if err != nil {
