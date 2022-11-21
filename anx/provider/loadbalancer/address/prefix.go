@@ -2,10 +2,14 @@ package address
 
 import (
 	"context"
+	"fmt"
 	"net"
 
 	"github.com/go-logr/logr"
-	anxprefix "go.anx.io/go-anxcloud/pkg/ipam/prefix"
+	"go.anx.io/go-anxcloud/pkg/api"
+	"go.anx.io/go-anxcloud/pkg/api/types"
+	corev1 "go.anx.io/go-anxcloud/pkg/apis/core/v1"
+	"go.anx.io/go-anxcloud/pkg/ipam"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -13,10 +17,11 @@ type prefix struct {
 	identifier string
 	prefix     net.IPNet
 	family     v1.IPFamily
+	addresses  []net.IP
 }
 
-func newPrefix(ctx context.Context, client anxprefix.API, identifier string) (*prefix, error) {
-	p, err := client.Get(ctx, identifier)
+func newPrefix(ctx context.Context, apiclient api.API, ipamClient ipam.API, identifier string, autoDiscoveryName *string) (*prefix, error) {
+	p, err := ipamClient.Prefix().Get(ctx, identifier)
 	if err != nil {
 		return nil, err
 	}
@@ -36,6 +41,17 @@ func newPrefix(ctx context.Context, client anxprefix.API, identifier string) (*p
 		ret.family = v1.IPv4Protocol
 	}
 
+	if autoDiscoveryName != nil {
+		tag := fmt.Sprintf("kubernetes-lb-vip-%s", *autoDiscoveryName)
+		vip, err := ret.discoverVIP(ctx, apiclient, ipamClient, tag)
+		if err != nil {
+			return nil, err
+		}
+		ret.addresses = []net.IP{vip}
+	} else {
+		ret.addresses = []net.IP{calculateVIP(ret.prefix)}
+	}
+
 	return &ret, nil
 }
 
@@ -51,7 +67,7 @@ func (p prefix) allocateAddress(ctx context.Context, fam v1.IPFamily) (net.IP, e
 
 	// XXX: replace this with IPAM address allocation logic once we can add and remove LoadBalancer IPs
 	// See SYSENG-918 for more info.
-	ip := calculateVIP(p.prefix)
+	ip := p.addresses[0]
 
 	log.V(1).Info(
 		"allocated external IP",
@@ -60,4 +76,45 @@ func (p prefix) allocateAddress(ctx context.Context, fam v1.IPFamily) (net.IP, e
 	)
 
 	return ip, nil
+}
+
+func (p prefix) discoverVIP(ctx context.Context, apiClient api.API, ipamClient ipam.API, tag string) (net.IP, error) {
+	logger := logr.FromContextOrDiscard(ctx)
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	var oc types.ObjectChannel
+	err := apiClient.List(ctx, &corev1.Resource{Tags: []string{tag}}, api.ObjectChannel(&oc))
+	if err != nil {
+		return nil, fmt.Errorf("unable to autodiscover VIP address by tag %q: %w", tag, err)
+	}
+
+	for retriever := range oc {
+		var res corev1.Resource
+		err := retriever(&res)
+		if err != nil {
+			return nil, fmt.Errorf("error retrieving resource: %w", err)
+		}
+
+		address, err := ipamClient.Address().Get(ctx, res.Identifier)
+		if err != nil {
+			logger.Error(err, "Error retrieving Address, maybe something else is tagged with %q? Ignoring this one and continuing",
+				"identifier", res.Identifier,
+			)
+			continue
+		}
+
+		// If the address we discovered is not from the prefix for which we are allocating, skip it
+		if address.PrefixID != p.identifier {
+			continue
+		}
+
+		logger.V(1).Info("Found VIP Address via auto discovery", "identifier", address.ID)
+		return net.ParseIP(address.Name), err
+	}
+
+	// no VIP found, but also no error
+	return nil, nil
+
 }
