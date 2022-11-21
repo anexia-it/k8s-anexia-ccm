@@ -188,8 +188,7 @@ func (m *mgr) configurePrefixes(ctx context.Context, config *configuration.Provi
 
 		m.addressManager = am
 	} else if config.AutoDiscoverLoadBalancer {
-		tag := fmt.Sprintf("kubernetes-lb-prefix-%s", m.clusterName)
-		m.addressManager = address.NewWithPrefixAutodiscovery(ctx, m.api, m.legacyClient, tag)
+		m.addressManager = address.NewWithAutoDiscovery(ctx, m.api, m.legacyClient, m.clusterName)
 	}
 
 	return nil

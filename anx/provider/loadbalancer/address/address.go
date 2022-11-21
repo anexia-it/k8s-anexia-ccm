@@ -42,7 +42,7 @@ func NewWithPrefixes(ctx context.Context, apiClient api.API, legacyClient client
 	m.fixedPrefixes = make([]*prefix, 0, len(prefixes))
 
 	for _, prefix := range prefixes {
-		p, err := newPrefix(ctx, m.ipam.Prefix(), prefix)
+		p, err := newPrefix(ctx, m.api, m.ipam, prefix, m.autoDiscoveryName)
 		if err != nil {
 			return nil, err
 		}
@@ -53,11 +53,10 @@ func NewWithPrefixes(ctx context.Context, apiClient api.API, legacyClient client
 	return m, nil
 }
 
-// NewWithPrefixAutodiscovery creates a new Manager instance doing Prefix autodiscovery
-func NewWithPrefixAutodiscovery(ctx context.Context, apiClient api.API, legacyClient client.Client, prefixTag string) Manager {
+// NewWithAutoDiscovery creates a new Manager instance doing prefix and address auto discovery
+func NewWithAutoDiscovery(ctx context.Context, apiClient api.API, legacyClient client.Client, autoDiscoveryName string) Manager {
 	m := newMgr(ctx, apiClient, legacyClient)
-	m.prefixAutodiscover = &prefixTag
-
+	m.autoDiscoveryName = &autoDiscoveryName
 	return m
 }
 
@@ -66,8 +65,8 @@ type mgr struct {
 	ipam   ipam.API
 	logger logr.Logger
 
-	// autodiscover is enabled when prefixAutodiscover is not nil
-	prefixAutodiscover *string
+	// auto discovery is enabled when autoDiscoveryName is not nil
+	autoDiscoveryName *string
 
 	// statically configured prefixes
 	fixedPrefixes []*prefix
@@ -151,12 +150,13 @@ func (m *mgr) prefixes(ctx context.Context) ([]*prefix, error) {
 		ret = append(ret, m.fixedPrefixes...)
 	}
 
-	if m.prefixAutodiscover != nil {
+	if m.autoDiscoveryName != nil {
 		ctx, cancel := context.WithCancel(ctx)
 		defer cancel()
 
 		var oc types.ObjectChannel
-		err := m.api.List(ctx, &corev1.Resource{Tags: []string{*m.prefixAutodiscover}}, api.ObjectChannel(&oc), api.FullObjects(true))
+		tag := fmt.Sprintf("kubernetes-lb-prefix-%s", *m.autoDiscoveryName)
+		err := m.api.List(ctx, &corev1.Resource{Tags: []string{tag}}, api.ObjectChannel(&oc), api.FullObjects(true))
 		if err != nil {
 			return nil, fmt.Errorf("error listing resources with tag: %w", err)
 		}
@@ -168,7 +168,7 @@ func (m *mgr) prefixes(ctx context.Context) ([]*prefix, error) {
 				return nil, fmt.Errorf("error retrieving resource with tag: %w", err)
 			}
 
-			p, err := newPrefix(ctx, m.ipam.Prefix(), res.Identifier)
+			p, err := newPrefix(ctx, m.api, m.ipam, res.Identifier, m.autoDiscoveryName)
 			if err != nil {
 				m.logger.Error(err, "Retrieving prefix failed, doing my best continuing", "identifier", res.Identifier)
 				continue
