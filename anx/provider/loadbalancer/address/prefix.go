@@ -45,8 +45,16 @@ func newPrefix(ctx context.Context, apiclient api.API, ipamClient ipam.API, iden
 		tag := fmt.Sprintf("kubernetes-lb-vip-%s", *autoDiscoveryName)
 		vip, err := ret.discoverVIP(ctx, apiclient, ipamClient, tag)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("error discovering VIP: %w", err)
 		}
+
+		if vip == nil {
+			// Fall back for backwards compatibility - remove once there are no autodiscovery clusters without tagged VIPs
+			vip = calculateVIP(ret.prefix)
+			logger := logr.FromContextOrDiscard(ctx)
+			logger.Info("Could not auto discover VIP, falling back to calculated VIP", "prefix-identifier", ret.identifier, "vip", vip.String())
+		}
+
 		ret.addresses = []net.IP{vip}
 	} else {
 		ret.addresses = []net.IP{calculateVIP(ret.prefix)}
