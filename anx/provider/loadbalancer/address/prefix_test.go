@@ -91,6 +91,37 @@ var _ = Describe("prefix", func() {
 	// test legacy code path (use address at prefix[-2])
 	prefixTest(false, "v4", v1.IPv4Protocol, "10.244.0.0/24", "10.244.0.254")
 	prefixTest(false, "v6", v1.IPv6Protocol, "2001:db8::/64", "2001:db8::ffff:ffff:ffff:fffe")
+
+	fallbackPrefixTest := func(identifier string, expectedFamily v1.IPFamily, expectedPrefix, expectedAddress string) {
+		Context(fmt.Sprintf("for family %v", expectedFamily), Ordered, func() {
+			BeforeEach(func() {
+				a = mock.NewMockAPI()
+			})
+
+			var p *prefix
+			var err error
+			It("retrieves the prefix and address", func() {
+				prefixClient.EXPECT().Get(gomock.Any(), identifier).Return(anxprefix.Info{Name: expectedPrefix}, nil)
+
+				p, err = newPrefix(context.TODO(), a, ipamClient, identifier, pointer.String("clustername"))
+
+				Expect(err).NotTo(HaveOccurred())
+
+				Expect(p.family).To(Equal(expectedFamily))
+			})
+
+			It("allocates an address for the family", func() {
+				ip, err := p.allocateAddress(context.TODO(), expectedFamily)
+				Expect(err).NotTo(HaveOccurred())
+
+				Expect(ip.Equal(net.ParseIP(expectedAddress))).To(BeTrue())
+			})
+		})
+	}
+
+	fallbackPrefixTest("v4", v1.IPv4Protocol, "10.244.0.0/24", "10.244.0.254")
+	fallbackPrefixTest("v6", v1.IPv6Protocol, "2001:db8::/64", "2001:db8::ffff:ffff:ffff:fffe")
+
 })
 
 func TestPrefix(t *testing.T) {
