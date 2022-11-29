@@ -11,11 +11,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Please add your changelog entry under this comment in the correct category (Security, Fixed, Added, Changed, Deprecated, Removed - in this order).
 -->
 
+## [1.5.0] - 2022-11-29
+
 ### Added
 * Use auto discovery for VIP addresses in auto discovered prefixes
   - Engine Addresses tagged with "kubernetes-lb-vip-<cluster name>" will be allocated for Services
   - If no tagged Address can be found, fall back to calculating the VIP. This fallback will be removed in the future
   - Configured prefixes always use calculated VIPs
+
+### Changes
+* (internal) refactor tests for LoadBalancer reconciliation
+* various dependency updates
+  - Bump go.anx.io/go-anxcloud from 0.4.5 to 0.4.6 @dependabot (#126)
+  - Bump k8s.io/cloud-provider from 0.25.1 to 0.25.4 @dependabot (#125, #132, #141)
+  - Bump github.com/prometheus/client\_golang from 1.13.0 to 1.14.0 @dependabot (#136, #138)
+  - Bump github.com/stretchr/testify from 1.8.0 to 1.8.1 @dependabot (#133)
+  - Bump github.com/onsi/ginkgo/v2 from 2.1.6 to 2.5.1 @dependabot (#124, #129, #131, #134, #139, #143)
+  - Bump github.com/onsi/gomega from 1.20.2 to 1.24.1 @dependabot (#127, #130, #135, #137, #140)
 
 ## [1.4.4] - 2022-09-19
 
