@@ -29,10 +29,10 @@ func (r *reconciliation) reconcileFrontends() (toCreate, toDestroy []types.Objec
 	}
 
 	toCreate = make([]types.Object, 0, len(targetFrontends))
-	toDestroy = make([]types.Object, 0, len(r.frontends))
+	toDestroy = make([]types.Object, 0, len(r.remoteStateSnapshot.frontends))
 
 	err = compare.Reconcile(
-		targetFrontends, r.frontends,
+		targetFrontends, r.remoteStateSnapshot.frontends,
 		&toCreate, &toDestroy,
 		"Name", "Mode", "LoadBalancer.Identifier", "DefaultBackend.Identifier",
 	)
