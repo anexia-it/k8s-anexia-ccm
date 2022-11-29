@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Please add your changelog entry under this comment in the correct category (Security, Fixed, Added, Changed, Deprecated, Removed - in this order).
 -->
 
+### Added
+* Use auto discovery for VIP addresses in auto discovered prefixes
+  - Engine Addresses tagged with "kubernetes-lb-vip-<cluster name>" will be allocated for Services
+  - If no tagged Address can be found, fall back to calculating the VIP. This fallback will be removed in the future
+  - Configured prefixes always use calculated VIPs
+
 ## [1.4.4] - 2022-09-19
 
 ### Fixed
