@@ -342,8 +342,8 @@ github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9de
 github.com/yuin/goldmark v1.1.32/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.2.1/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.3.5/go.mod h1:mwnBkeHKe2W/ZEtQ+71ViKU8L12m81fl3OWwC1Zlc8k=
-go.anx.io/go-anxcloud v0.4.6 h1:aHf5i3UCpt+wmuP07saGGWiqS5eqQbdw0SJVpae8Hqs=
-go.anx.io/go-anxcloud v0.4.6/go.mod h1:OSSNrMPa/zV9Bdpx2IdN8iIYm3fJOATR/cvwH6R3OFc=
+go.anx.io/go-anxcloud v0.5.0 h1:kKzAY+CRAXmQYCr+/lbEoO6JvPEVi5qjR2XgT0CMwx4=
+go.anx.io/go-anxcloud v0.5.0/go.mod h1:IjUqXU0829myWH9015ES2KG2fBUnWNF5FChLwi5tUig=
 go.etcd.io/bbolt v1.3.6 h1:/ecaJf0sk1l4l6V4awd65v2C3ILy7MSj+s/x1ADCIMU=
 go.etcd.io/etcd/api/v3 v3.5.4 h1:OHVyt3TopwtUQ2GKdd5wu3PmmipR4FTwCqoEjSyRdIc=
 go.etcd.io/etcd/api/v3 v3.5.4/go.mod h1:5GB2vv4A4AOn3yk7MftYGHkUfGtDHnEraIjym4dYz5A=
