@@ -17,6 +17,7 @@ import (
 	"go.anx.io/go-anxcloud/pkg/api"
 	"go.anx.io/go-anxcloud/pkg/api/types"
 
+	gs "go.anx.io/go-anxcloud/pkg/apis/common/gs"
 	corev1 "go.anx.io/go-anxcloud/pkg/apis/core/v1"
 	lbaasv1 "go.anx.io/go-anxcloud/pkg/apis/lbaas/v1"
 )
@@ -335,14 +336,14 @@ func (r *reconciliation) waitForResources(toCreate []types.Object) error {
 			failed := make([]types.Object, 0, len(toCreate))
 
 			for _, obj := range toCreate {
-				state, ok := obj.(lbaasv1.StateRetriever)
+				state, ok := obj.(gs.StateRetriever)
 				if !ok {
 					r.logger.Error(nil, "Object does not have state", "object", mustStringifyObject(obj))
 					return false, errors.New("coding error: waitForResources called for Object not implementing lbaasv1.StateRetriever")
 				}
 
 				// if we already retrieved Objects: shortcut
-				if state.StateSuccess() && !firstPass {
+				if state.StateOK() && !firstPass {
 					continue
 				}
 
@@ -353,9 +354,9 @@ func (r *reconciliation) waitForResources(toCreate []types.Object) error {
 					continue
 				}
 
-				if state.StateProgressing() {
+				if state.StatePending() {
 					notReady = append(notReady, obj)
-				} else if state.StateFailure() {
+				} else if state.StateError() {
 					failed = append(failed, obj)
 				}
 			}
@@ -395,14 +396,14 @@ func (r *reconciliation) retrieveState() error {
 }
 
 func (r *reconciliation) sortObjectIntoStateArray(o types.Object) {
-	sr, ok := o.(lbaasv1.StateRetriever)
+	sr, ok := o.(gs.StateRetriever)
 	if !ok {
 		return
 	}
 
-	if sr.StateFailure() {
+	if sr.StateError() {
 		r.existingFailed = append(r.existingFailed, o)
-	} else if sr.StateProgressing() {
+	} else if sr.StatePending() {
 		r.existingProgressing = append(r.existingProgressing, o)
 	}
 }
