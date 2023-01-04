@@ -4,16 +4,20 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"net/http"
 	"testing"
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/utils/pointer"
 
+	"go.anx.io/go-anxcloud/pkg/api"
 	"go.anx.io/go-anxcloud/pkg/api/mock"
+	corev1 "go.anx.io/go-anxcloud/pkg/apis/core/v1"
 	lbaasv1 "go.anx.io/go-anxcloud/pkg/apis/lbaas/v1"
 	"go.anx.io/go-anxcloud/pkg/ipam/address"
 	anxprefix "go.anx.io/go-anxcloud/pkg/ipam/prefix"
 
+	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/test/apimock"
 	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/test/legacyapimock"
 	"github.com/golang/mock/gomock"
 	. "github.com/onsi/ginkgo/v2"
@@ -26,12 +30,14 @@ var _ = Describe("prefix", func() {
 	var ipamClient *legacyapimock.MockIPAMAPI
 	var addressClient *legacyapimock.MockIPAMAddressAPI
 	var prefixClient *legacyapimock.MockIPAMPrefixAPI
+	var genericClient *apimock.MockAPI
 
 	BeforeEach(func() {
 		c = gomock.NewController(GinkgoT())
 		ipamClient = legacyapimock.NewMockIPAMAPI(c)
 		addressClient = legacyapimock.NewMockIPAMAddressAPI(c)
 		prefixClient = legacyapimock.NewMockIPAMPrefixAPI(c)
+		genericClient = apimock.NewMockAPI(c)
 		ipamClient.EXPECT().Address().AnyTimes().Return(addressClient)
 		ipamClient.EXPECT().Prefix().AnyTimes().Return(prefixClient)
 	})
@@ -122,6 +128,27 @@ var _ = Describe("prefix", func() {
 	fallbackPrefixTest("v4", v1.IPv4Protocol, "10.244.0.0/24", "10.244.0.254")
 	fallbackPrefixTest("v6", v1.IPv6Protocol, "2001:db8::/64", "2001:db8::ffff:ffff:ffff:fffe")
 
+	Context("discoverVIP", func() {
+		p := &prefix{}
+
+		It("returns an error when listing resources with provided tags resulted in an error other than 422 HTTP response", func() {
+			genericClient.EXPECT().List(gomock.Any(), &corev1.Resource{Tags: []string{"vip-discovery-tag"}}, gomock.Any()).
+				Return(api.NewHTTPError(http.StatusInternalServerError, "GET", nil, nil))
+
+			addr, err := p.discoverVIP(context.TODO(), genericClient, ipamClient, "vip-discovery-tag")
+			Expect(err).To(HaveOccurred())
+			Expect(addr).To(BeNil())
+		})
+
+		It("returns no error when listing resources with provided tags resulted in a 422 response error", func() {
+			genericClient.EXPECT().List(gomock.Any(), &corev1.Resource{Tags: []string{"vip-discovery-tag"}}, gomock.Any()).
+				Return(api.NewHTTPError(http.StatusUnprocessableEntity, "GET", nil, nil))
+
+			addr, err := p.discoverVIP(context.TODO(), genericClient, ipamClient, "vip-discovery-tag")
+			Expect(err).To(BeNil())
+			Expect(addr).To(BeNil())
+		})
+	})
 })
 
 func TestPrefix(t *testing.T) {

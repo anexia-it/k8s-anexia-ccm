@@ -2,8 +2,10 @@ package address
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
+	"net/http"
 
 	"github.com/go-logr/logr"
 	"go.anx.io/go-anxcloud/pkg/api"
@@ -95,7 +97,15 @@ func (p prefix) discoverVIP(ctx context.Context, apiClient api.API, ipamClient i
 	var oc types.ObjectChannel
 	err := apiClient.List(ctx, &corev1.Resource{Tags: []string{tag}}, api.ObjectChannel(&oc))
 	if err != nil {
-		return nil, fmt.Errorf("unable to autodiscover VIP address by tag %q: %w", tag, err)
+		httpError := api.HTTPError{}
+		// nothing is tagged with autodiscover tag -> no VIP found, but also no error
+		if errors.As(err, &httpError) && httpError.StatusCode() == http.StatusUnprocessableEntity {
+			err = nil
+		} else {
+			err = fmt.Errorf("unable to autodiscover VIP address by tag %q: %w", tag, err)
+		}
+
+		return nil, err
 	}
 
 	for retriever := range oc {
