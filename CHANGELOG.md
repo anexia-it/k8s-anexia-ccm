@@ -11,8 +11,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Please add your changelog entry under this comment in the correct category (Security, Fixed, Added, Changed, Deprecated, Removed - in this order).
 -->
 
+## [1.5.1] - 2023-01-04
+
 ### Fixed
 * fix LBaaS VIP discovery fallback @marioreggiori (#151)
+
+### Changes
+* various dependency updates
+  - Bump go.anx.io/go-anxcloud from 0.4.6 to 0.5.0 @dependabot (#145)
+  - Bump k8s.io/cloud-provider from 0.25.4 to 0.26.0 @dependabot (#147)
+  - Bump github.com/onsi/ginkgo/v2 from 2.5.1 to 2.6.0 @dependabot (#148)
+  - Bump github.com/onsi/ginkgo/v2 from 2.6.0 to 2.6.1 @dependabot (#149)
+  - Bump github.com/onsi/gomega from 1.24.1 to 1.24.2 @dependabot (#150)
 
 ## [1.5.0] - 2022-11-29
 
