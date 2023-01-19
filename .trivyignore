@@ -1,3 +1,1 @@
-# security issue in a golang.org/x/net we indirectly depend on via kubernetes packages
-# entry be removed once k8s uses a fixed version -- @LittleFox94
-CVE-2022-27664
+
