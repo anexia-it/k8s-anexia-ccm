@@ -31,6 +31,7 @@ func (i instanceManager) NodeAddressesByProviderID(ctx context.Context, provider
 		return nil, errors.New("empty providerId is not allowed")
 	}
 	info, err := i.VSphere().Info().Get(ctx, providerID)
+	utils.PanicIfUnauthorized(err)
 	if err != nil {
 		return nil, fmt.Errorf("could not get vm infoMock: %w", err)
 	}
@@ -57,11 +58,13 @@ func (i instanceManager) NodeAddressesByProviderID(ctx context.Context, provider
 
 func (i instanceManager) InstanceExists(ctx context.Context, node *v1.Node) (bool, error) {
 	providerID, err := i.InstanceIDByNode(ctx, node)
+	utils.PanicIfUnauthorized(err)
 	if err != nil {
 		return false, err
 	}
 
 	_, err = i.VSphere().Info().Get(ctx, providerID)
+	utils.PanicIfUnauthorized(err)
 
 	if err == nil {
 		return true, nil
@@ -76,6 +79,7 @@ func (i instanceManager) InstanceExists(ctx context.Context, node *v1.Node) (boo
 
 func (i instanceManager) InstanceShutdown(ctx context.Context, node *v1.Node) (bool, error) {
 	providerID, err := i.InstanceIDByNode(ctx, node)
+	utils.PanicIfUnauthorized(err)
 	if err != nil {
 		return false, err
 	}
@@ -97,6 +101,7 @@ func (i instanceManager) InstanceShutdown(ctx context.Context, node *v1.Node) (b
 
 func (i instanceManager) InstanceMetadata(ctx context.Context, node *v1.Node) (*cloudprovider.InstanceMetadata, error) {
 	providerID, err := i.InstanceIDByNode(ctx, node)
+	utils.PanicIfUnauthorized(err)
 	if err != nil {
 		return nil, err
 	}
@@ -135,6 +140,7 @@ func (i instanceManager) instancesByName(ctx context.Context, name string) ([]st
 	}
 
 	vms, err := i.VSphere().Search().ByName(ctx, fmt.Sprintf("%s-%s", namePrefix, name))
+	utils.PanicIfUnauthorized(err)
 
 	if err == nil && len(vms) == 0 {
 		logger.V(1).Info("Didn't find any VM by name with prefix, retrying without prefix", "prefix", namePrefix)

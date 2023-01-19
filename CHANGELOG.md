@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Please add your changelog entry under this comment in the correct category (Security, Fixed, Added, Changed, Deprecated, Removed - in this order).
 -->
 
+### Changed
+* instances: panic on 401 responses from engine to slow down requests with invalid token @marioreggiori (#155)
+
 ## [1.5.1] - 2023-01-04
 
 ### Fixed
