@@ -11,8 +11,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Please add your changelog entry under this comment in the correct category (Security, Fixed, Added, Changed, Deprecated, Removed - in this order).
 -->
 
+## [1.5.2] - 2023-01-23
+
 ### Changed
 * instances: panic on 401 responses from engine to slow down requests with invalid token @marioreggiori (#155)
+* various dependency updates
+  - Bump github.com/onsi/ginkgo/v2 from 2.6.1 to 2.7.0 @dependabot (#153)
+  - Bump github.com/onsi/gomega from 1.24.2 to 1.25.0 @dependabot (#154)
+  - Bump k8s.io/cloud-provider from 0.26.0 to 0.26.1 @dependabot (#157)
+
+### Removed
+* (internal) Remove CVE-2022-27664 from trivyignore @LittleFox94 (#156)
 
 ## [1.5.1] - 2023-01-04
 
