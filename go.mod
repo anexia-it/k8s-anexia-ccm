@@ -8,7 +8,7 @@ require (
 	github.com/golang/mock v1.6.0
 	github.com/kelseyhightower/envconfig v1.4.0
 	github.com/onsi/ginkgo/v2 v2.7.0
-	github.com/onsi/gomega v1.25.0
+	github.com/onsi/gomega v1.26.0
 	github.com/prometheus/client_golang v1.14.0
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.1
