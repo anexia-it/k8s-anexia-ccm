@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/configuration"
+	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/metrics"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"go.anx.io/go-anxcloud/pkg/api"
@@ -29,7 +30,9 @@ var _ = Describe("Initialization", func() {
 			api.WithLogger(logger.WithName("go-anxcloud")),
 		)
 
-		loadbalancer, err := New(&config, logger, nil, genericClient, legacyClient)
+		metrics := metrics.NewProviderMetrics("anexia", "0.0.0-unit-tests")
+
+		loadbalancer, err := New(&config, logger, nil, genericClient, legacyClient, metrics)
 
 		Expect(loadbalancer).ToNot(BeNil())
 		Expect(err).Error().ToNot(HaveOccurred())

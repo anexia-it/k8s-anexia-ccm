@@ -2,8 +2,12 @@ package test
 
 import (
 	"fmt"
+
+	dto "github.com/prometheus/client_model/go"
+
 	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/configuration"
 	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/mocks"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.anx.io/go-anxcloud/pkg/clouddns"
 	"go.anx.io/go-anxcloud/pkg/ipam"
 	"go.anx.io/go-anxcloud/pkg/lbaas"
@@ -128,4 +132,14 @@ func ProviderManagedNode(identifier string) v1.Node {
 			ProviderID: fmt.Sprintf("%s%s", configuration.CloudProviderScheme, identifier),
 		},
 	}
+}
+
+func GetHistogramSum(collector prometheus.Collector) float64 {
+	ch := make(chan prometheus.Metric, 1)
+	collector.Collect(ch)
+
+	m := dto.Metric{}
+	_ = (<-ch).Write(&m) // read metric value from the channel
+
+	return m.Histogram.GetSampleSum()
 }

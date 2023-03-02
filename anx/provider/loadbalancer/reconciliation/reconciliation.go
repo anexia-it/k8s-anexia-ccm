@@ -10,6 +10,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/metrics"
 	"github.com/go-logr/logr"
 
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -83,6 +84,8 @@ type reconciliation struct {
 	portBackends    map[string]*lbaasv1.Backend
 	portFrontends   map[string]*lbaasv1.Frontend
 	publicAddresses []string
+
+	metrics metrics.ProviderMetrics
 }
 
 // New creates a new Reconcilation instance, usable to reconcile Anexia LBaaS resources for
@@ -113,6 +116,8 @@ func New(
 	externalAddresses []net.IP,
 	ports map[string]Port,
 	servers []Server,
+
+	metrics metrics.ProviderMetrics,
 ) (Reconciliation, error) {
 	tags := []string{
 		fmt.Sprintf("anxccm-svc-uid=%v", serviceUID),
@@ -129,6 +134,8 @@ func New(
 		externalAddresses: externalAddresses,
 		ports:             ports,
 		targetServers:     servers,
+
+		metrics: metrics,
 	}
 
 	recon.lb.Identifier = loadBalancerIdentifier
@@ -195,6 +202,7 @@ func (r *reconciliation) Reconcile() error {
 	completed := false
 
 	for !completed {
+		startTimeTotal := time.Now()
 		toCreate, toDestroy, err := r.ReconcileCheck()
 		if err != nil {
 			if !errors.Is(err, ErrLBaaSResourceProgressing) {
@@ -208,6 +216,9 @@ func (r *reconciliation) Reconcile() error {
 				return err
 			}
 		}
+
+		r.metrics.ReconciliationPendingResources.WithLabelValues("create").Add(float64(len(toCreate)))
+		r.metrics.ReconciliationPendingResources.WithLabelValues("destroy").Add(float64(len(toDestroy)))
 
 		// if there is something to destroy: destroy it and start again from retrieving the state
 		// if there is nothing to destroy, but something to create: create it and start again from retrieving the state
@@ -234,10 +245,15 @@ func (r *reconciliation) Reconcile() error {
 							"object", mustStringifyObject(obj),
 						)
 
+						r.metrics.ReconciliationDeleteRetriesTotal.Inc()
+
 						newToDestroy = append(newToDestroy, obj)
 					} else {
 						// something was deleted successfully, allow retrying to delete other things in case it failed for conflicts
 						allowRetry = true
+
+						r.metrics.ReconciliationDeletedTotal.Inc()
+						r.metrics.ReconciliationPendingResources.WithLabelValues("destroy").Dec()
 					}
 				}
 
@@ -249,6 +265,8 @@ func (r *reconciliation) Reconcile() error {
 					"objects", mustStringifyObjects(toDestroy),
 				)
 
+				r.metrics.ReconciliationDeleteErrorsTotal.Inc()
+
 				return ErrResourcesNotDestroyable
 			}
 		} else if len(toCreate) > 0 {
@@ -256,22 +274,37 @@ func (r *reconciliation) Reconcile() error {
 
 			for _, obj := range toCreate {
 				if err := r.api.Create(r.ctx, obj); err != nil {
+					// Ensure decrementing pending resources before returning to prevent leakage
+					r.metrics.ReconciliationPendingResources.WithLabelValues("create").Dec()
+					r.metrics.ReconciliationCreateErrorsTotal.Inc()
 					return fmt.Errorf("error creating LBaaS resource: %w", err)
 				}
 
 				if err := r.tagResource(obj); err != nil {
+					// Ensure decrementing pending resources before returning to prevent leakage
+					r.metrics.ReconciliationPendingResources.WithLabelValues("create").Dec()
+					r.metrics.ReconciliationCreateErrorsTotal.Inc()
 					return fmt.Errorf("error tagging LBaaS resource: %w", err)
 				}
+
+				r.metrics.ReconciliationPendingResources.WithLabelValues("create").Dec()
+				r.metrics.ReconciliationCreatedTotal.Inc()
 			}
 			r.logger.Info("waiting for created resources to become ready", "objects", mustStringifyObjects(toCreate))
 
+			startTimeCreate := time.Now()
 			err := r.waitForResources(toCreate)
 			if err != nil && !errors.Is(err, ErrLBaaSResourceFailed) {
+				r.metrics.ReconciliationCreateErrorsTotal.Inc()
 				return err
 			}
+
+			r.metrics.ReconciliationCreateResources.Observe(float64(time.Since(startTimeCreate).Seconds()))
 		} else {
 			completed = true
 		}
+
+		r.metrics.ReconciliationTotalDuration.Observe(float64(time.Since(startTimeTotal).Seconds()))
 	}
 
 	return nil
@@ -433,7 +466,6 @@ func (r *reconciliation) retrieveResources() error {
 
 		frontendResourceTypeIdentifier: func(identifier string) (err error) {
 			frontend := &lbaasv1.Frontend{Identifier: identifier}
-
 			if err = r.api.Get(ctx, frontend); err == nil && frontend.LoadBalancer.Identifier == r.lb.Identifier {
 				r.frontends = append(r.frontends, frontend)
 				r.sortObjectIntoStateArray(frontend)
@@ -509,6 +541,12 @@ func (r *reconciliation) retrieveResources() error {
 		"num-backends", len(r.backends),
 		"num-servers", len(r.servers),
 	)
+
+	r.metrics.ReconciliationRetrievedResourcesTotal.WithLabelValues("frontend").Add(float64(len(r.frontends)))
+	r.metrics.ReconciliationRetrievedResourcesTotal.WithLabelValues("bind").Add(float64(len(r.binds)))
+	r.metrics.ReconciliationRetrievedResourcesTotal.WithLabelValues("backend").Add(float64(len(r.backends)))
+	r.metrics.ReconciliationRetrievedResourcesTotal.WithLabelValues("server").Add(float64(len(r.servers)))
+
 	return nil
 }
 
