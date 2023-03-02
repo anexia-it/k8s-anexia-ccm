@@ -6,6 +6,8 @@ import (
 
 	"github.com/blang/semver/v4"
 	"github.com/prometheus/client_golang/prometheus"
+
+	k8smetrics "k8s.io/component-base/metrics"
 )
 
 const FeatureEnabled = 1
@@ -25,26 +27,91 @@ var (
 )
 
 type ProviderMetrics struct {
-	m               *sync.RWMutex
-	Name            string
-	providerVersion prometheus.Metric
-	featureState    map[string]prometheus.Metric
-	descriptions    []*prometheus.Desc
+	m                                     *sync.RWMutex
+	Name                                  string
+	providerVersion                       prometheus.Metric
+	ReconciliationTotalDuration           prometheus.Histogram
+	ReconciliationCreateErrorsTotal       prometheus.Counter
+	ReconciliationDeleteRetriesTotal      prometheus.Counter
+	ReconciliationDeleteErrorsTotal       prometheus.Counter
+	ReconciliationCreatedTotal            prometheus.Counter
+	ReconciliationDeletedTotal            prometheus.Counter
+	ReconciliationCreateResources         prometheus.Histogram
+	ReconciliationPendingResources        *k8smetrics.GaugeVec
+	ReconciliationRetrievedResourcesTotal *k8smetrics.CounterVec
+	featureState                          map[string]prometheus.Metric
+	descriptions                          []*prometheus.Desc
+}
+
+func setReconcileMetrics(providerMetrics *ProviderMetrics) {
+	providerMetrics.ReconciliationTotalDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    getFQMetricName("reconcile_total_duration_seconds"),
+		Help:    "Histogram of times spent for one total reconciliation",
+		Buckets: prometheus.ExponentialBuckets(2, 2, 10),
+	})
+
+	providerMetrics.ReconciliationCreateErrorsTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: getFQMetricName("reconcile_create_errors_total"),
+		Help: "Counter of errors while creating resources in a reconciliation",
+	})
+
+	providerMetrics.ReconciliationDeleteRetriesTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: getFQMetricName("reconcile_delete_retries_total"),
+		Help: "Counter of retries while deleting resources in a reconciliation",
+	})
+
+	providerMetrics.ReconciliationDeleteErrorsTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: getFQMetricName("reconcile_delete_errors_total"),
+		Help: "Counter of errors while deleting resources in a reconciliation",
+	})
+
+	providerMetrics.ReconciliationCreatedTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: getFQMetricName("reconcile_created_total"),
+		Help: "Counter of total created resources",
+	})
+
+	providerMetrics.ReconciliationDeletedTotal = prometheus.NewCounter(prometheus.CounterOpts{
+		Name: getFQMetricName("reconcile_deleted_total"),
+		Help: "Counter of total deleted resources",
+	})
+
+	providerMetrics.ReconciliationCreateResources = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    getFQMetricName("reconcile_create_resources_duration_seconds"),
+		Help:    "Histogram of times spent waiting for resources to become ready after creation",
+		Buckets: k8smetrics.ExponentialBuckets(2, 2, 10),
+	})
+
+	providerMetrics.ReconciliationPendingResources = k8smetrics.NewGaugeVec(&k8smetrics.GaugeOpts{
+		Name: getFQMetricName("reconcile_resources_pending"),
+		Help: "Gauge of pending creation or deletion operations of resources",
+	}, []string{"operation"})
+
+	providerMetrics.ReconciliationRetrievedResourcesTotal = k8smetrics.NewCounterVec(&k8smetrics.CounterOpts{
+		Name: getFQMetricName("reconcile_retrieved_resources_total"),
+		Help: "Counter of total numbers of resources retrieved grouped by type",
+	}, []string{"type"})
 }
 
 // NewProviderMetrics returns a prometheus.Collector for Provider Metrics.
 func NewProviderMetrics(providerName, providerVersion string) ProviderMetrics {
-	description := []*prometheus.Desc{descProviderBuild, descProviderFeatures}
+	description := []*prometheus.Desc{
+		descProviderBuild,
+		descProviderFeatures,
+	}
 
 	versionMetric := prometheus.MustNewConstMetric(descProviderBuild, prometheus.CounterValue,
 		1, providerName, providerVersion)
 
-	return ProviderMetrics{
+	providerMetrics := ProviderMetrics{
 		providerVersion: versionMetric,
 		descriptions:    description,
 		m:               &sync.RWMutex{},
 		featureState:    map[string]prometheus.Metric{},
 	}
+
+	setReconcileMetrics(&providerMetrics)
+
+	return providerMetrics
 }
 
 func (p *ProviderMetrics) Describe(descs chan<- *prometheus.Desc) {
@@ -55,6 +122,13 @@ func (p *ProviderMetrics) Describe(descs chan<- *prometheus.Desc) {
 
 func (p *ProviderMetrics) Collect(metrics chan<- prometheus.Metric) {
 	metrics <- p.providerVersion
+	metrics <- p.ReconciliationTotalDuration
+	metrics <- p.ReconciliationCreateErrorsTotal
+	metrics <- p.ReconciliationDeleteRetriesTotal
+	metrics <- p.ReconciliationDeleteErrorsTotal
+	metrics <- p.ReconciliationCreatedTotal
+	metrics <- p.ReconciliationDeletedTotal
+	metrics <- p.ReconciliationCreateResources
 
 	p.m.RLock()
 	defer p.m.RUnlock()

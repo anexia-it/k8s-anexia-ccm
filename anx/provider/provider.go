@@ -113,7 +113,7 @@ func (a *anxProvider) initializeLoadBalancerManager(builder cloudprovider.Contro
 	config := a.Config()
 	logger := a.logger.WithName("LoadBalancer")
 
-	if lb, err := loadbalancer.New(config, logger, k8sClient, a.genericClient, a.legacyClient); err != nil {
+	if lb, err := loadbalancer.New(config, logger, k8sClient, a.genericClient, a.legacyClient, a.providerMetrics); err != nil {
 		a.logger.Error(err, "Error initializing LoadBalancer manager")
 	} else {
 		a.loadBalancerManager = lb
@@ -169,6 +169,8 @@ func (a anxProvider) Config() *configuration.ProviderConfig {
 func (a *anxProvider) setupProviderMetrics() {
 	a.providerMetrics = metrics.NewProviderMetrics("anexia", Version)
 	legacyregistry.MustRegister(&a.providerMetrics)
+	legacyregistry.MustRegister(a.providerMetrics.ReconciliationPendingResources)
+	legacyregistry.MustRegister(a.providerMetrics.ReconciliationRetrievedResourcesTotal)
 
 	a.providerMetrics.MarkFeatureDisabled(featureNameLoadBalancer)
 	a.providerMetrics.MarkFeatureDisabled(featureNameInstancesV2)

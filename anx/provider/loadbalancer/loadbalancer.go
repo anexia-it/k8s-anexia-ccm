@@ -21,6 +21,7 @@ import (
 	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/loadbalancer/address"
 	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/loadbalancer/discovery"
 	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/loadbalancer/reconciliation"
+	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/metrics"
 
 	"go.anx.io/go-anxcloud/pkg/api"
 	"go.anx.io/go-anxcloud/pkg/client"
@@ -37,6 +38,8 @@ type mgr struct {
 
 	loadBalancers []string
 	sync          *sync.Mutex
+
+	metrics metrics.ProviderMetrics
 }
 
 var (
@@ -59,13 +62,14 @@ var (
 //
 // The given overrideClusterName can be given for cases were the kubernetes controller-manager does not know it
 // and there are multiple clusters running in the same Anexia customer, resulting in possibly colliding resources.
-func New(config *configuration.ProviderConfig, logger logr.Logger, k8sClient kubernetes.Interface, apiClient api.API, legacyClient client.Client) (cloudprovider.LoadBalancer, error) {
+func New(config *configuration.ProviderConfig, logger logr.Logger, k8sClient kubernetes.Interface, apiClient api.API, legacyClient client.Client, providerMetrics metrics.ProviderMetrics) (cloudprovider.LoadBalancer, error) {
 	m := mgr{
 		api:          apiClient,
 		legacyClient: legacyClient,
 		k8s:          k8sClient,
 		logger:       logger,
 		sync:         &sync.Mutex{},
+		metrics:      providerMetrics,
 	}
 
 	m.clusterName = config.ClusterName
@@ -304,6 +308,7 @@ func (m mgr) reconciliationForService(ctx context.Context, clusterName string, s
 			externalAddresses,
 			ports,
 			servers,
+			m.metrics,
 		)
 		if err != nil {
 			return nil, nil, err
