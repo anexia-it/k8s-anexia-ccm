@@ -44,51 +44,62 @@ type ProviderMetrics struct {
 }
 
 func setReconcileMetrics(providerMetrics *ProviderMetrics) {
+	constLabels := prometheus.Labels{"service": "lbass"}
+
 	providerMetrics.ReconciliationTotalDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Name:    getFQMetricName("reconcile_total_duration_seconds"),
-		Help:    "Histogram of times spent for one total reconciliation",
-		Buckets: prometheus.ExponentialBuckets(2, 2, 10),
+		Name:        getFQMetricName("reconcile_total_duration_seconds"),
+		Help:        "Histogram of times spent for one total reconciliation",
+		ConstLabels: constLabels,
+		Buckets:     prometheus.ExponentialBuckets(2, 2, 10),
 	})
 
 	providerMetrics.ReconciliationCreateErrorsTotal = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: getFQMetricName("reconcile_create_errors_total"),
-		Help: "Counter of errors while creating resources in a reconciliation",
+		Name:        getFQMetricName("reconcile_create_errors_total"),
+		Help:        "Counter of errors while creating resources in a reconciliation",
+		ConstLabels: constLabels,
 	})
 
 	providerMetrics.ReconciliationDeleteRetriesTotal = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: getFQMetricName("reconcile_delete_retries_total"),
-		Help: "Counter of retries while deleting resources in a reconciliation",
+		Name:        getFQMetricName("reconcile_delete_retries_total"),
+		Help:        "Counter of retries while deleting resources in a reconciliation",
+		ConstLabels: constLabels,
 	})
 
 	providerMetrics.ReconciliationDeleteErrorsTotal = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: getFQMetricName("reconcile_delete_errors_total"),
-		Help: "Counter of errors while deleting resources in a reconciliation",
+		Name:        getFQMetricName("reconcile_delete_errors_total"),
+		Help:        "Counter of errors while deleting resources in a reconciliation",
+		ConstLabels: constLabels,
 	})
 
 	providerMetrics.ReconciliationCreatedTotal = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: getFQMetricName("reconcile_created_total"),
-		Help: "Counter of total created resources",
+		Name:        getFQMetricName("reconcile_created_total"),
+		Help:        "Counter of total created resources",
+		ConstLabels: constLabels,
 	})
 
 	providerMetrics.ReconciliationDeletedTotal = prometheus.NewCounter(prometheus.CounterOpts{
-		Name: getFQMetricName("reconcile_deleted_total"),
-		Help: "Counter of total deleted resources",
+		Name:        getFQMetricName("reconcile_deleted_total"),
+		Help:        "Counter of total deleted resources",
+		ConstLabels: constLabels,
 	})
 
 	providerMetrics.ReconciliationCreateResources = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Name:    getFQMetricName("reconcile_create_resources_duration_seconds"),
-		Help:    "Histogram of times spent waiting for resources to become ready after creation",
-		Buckets: k8smetrics.ExponentialBuckets(2, 2, 10),
+		Name:        getFQMetricName("reconcile_create_resources_duration_seconds"),
+		Help:        "Histogram of times spent waiting for resources to become ready after creation",
+		ConstLabels: constLabels,
+		Buckets:     k8smetrics.ExponentialBuckets(2, 2, 10),
 	})
 
 	providerMetrics.ReconciliationPendingResources = k8smetrics.NewGaugeVec(&k8smetrics.GaugeOpts{
-		Name: getFQMetricName("reconcile_resources_pending"),
-		Help: "Gauge of pending creation or deletion operations of resources",
+		Name:        getFQMetricName("reconcile_resources_pending"),
+		Help:        "Gauge of pending creation or deletion operations of resources",
+		ConstLabels: constLabels,
 	}, []string{"operation"})
 
 	providerMetrics.ReconciliationRetrievedResourcesTotal = k8smetrics.NewCounterVec(&k8smetrics.CounterOpts{
-		Name: getFQMetricName("reconcile_retrieved_resources_total"),
-		Help: "Counter of total numbers of resources retrieved grouped by type",
+		Name:        getFQMetricName("reconcile_retrieved_resources_total"),
+		Help:        "Counter of total numbers of resources retrieved grouped by type",
+		ConstLabels: constLabels,
 	}, []string{"type"})
 }
 
