@@ -16,9 +16,9 @@ const FeatureDisabled = 0
 const fqCollectorName = "cloud_provider_anexia"
 
 var (
-	constLabels = map[string]string{
-		"collector": "anexia-provider-collector",
-	}
+	constLabels          = prometheus.Labels{"collector": "anexia-provider-collector"}
+	constLabelsReconcile = prometheus.Labels{"service": "lbass"}
+
 	descProviderBuild = prometheus.NewDesc(getFQMetricName("provider_build"),
 		"information about the build version of a specific provider", []string{"name", "version"}, constLabels)
 
@@ -43,63 +43,62 @@ type ProviderMetrics struct {
 	descriptions                          []*prometheus.Desc
 }
 
-func setReconcileMetrics(providerMetrics *ProviderMetrics) {
-	constLabels := prometheus.Labels{"service": "lbass"}
+func getCounterOpts(metricName string, helpMessage string) prometheus.CounterOpts {
+	return prometheus.CounterOpts{
+		Name:        getFQMetricName(metricName),
+		Help:        helpMessage,
+		ConstLabels: constLabelsReconcile,
+	}
+}
 
-	providerMetrics.ReconciliationTotalDuration = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Name:        getFQMetricName("reconcile_total_duration_seconds"),
-		Help:        "Histogram of times spent for one total reconciliation",
-		ConstLabels: constLabels,
+func getHistogramOpts(metricName string, helpMessage string) prometheus.HistogramOpts {
+	return prometheus.HistogramOpts{
+		Name:        getFQMetricName(metricName),
+		Help:        helpMessage,
+		ConstLabels: constLabelsReconcile,
 		Buckets:     prometheus.ExponentialBuckets(2, 2, 10),
-	})
+	}
+}
 
-	providerMetrics.ReconciliationCreateErrorsTotal = prometheus.NewCounter(prometheus.CounterOpts{
-		Name:        getFQMetricName("reconcile_create_errors_total"),
-		Help:        "Counter of errors while creating resources in a reconciliation",
-		ConstLabels: constLabels,
-	})
+func setReconcileMetrics(providerMetrics *ProviderMetrics) {
+	providerMetrics.ReconciliationTotalDuration = prometheus.NewHistogram(
+		getHistogramOpts("reconcile_total_duration_seconds", "Histogram of times spent for one total reconciliation"),
+	)
 
-	providerMetrics.ReconciliationDeleteRetriesTotal = prometheus.NewCounter(prometheus.CounterOpts{
-		Name:        getFQMetricName("reconcile_delete_retries_total"),
-		Help:        "Counter of retries while deleting resources in a reconciliation",
-		ConstLabels: constLabels,
-	})
+	providerMetrics.ReconciliationCreateErrorsTotal = prometheus.NewCounter(
+		getCounterOpts("reconcile_create_errors_total", "Counter of errors while creating resources in a reconciliation"),
+	)
 
-	providerMetrics.ReconciliationDeleteErrorsTotal = prometheus.NewCounter(prometheus.CounterOpts{
-		Name:        getFQMetricName("reconcile_delete_errors_total"),
-		Help:        "Counter of errors while deleting resources in a reconciliation",
-		ConstLabels: constLabels,
-	})
+	providerMetrics.ReconciliationDeleteRetriesTotal = prometheus.NewCounter(
+		getCounterOpts("reconcile_delete_retries_total", "Counter of retries while deleting resources in a reconciliation"),
+	)
 
-	providerMetrics.ReconciliationCreatedTotal = prometheus.NewCounter(prometheus.CounterOpts{
-		Name:        getFQMetricName("reconcile_created_total"),
-		Help:        "Counter of total created resources",
-		ConstLabels: constLabels,
-	})
+	providerMetrics.ReconciliationDeleteErrorsTotal = prometheus.NewCounter(
+		getCounterOpts("reconcile_delete_errors_total", "Counter of errors while deleting resources in a reconciliation"),
+	)
 
-	providerMetrics.ReconciliationDeletedTotal = prometheus.NewCounter(prometheus.CounterOpts{
-		Name:        getFQMetricName("reconcile_deleted_total"),
-		Help:        "Counter of total deleted resources",
-		ConstLabels: constLabels,
-	})
+	providerMetrics.ReconciliationCreatedTotal = prometheus.NewCounter(
+		getCounterOpts("reconcile_created_total", "Counter of total created resources"),
+	)
 
-	providerMetrics.ReconciliationCreateResources = prometheus.NewHistogram(prometheus.HistogramOpts{
-		Name:        getFQMetricName("reconcile_create_resources_duration_seconds"),
-		Help:        "Histogram of times spent waiting for resources to become ready after creation",
-		ConstLabels: constLabels,
-		Buckets:     k8smetrics.ExponentialBuckets(2, 2, 10),
-	})
+	providerMetrics.ReconciliationDeletedTotal = prometheus.NewCounter(
+		getCounterOpts("reconcile_deleted_total", "Counter of total deleted resources"),
+	)
+
+	providerMetrics.ReconciliationCreateResources = prometheus.NewHistogram(
+		getHistogramOpts("reconcile_create_resources_duration_seconds", "Histogram of times spent waiting for resources to become ready after creation"),
+	)
 
 	providerMetrics.ReconciliationPendingResources = k8smetrics.NewGaugeVec(&k8smetrics.GaugeOpts{
 		Name:        getFQMetricName("reconcile_resources_pending"),
 		Help:        "Gauge of pending creation or deletion operations of resources",
-		ConstLabels: constLabels,
+		ConstLabels: constLabelsReconcile,
 	}, []string{"operation"})
 
 	providerMetrics.ReconciliationRetrievedResourcesTotal = k8smetrics.NewCounterVec(&k8smetrics.CounterOpts{
 		Name:        getFQMetricName("reconcile_retrieved_resources_total"),
 		Help:        "Counter of total numbers of resources retrieved grouped by type",
-		ConstLabels: constLabels,
+		ConstLabels: constLabelsReconcile,
 	}, []string{"type"})
 }
 
