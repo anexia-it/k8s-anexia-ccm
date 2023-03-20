@@ -15,10 +15,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/rand"
 
 	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/metrics"
-	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/test"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/prometheus/client_golang/prometheus/testutil"
 	. "go.anx.io/go-anxcloud/pkg/api/mock/matcher"
 )
 
@@ -321,13 +319,6 @@ var _ = Describe("reconcile", func() {
 
 			Expect(err).NotTo(HaveOccurred())
 			Expect(time.Now()).To(BeTemporally("~", timeEnd, 1*time.Second))
-
-			Expect(testutil.CollectAndCount(recon.metrics.ReconciliationTotalDuration, "cloud_provider_anexia_reconcile_total_duration_seconds")).To(Equal(1))
-
-			sum := test.GetHistogramSum(recon.metrics.ReconciliationTotalDuration)
-			sumDuration := time.Duration(sum * float64(time.Second))
-
-			Expect(timeStart.Add(sumDuration)).To(BeTemporally("~", timeEnd, 1*time.Second))
 		})
 
 		It("accepts the existing resources as already correct", func() {
