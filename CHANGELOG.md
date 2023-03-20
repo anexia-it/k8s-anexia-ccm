@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Please add your changelog entry under this comment in the correct category (Security, Fixed, Added, Changed, Deprecated, Removed - in this order).
 -->
 
+### Changed
+
+* various development dependency updates
+  - Bump github.com/onsi/ginkgo/v2 from 2.1.3 to 2.8.4
+  - Bump github.com/golangci/golangci-lint from 1.45.2 to 1.51.2
+
 ## [1.5.2] - 2023-01-23
 
 ### Changed
