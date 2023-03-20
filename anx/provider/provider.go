@@ -169,6 +169,13 @@ func (a anxProvider) Config() *configuration.ProviderConfig {
 func (a *anxProvider) setupProviderMetrics() {
 	a.providerMetrics = metrics.NewProviderMetrics("anexia", Version)
 	legacyregistry.MustRegister(&a.providerMetrics)
+	legacyregistry.MustRegister(a.providerMetrics.ReconciliationTotalDuration)
+	legacyregistry.MustRegister(a.providerMetrics.ReconciliationCreateErrorsTotal)
+	legacyregistry.MustRegister(a.providerMetrics.ReconciliationDeleteRetriesTotal)
+	legacyregistry.MustRegister(a.providerMetrics.ReconciliationDeleteErrorsTotal)
+	legacyregistry.MustRegister(a.providerMetrics.ReconciliationCreatedTotal)
+	legacyregistry.MustRegister(a.providerMetrics.ReconciliationDeletedTotal)
+	legacyregistry.MustRegister(a.providerMetrics.ReconciliationCreateResources)
 	legacyregistry.MustRegister(a.providerMetrics.ReconciliationPendingResources)
 	legacyregistry.MustRegister(a.providerMetrics.ReconciliationRetrievedResourcesTotal)
 

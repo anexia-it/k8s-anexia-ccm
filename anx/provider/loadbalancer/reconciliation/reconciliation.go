@@ -217,8 +217,8 @@ func (r *reconciliation) Reconcile() error {
 			}
 		}
 
-		r.metrics.ReconciliationPendingResources.WithLabelValues("create").Add(float64(len(toCreate)))
-		r.metrics.ReconciliationPendingResources.WithLabelValues("destroy").Add(float64(len(toDestroy)))
+		r.metrics.ReconciliationPendingResources.WithLabelValues("lbaas", "create").Add(float64(len(toCreate)))
+		r.metrics.ReconciliationPendingResources.WithLabelValues("lbaas", "destroy").Add(float64(len(toDestroy)))
 
 		// if there is something to destroy: destroy it and start again from retrieving the state
 		// if there is nothing to destroy, but something to create: create it and start again from retrieving the state
@@ -245,15 +245,15 @@ func (r *reconciliation) Reconcile() error {
 							"object", mustStringifyObject(obj),
 						)
 
-						r.metrics.ReconciliationDeleteRetriesTotal.Inc()
+						r.metrics.ReconciliationDeleteRetriesTotal.WithLabelValues("lbaas").Inc()
 
 						newToDestroy = append(newToDestroy, obj)
 					} else {
 						// something was deleted successfully, allow retrying to delete other things in case it failed for conflicts
 						allowRetry = true
 
-						r.metrics.ReconciliationDeletedTotal.Inc()
-						r.metrics.ReconciliationPendingResources.WithLabelValues("destroy").Dec()
+						r.metrics.ReconciliationDeletedTotal.WithLabelValues("lbaas").Inc()
+						r.metrics.ReconciliationPendingResources.WithLabelValues("lbaas", "destroy").Dec()
 					}
 				}
 
@@ -265,7 +265,7 @@ func (r *reconciliation) Reconcile() error {
 					"objects", mustStringifyObjects(toDestroy),
 				)
 
-				r.metrics.ReconciliationDeleteErrorsTotal.Inc()
+				r.metrics.ReconciliationDeleteErrorsTotal.WithLabelValues("lbaas").Inc()
 
 				return ErrResourcesNotDestroyable
 			}
@@ -275,36 +275,36 @@ func (r *reconciliation) Reconcile() error {
 			for _, obj := range toCreate {
 				if err := r.api.Create(r.ctx, obj); err != nil {
 					// Ensure decrementing pending resources before returning to prevent leakage
-					r.metrics.ReconciliationPendingResources.WithLabelValues("create").Dec()
-					r.metrics.ReconciliationCreateErrorsTotal.Inc()
+					r.metrics.ReconciliationPendingResources.WithLabelValues("lbaas", "create").Dec()
+					r.metrics.ReconciliationCreateErrorsTotal.WithLabelValues("lbaas").Inc()
 					return fmt.Errorf("error creating LBaaS resource: %w", err)
 				}
 
 				if err := r.tagResource(obj); err != nil {
 					// Ensure decrementing pending resources before returning to prevent leakage
-					r.metrics.ReconciliationPendingResources.WithLabelValues("create").Dec()
-					r.metrics.ReconciliationCreateErrorsTotal.Inc()
+					r.metrics.ReconciliationPendingResources.WithLabelValues("lbaas", "create").Dec()
+					r.metrics.ReconciliationCreateErrorsTotal.WithLabelValues("lbaas").Inc()
 					return fmt.Errorf("error tagging LBaaS resource: %w", err)
 				}
 
-				r.metrics.ReconciliationPendingResources.WithLabelValues("create").Dec()
-				r.metrics.ReconciliationCreatedTotal.Inc()
+				r.metrics.ReconciliationPendingResources.WithLabelValues("lbaas", "create").Dec()
+				r.metrics.ReconciliationCreatedTotal.WithLabelValues("lbaas").Inc()
 			}
 			r.logger.Info("waiting for created resources to become ready", "objects", mustStringifyObjects(toCreate))
 
 			startTimeCreate := time.Now()
 			err := r.waitForResources(toCreate)
 			if err != nil && !errors.Is(err, ErrLBaaSResourceFailed) {
-				r.metrics.ReconciliationCreateErrorsTotal.Inc()
+				r.metrics.ReconciliationCreateErrorsTotal.WithLabelValues("lbaas").Inc()
 				return err
 			}
 
-			r.metrics.ReconciliationCreateResources.Observe(float64(time.Since(startTimeCreate).Seconds()))
+			r.metrics.ReconciliationCreateResources.WithLabelValues("lbaas").Observe(float64(time.Since(startTimeCreate).Seconds()))
 		} else {
 			completed = true
 		}
 
-		r.metrics.ReconciliationTotalDuration.Observe(float64(time.Since(startTimeTotal).Seconds()))
+		r.metrics.ReconciliationTotalDuration.WithLabelValues("lbaas").Observe(float64(time.Since(startTimeTotal).Seconds()))
 	}
 
 	return nil
@@ -542,10 +542,10 @@ func (r *reconciliation) retrieveResources() error {
 		"num-servers", len(r.servers),
 	)
 
-	r.metrics.ReconciliationRetrievedResourcesTotal.WithLabelValues("frontend").Add(float64(len(r.frontends)))
-	r.metrics.ReconciliationRetrievedResourcesTotal.WithLabelValues("bind").Add(float64(len(r.binds)))
-	r.metrics.ReconciliationRetrievedResourcesTotal.WithLabelValues("backend").Add(float64(len(r.backends)))
-	r.metrics.ReconciliationRetrievedResourcesTotal.WithLabelValues("server").Add(float64(len(r.servers)))
+	r.metrics.ReconciliationRetrievedResourcesTotal.WithLabelValues("lbaas", "frontend").Add(float64(len(r.frontends)))
+	r.metrics.ReconciliationRetrievedResourcesTotal.WithLabelValues("lbaas", "bind").Add(float64(len(r.binds)))
+	r.metrics.ReconciliationRetrievedResourcesTotal.WithLabelValues("lbaas", "backend").Add(float64(len(r.backends)))
+	r.metrics.ReconciliationRetrievedResourcesTotal.WithLabelValues("lbaas", "server").Add(float64(len(r.servers)))
 
 	return nil
 }
