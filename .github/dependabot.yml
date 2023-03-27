@@ -6,9 +6,20 @@ updates:
       interval: "daily"
     assignees:
     - LittleFox94
+    - marioreggiori
+    - eiabea
     ignore:
     # we update all of them via updating k8s.io/cloud-provider
     - dependency-name: k8s.io/api
     - dependency-name: k8s.io/apimachinery
     - dependency-name: k8s.io/client-go
     - dependency-name: k8s.io/component-base
+
+  - package-ecosystem: "gomod"
+    directory: "/hack"
+    schedule:
+      interval: "daily"
+    assignees:
+    - LittleFox94
+    - marioreggiori
+    - eiabea

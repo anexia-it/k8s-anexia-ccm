@@ -23,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Gauge
     - cloud_provider_anexia_reconcile_resources_pending
 
+### Changed
+
+- Upgrade github workflow actions
+
 
 <!--
 Please add your changelog entry under this comment in the correct category (Security, Fixed, Added, Changed, Deprecated, Removed - in this order).
