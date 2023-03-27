@@ -5,12 +5,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out code into the Go module directory
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
 
       - name: Set up Go
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
-         go-version: '1.19'
+          go-version: '1.19'
+          cache: true
 
       - name: check if go.mod and go.sum are tidy
         run: make depscheck
@@ -27,7 +28,7 @@ jobs:
   review-docker:
     runs-on: ubuntu-20.04
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - uses: reviewdog/action-hadolint@v1
         with:
           reporter: github-pr-review
