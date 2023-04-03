@@ -25,7 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Upgrade github workflow actions
+* Upgrade github workflow actions @eiabea (#181)
+* Update base image to Alpine v3.17.3 @LittleFox94 (#181)
 
 
 <!--
