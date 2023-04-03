@@ -10,10 +10,9 @@ jobs:
     steps:
       - uses: actions/checkout@v3
 
-      - uses: actions/setup-go@v3
+      - uses: actions/setup-go@v4
         with:
           go-version: '1.19'
-          cache: true
 
       - uses: paambaati/codeclimate-action@v3.2.0
         env:
