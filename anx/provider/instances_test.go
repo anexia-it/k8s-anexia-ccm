@@ -9,9 +9,11 @@ import (
 	"net/http"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/configuration"
 	tUtils "github.com/anexia-it/k8s-anexia-ccm/anx/provider/test"
+	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/utils"
 	"github.com/stretchr/testify/require"
 	"go.anx.io/go-anxcloud/pkg/client"
 	"go.anx.io/go-anxcloud/pkg/vsphere/info"
@@ -38,7 +40,7 @@ func TestFetchingID(t *testing.T) {
 				Identifier: nodeIdentifier,
 			}}, nil)
 
-		manager := instanceManager{provider}
+		manager := instanceManager{Provider: provider}
 
 		providerId, err := manager.InstanceIDByNode(ctx, &v1.Node{
 			ObjectMeta: metav1.ObjectMeta{
@@ -55,7 +57,7 @@ func TestFetchingID(t *testing.T) {
 		t.Parallel()
 		provider := tUtils.GetMockedAnxProvider()
 
-		manager := instanceManager{provider}
+		manager := instanceManager{Provider: provider}
 
 		nodeIdentifier := randomNodeIdentifier()
 		providerId, err := manager.InstanceIDByNode(ctx, &v1.Node{
@@ -85,7 +87,7 @@ func TestFetchingID(t *testing.T) {
 				Identifier: nodeIndentifier,
 			}}, nil)
 
-		manager := instanceManager{provider}
+		manager := instanceManager{Provider: provider}
 
 		providerId, err := manager.InstanceIDByNode(ctx, &v1.Node{
 			ObjectMeta: metav1.ObjectMeta{
@@ -136,7 +138,7 @@ func TestFetchingID(t *testing.T) {
 			},
 		}, nil)
 
-		manager := instanceManager{provider}
+		manager := instanceManager{Provider: provider}
 
 		identifier, err := manager.InstanceIDByNode(ctx, &v1.Node{
 			ObjectMeta: metav1.ObjectMeta{
@@ -193,7 +195,7 @@ func TestFetchingID(t *testing.T) {
 			},
 		}, nil)
 
-		manager := instanceManager{provider}
+		manager := instanceManager{Provider: provider}
 
 		_, err := manager.InstanceIDByNode(ctx, &v1.Node{
 			ObjectMeta: metav1.ObjectMeta{
@@ -222,7 +224,7 @@ func TestInstanceExists(t *testing.T) {
 		t.Parallel()
 		provider := tUtils.GetMockedAnxProvider()
 		provider.InfoMock.On("Get", ctx, identifier).Return(info.Info{}, nil)
-		manager := instanceManager{provider}
+		manager := instanceManager{Provider: provider}
 		exists, err := manager.InstanceExists(ctx, &node)
 
 		require.NoError(t, err)
@@ -237,7 +239,7 @@ func TestInstanceExists(t *testing.T) {
 				StatusCode: http.StatusNotFound,
 			},
 		})
-		manager := instanceManager{provider}
+		manager := instanceManager{Provider: provider}
 		exists, err := manager.InstanceExists(ctx, &node)
 
 		require.NoError(t, err)
@@ -249,11 +251,45 @@ func TestInstanceExists(t *testing.T) {
 		provider := tUtils.GetMockedAnxProvider()
 
 		provider.InfoMock.On("Get", ctx, identifier).Return(info.Info{}, errors.New("unknownError"))
-		manager := instanceManager{provider}
+		manager := instanceManager{Provider: provider}
 		exists, err := manager.InstanceExists(ctx, &node)
 
 		require.Error(t, err)
 		require.False(t, exists, "expected instance to exist")
+	})
+
+	t.Run("Unauthorized", func(t *testing.T) {
+		t.Parallel()
+		provider := tUtils.GetMockedAnxProvider()
+		provider.InfoMock.On("Get", ctx, identifier).Return(info.Info{}, &client.ResponseError{
+			Response: &http.Response{
+				StatusCode: http.StatusUnauthorized,
+			},
+		})
+		manager := instanceManager{Provider: provider}
+
+		// make request -> returns unauthorized
+		_, err := manager.InstanceExists(ctx, &node)
+		require.Error(t, err)
+		require.IsType(t, err, &client.ResponseError{})
+
+		// recent unauthorized request -> skip
+		_, err = manager.InstanceExists(ctx, &node)
+		require.Error(t, err)
+		require.ErrorIs(t, err, utils.ErrUnauthorizedForbiddenBackoff)
+
+		provider.InfoMock.AssertNumberOfCalls(t, "Get", 1)
+
+		manager.lastUnauthorizedOrForbiddenInstanceExistCall = time.Now().Add(-time.Minute)
+
+		// unauthorized request block passed -> returns unauthorized
+		_, err = manager.InstanceExists(ctx, &node)
+		require.Error(t, err)
+		require.IsType(t, err, &client.ResponseError{})
+
+		provider.InfoMock.AssertNumberOfCalls(t, "Get", 2)
+
+		manager.lastUnauthorizedOrForbiddenInstanceExistCall = time.Time{}
 	})
 }
 
@@ -274,7 +310,7 @@ func TestInstanceShutdown(t *testing.T) {
 
 		provider.PowerControlMock.On("Get", ctx, identifier).Return(powercontrol.OnState, nil)
 
-		manager := instanceManager{provider}
+		manager := instanceManager{Provider: provider}
 		isShutdown, err := manager.InstanceShutdown(ctx, &node)
 		require.NoError(t, err)
 		require.False(t, isShutdown)
@@ -290,7 +326,7 @@ func TestInstanceShutdown(t *testing.T) {
 
 		provider.PowerControlMock.On("Get", ctx, identifier).Return(powercontrol.OffState, nil)
 
-		manager := instanceManager{provider}
+		manager := instanceManager{Provider: provider}
 		isShutdown, err := manager.InstanceShutdown(ctx, &node)
 		require.NoError(t, err)
 		require.True(t, isShutdown)
@@ -306,7 +342,7 @@ func TestInstanceShutdown(t *testing.T) {
 
 		provider.PowerControlMock.On("Get", ctx, identifier).Return(powercontrol.State("NoExistentState"), nil)
 
-		manager := instanceManager{provider}
+		manager := instanceManager{Provider: provider}
 		_, err := manager.InstanceShutdown(ctx, &node)
 		require.Error(t, err)
 	})
@@ -366,7 +402,7 @@ func TestInstanceMetadata(t *testing.T) {
 				},
 			},
 		}, nil)
-		manager := instanceManager{provider}
+		manager := instanceManager{Provider: provider}
 
 		metadata, err := manager.InstanceMetadata(ctx, &node)
 		require.NoError(t, err)
@@ -395,7 +431,7 @@ func TestInstanceMetadata(t *testing.T) {
 				},
 			},
 		}, nil)
-		manager := instanceManager{provider}
+		manager := instanceManager{Provider: provider}
 
 		metadata, err := manager.InstanceMetadata(ctx, &node)
 		require.NoError(t, err)

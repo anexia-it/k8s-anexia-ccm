@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/configuration"
 	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/utils"
@@ -19,6 +20,8 @@ import (
 
 type instanceManager struct {
 	Provider
+
+	lastUnauthorizedOrForbiddenInstanceExistCall time.Time
 }
 
 var (
@@ -26,12 +29,11 @@ var (
 	errVirtualMachineNameNotUnique = errors.New("virtual machine name not unique")
 )
 
-func (i instanceManager) NodeAddressesByProviderID(ctx context.Context, providerID string) ([]v1.NodeAddress, error) {
+func (i *instanceManager) NodeAddressesByProviderID(ctx context.Context, providerID string) ([]v1.NodeAddress, error) {
 	if providerID == "" {
 		return nil, errors.New("empty providerId is not allowed")
 	}
 	info, err := i.VSphere().Info().Get(ctx, providerID)
-	utils.PanicIfUnauthorized(err)
 	if err != nil {
 		return nil, fmt.Errorf("could not get vm infoMock: %w", err)
 	}
@@ -56,19 +58,29 @@ func (i instanceManager) NodeAddressesByProviderID(ctx context.Context, provider
 	return nodeAddresses, nil
 }
 
-func (i instanceManager) InstanceExists(ctx context.Context, node *v1.Node) (bool, error) {
+func (i *instanceManager) handleUnauthorizedForbidden(err error) {
+	if utils.IsUnauthorizedOrForbiddenError(err) {
+		i.lastUnauthorizedOrForbiddenInstanceExistCall = time.Now()
+	}
+}
+
+func (i *instanceManager) InstanceExists(ctx context.Context, node *v1.Node) (bool, error) {
+	if i.lastUnauthorizedOrForbiddenInstanceExistCall.Add(time.Minute).After(time.Now()) {
+		return false, utils.ErrUnauthorizedForbiddenBackoff
+	}
+
 	providerID, err := i.InstanceIDByNode(ctx, node)
-	utils.PanicIfUnauthorized(err)
 	if err != nil {
+		i.handleUnauthorizedForbidden(err)
 		return false, err
 	}
 
 	_, err = i.VSphere().Info().Get(ctx, providerID)
-	utils.PanicIfUnauthorized(err)
-
 	if err == nil {
 		return true, nil
 	}
+
+	i.handleUnauthorizedForbidden(err)
 
 	if utils.IsNotFoundError(err) {
 		return false, nil
@@ -77,9 +89,8 @@ func (i instanceManager) InstanceExists(ctx context.Context, node *v1.Node) (boo
 	return false, err
 }
 
-func (i instanceManager) InstanceShutdown(ctx context.Context, node *v1.Node) (bool, error) {
+func (i *instanceManager) InstanceShutdown(ctx context.Context, node *v1.Node) (bool, error) {
 	providerID, err := i.InstanceIDByNode(ctx, node)
-	utils.PanicIfUnauthorized(err)
 	if err != nil {
 		return false, err
 	}
@@ -99,9 +110,8 @@ func (i instanceManager) InstanceShutdown(ctx context.Context, node *v1.Node) (b
 	}
 }
 
-func (i instanceManager) InstanceMetadata(ctx context.Context, node *v1.Node) (*cloudprovider.InstanceMetadata, error) {
+func (i *instanceManager) InstanceMetadata(ctx context.Context, node *v1.Node) (*cloudprovider.InstanceMetadata, error) {
 	providerID, err := i.InstanceIDByNode(ctx, node)
-	utils.PanicIfUnauthorized(err)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +138,7 @@ func (i instanceManager) InstanceMetadata(ctx context.Context, node *v1.Node) (*
 // try to fetch the correct instance by name, first by using the configured prefix (or a
 // wildcard when not configured) and, when none found this way, tries the name as-is without
 // any prefix
-func (i instanceManager) instancesByName(ctx context.Context, name string) ([]string, error) {
+func (i *instanceManager) instancesByName(ctx context.Context, name string) ([]string, error) {
 	logger := logr.FromContextOrDiscard(ctx).WithValues("nodeName", name)
 
 	namePrefix := i.Config().CustomerID
@@ -140,7 +150,6 @@ func (i instanceManager) instancesByName(ctx context.Context, name string) ([]st
 	}
 
 	vms, err := i.VSphere().Search().ByName(ctx, fmt.Sprintf("%s-%s", namePrefix, name))
-	utils.PanicIfUnauthorized(err)
 
 	if err == nil && len(vms) == 0 {
 		logger.V(1).Info("Didn't find any VM by name with prefix, retrying without prefix", "prefix", namePrefix)
@@ -159,7 +168,7 @@ func (i instanceManager) instancesByName(ctx context.Context, name string) ([]st
 	return ret, nil
 }
 
-func (i instanceManager) filterInstances(ctx context.Context, node *v1.Node, vms []string) []string {
+func (i *instanceManager) filterInstances(ctx context.Context, node *v1.Node, vms []string) []string {
 	logger := logr.FromContextOrDiscard(ctx).WithValues("nodeName", node.Name)
 
 	nodeIPs := nodeInternalIPs(node)
@@ -185,7 +194,7 @@ func (i instanceManager) filterInstances(ctx context.Context, node *v1.Node, vms
 	return filtered
 }
 
-func (i instanceManager) InstanceIDByNode(ctx context.Context, node *v1.Node) (string, error) {
+func (i *instanceManager) InstanceIDByNode(ctx context.Context, node *v1.Node) (string, error) {
 	if node.Spec.ProviderID != "" {
 		return strings.TrimPrefix(node.Spec.ProviderID, configuration.CloudProviderScheme), nil
 	}
