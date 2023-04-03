@@ -22,21 +22,29 @@ func IsNotFoundError(err error) bool {
 	return false
 }
 
-// PanicIfUnauthorized panics if the provided error is due to `http.StatusUnauthorized`.
-// Use this helper to slow down Engine requests by triggering a CrashLoopBackoff.
+// IsUnauthorizedOrForbiddenError returns true for Unauthorized or Forbidden http errors
+// otherwise it returns false
 // NOTE: This helper only works for errors returned by go-anxcloud.
-func PanicIfUnauthorized(err error) {
+func IsUnauthorizedOrForbiddenError(err error) bool {
 	if err == nil {
-		return
+		return false
 	}
 
 	var (
 		genericAPIClientError api.HTTPError
 		legacyAPIClientError  *client.ResponseError
+		statusCode            int
 	)
 
-	if (errors.As(err, &genericAPIClientError) && genericAPIClientError.StatusCode() == http.StatusUnauthorized) ||
-		(errors.As(err, &legacyAPIClientError) && legacyAPIClientError.Response.StatusCode == http.StatusUnauthorized) {
-		panic("Engine responded with http.StatusUnauthorized. Please check the configured API token.")
+	if errors.As(err, &genericAPIClientError) {
+		statusCode = genericAPIClientError.StatusCode()
+	} else if errors.As(err, &legacyAPIClientError) {
+		statusCode = legacyAPIClientError.Response.StatusCode
 	}
+
+	return statusCode == http.StatusUnauthorized ||
+		statusCode == http.StatusForbidden
 }
+
+// ErrUnauthorizedForbiddenBackoff is returned if an operation is blocked due to a recent unauthorized or forbidden request
+var ErrUnauthorizedForbiddenBackoff = errors.New("operation currently blocked due to client side unauthorized/forbidden request limiting")

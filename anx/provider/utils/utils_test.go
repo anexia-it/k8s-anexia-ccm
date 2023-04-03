@@ -16,13 +16,11 @@ func TestUtils(t *testing.T) {
 	RunSpecs(t, "Utility functions")
 }
 
-var _ = Describe("PanicIfUnauthorized", func() {
-	DescribeTable("Engine Errors", func(err error, expected types.GomegaMatcher) {
-		Ω(func() { PanicIfUnauthorized(err) }).Should(expected)
-	},
-		Entry("legacy API unauthorized error should panic", &client.ResponseError{Response: &http.Response{StatusCode: http.StatusUnauthorized}}, PanicWith(MatchRegexp("Engine responded with http.StatusUnauthorized."))),
-		Entry("legacy API other error should not panic", &client.ResponseError{Response: &http.Response{StatusCode: http.StatusNotFound}}, Not(Panic())),
-		Entry("generic API unauthorized error should panic", api.NewHTTPError(http.StatusUnauthorized, "FOO", nil, nil), PanicWith(MatchRegexp("Engine responded with http.StatusUnauthorized."))),
-		Entry("generic API other error should not panic", api.NewHTTPError(http.StatusNotFound, "FOO", nil, nil), Not(Panic())),
-	)
-})
+var _ = DescribeTable("IsUnauthorizedOrForbiddenError", func(err error, expected types.GomegaMatcher) {
+	Expect(IsUnauthorizedOrForbiddenError(err)).To(expected)
+},
+	Entry("legacy API unauthorized error", &client.ResponseError{Response: &http.Response{StatusCode: http.StatusUnauthorized}}, BeTrue()),
+	Entry("legacy API other error", &client.ResponseError{Response: &http.Response{StatusCode: http.StatusNotFound}}, BeFalse()),
+	Entry("generic API unauthorized error", api.NewHTTPError(http.StatusUnauthorized, "FOO", nil, nil), BeTrue()),
+	Entry("generic API other error", api.NewHTTPError(http.StatusNotFound, "FOO", nil, nil), BeFalse()),
+)

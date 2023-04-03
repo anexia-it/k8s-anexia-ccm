@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+* instances: debounce instead of panic if unauthorized/forbidden @marioreggiori (#184)
+
 ### Added
 
 * Reconcile metrics

@@ -49,8 +49,8 @@ var _ = Describe("Initialization", func() {
 		Expect(loadbalancerEnabled).To(BeTrue())
 
 		Expect(configuration.CloudProviderName).To(Equal(providerName))
-		Expect(instanceManager{}).To(BeAssignableToTypeOf(instancesV2))
-		manager := instancesV2.(instanceManager)
+		Expect(&instanceManager{}).To(BeAssignableToTypeOf(instancesV2))
+		manager := instancesV2.(*instanceManager)
 		Expect(provider).To(Equal(manager.Provider))
 	})
 
