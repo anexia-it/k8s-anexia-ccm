@@ -7,13 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Fixed
+<!--
+Please add your changelog entry under this comment in the correct category (Security, Fixed, Added, Changed, Deprecated, Removed - in this order).
+-->
 
+## [1.5.3] - 2023-04-04
+
+### Fixed
 * instances: debounce instead of panic if unauthorized/forbidden @marioreggiori (#184)
 
 ### Added
-
-* Reconcile metrics
+* Reconcile metrics @eiabea (#167)
   - Histograms
     - cloud_provider_anexia_reconcile_total_duration_seconds
     - cloud_provider_anexia_reconcile_create_resources_duration_seconds
@@ -28,17 +32,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - cloud_provider_anexia_reconcile_resources_pending
 
 ### Changed
-
 * Upgrade github workflow actions @eiabea (#181)
 * Update base image to Alpine v3.17.3 @LittleFox94 (#181)
-
-
-<!--
-Please add your changelog entry under this comment in the correct category (Security, Fixed, Added, Changed, Deprecated, Removed - in this order).
--->
-
-### Changed
-
 * various development dependency updates
   - Bump github.com/onsi/ginkgo/v2 from 2.1.3 to 2.8.4
   - Bump github.com/golangci/golangci-lint from 1.45.2 to 1.51.2
