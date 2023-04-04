@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"net"
 	"strings"
 	"sync"
@@ -85,6 +84,8 @@ type reconciliation struct {
 	portFrontends   map[string]*lbaasv1.Frontend
 	publicAddresses []string
 
+	backoffSteps int
+
 	metrics metrics.ProviderMetrics
 }
 
@@ -117,6 +118,8 @@ func New(
 	ports map[string]Port,
 	servers []Server,
 
+	backoffSteps int,
+
 	metrics metrics.ProviderMetrics,
 ) (Reconciliation, error) {
 	tags := []string{
@@ -134,6 +137,8 @@ func New(
 		externalAddresses: externalAddresses,
 		ports:             ports,
 		targetServers:     servers,
+
+		backoffSteps: backoffSteps,
 
 		metrics: metrics,
 	}
@@ -361,7 +366,7 @@ func (r *reconciliation) waitForResources(toCreate []types.Object) error {
 			Duration: 1 * time.Second,
 			Factor:   1.5,
 			Jitter:   1.5,
-			Steps:    math.MaxInt,
+			Steps:    r.backoffSteps,
 			Cap:      5 * time.Minute,
 		},
 		func() (done bool, err error) {

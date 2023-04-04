@@ -39,6 +39,8 @@ type mgr struct {
 	loadBalancers []string
 	sync          *sync.Mutex
 
+	backoffSteps int
+
 	metrics metrics.ProviderMetrics
 }
 
@@ -70,6 +72,7 @@ func New(config *configuration.ProviderConfig, logger logr.Logger, k8sClient kub
 		logger:       logger,
 		sync:         &sync.Mutex{},
 		metrics:      providerMetrics,
+		backoffSteps: config.LoadBalancerBackoffSteps,
 	}
 
 	m.clusterName = config.ClusterName
@@ -308,6 +311,9 @@ func (m mgr) reconciliationForService(ctx context.Context, clusterName string, s
 			externalAddresses,
 			ports,
 			servers,
+
+			m.backoffSteps,
+
 			m.metrics,
 		)
 		if err != nil {

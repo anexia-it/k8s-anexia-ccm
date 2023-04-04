@@ -13,6 +13,7 @@ import (
 	lbaasv1 "go.anx.io/go-anxcloud/pkg/apis/lbaas/v1"
 
 	"k8s.io/apimachinery/pkg/util/rand"
+	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/metrics"
 	. "github.com/onsi/ginkgo/v2"
@@ -78,7 +79,7 @@ var _ = Describe("reconcile", func() {
 
 		metrics := metrics.NewProviderMetrics("anexia", "0.0.0-unit-tests")
 
-		r, err := New(ctx, apiClient, testClusterName, testLoadBalancerIdentifier, svcUID, externalAddresses, ports, servers, metrics)
+		r, err := New(ctx, apiClient, testClusterName, testLoadBalancerIdentifier, svcUID, externalAddresses, ports, servers, 10, metrics)
 		Expect(err).NotTo(HaveOccurred())
 
 		recon = r.(*reconciliation)
@@ -282,6 +283,22 @@ var _ = Describe("reconcile", func() {
 			Expect(recon.binds).To(HaveLen(4))
 			Expect(recon.backends).To(HaveLen(2))
 			Expect(recon.servers).To(HaveLen(1))
+		})
+
+		It("should fail to wait for the resources to get ready due to low backoff steps", func() {
+			ctx := context.TODO()
+
+			metrics := metrics.NewProviderMetrics("anexia", "0.0.0-unit-tests")
+
+			// Override reconciliation with only 1 backoff step
+			r, err := New(ctx, apiClient, testClusterName, testLoadBalancerIdentifier, svcUID, externalAddresses, ports, servers, 1, metrics)
+			Expect(err).NotTo(HaveOccurred())
+
+			recon = r.(*reconciliation)
+
+			err = recon.Reconcile()
+
+			Expect(err).To(MatchError(wait.ErrWaitTimeout))
 		})
 
 		It("waits for the resources to get ready", func() {

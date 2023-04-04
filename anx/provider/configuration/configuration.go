@@ -26,6 +26,9 @@ type ProviderConfig struct {
 
 	// lists the identifiers of prefixes from which external IPs for LoadBalancer Services can be allocated
 	LoadBalancerPrefixIdentifiers []string `yaml:"loadBalancerPrefixIdentifiers,omitempty" split_words:"true"`
+
+	// defines the number of retries to wait for LoadBalancer resources to be ready
+	LoadBalancerBackoffSteps int `yaml:"loadBalancerBackoffSteps" default:"30"`
 }
 
 const (
