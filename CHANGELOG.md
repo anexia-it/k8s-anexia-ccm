@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Please add your changelog entry under this comment in the correct category (Security, Fixed, Added, Changed, Deprecated, Removed - in this order).
 -->
 
+### Fixed
+* Fix deprecation warning for set-output in internal docker-scan job
+
 ## [1.5.3] - 2023-04-04
 
 ### Fixed
