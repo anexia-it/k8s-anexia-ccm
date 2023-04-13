@@ -1,6 +1,6 @@
 module github.com/anexia-it/k8s-anexia-ccm
 
-go 1.18
+go 1.20
 
 require (
 	github.com/blang/semver/v4 v4.0.0
