@@ -1,6 +1,6 @@
 module github.com/anexia-it/k8s-anexia-ccm/hack
 
-go 1.18
+go 1.20
 
 require (
 	github.com/client9/misspell v0.3.4

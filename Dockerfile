@@ -1,4 +1,4 @@
-FROM golang:1.19 as builder
+FROM golang:1.20 as builder
 ARG version="v0.0.0-unreleased"
 WORKDIR /go/src/github.com/github.com/anexia-it/k8s-anexia-ccm
 COPY go.sum go.mod ./

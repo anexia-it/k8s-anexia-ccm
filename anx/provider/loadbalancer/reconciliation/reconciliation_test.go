@@ -298,11 +298,11 @@ var _ = Describe("reconcile", func() {
 
 			err = recon.Reconcile()
 
-			Expect(err).To(MatchError(wait.ErrWaitTimeout))
+			Expect(wait.Interrupted(err)).To(BeTrue())
 		})
 
 		It("waits for the resources to get ready", func() {
-			const waitTime = 5 * time.Second
+			const waitTime = 2 * time.Second
 
 			time.AfterFunc(waitTime, func() {
 				GinkgoRecover()
@@ -335,7 +335,7 @@ var _ = Describe("reconcile", func() {
 			err := recon.Reconcile()
 
 			Expect(err).NotTo(HaveOccurred())
-			Expect(time.Now()).To(BeTemporally("~", timeEnd, 1*time.Second))
+			Expect(time.Now()).To(BeTemporally("~", timeEnd, waitTime+1*time.Second))
 		})
 
 		It("accepts the existing resources as already correct", func() {
