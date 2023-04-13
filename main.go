@@ -20,6 +20,7 @@ import (
 	cloudcontrollerconfig "k8s.io/cloud-provider/app/config"
 	cliflag "k8s.io/component-base/cli/flag"
 	"k8s.io/component-base/logs"
+	_ "k8s.io/component-base/logs/json/register"          // register optional JSON log format
 	_ "k8s.io/component-base/metrics/prometheus/clientgo" // load all the prometheus client-go plugins
 	_ "k8s.io/component-base/metrics/prometheus/version"  // for version metric registration
 	"k8s.io/klog/v2"
