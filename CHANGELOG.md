@@ -19,8 +19,9 @@ Please add your changelog entry under this comment in the correct category (Secu
 
 ### Changes
 * upgrade to Go 1.20 @eiabea (#189)
-* dependency update
+* various dependency updates
   - Bump k8s.io/cloud-provider from 0.26.3 to 0.27.0 @dependabot (#189)
+  - Bump github.com/prometheus/client_golang from 1.14.0 to 1.15.0. @dependabot (#190)
 
 ## [1.5.3] - 2023-04-04
 
