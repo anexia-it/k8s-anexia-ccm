@@ -14,6 +14,9 @@ Please add your changelog entry under this comment in the correct category (Secu
 ### Fixed
 * Fix deprecation warning for set-output in internal docker-scan job
 
+### Added
+* Configuration entry `loadBalancerBackoffSteps` to specify number of retries to wait for loadbalancer resources
+
 ## [1.5.3] - 2023-04-04
 
 ### Fixed
