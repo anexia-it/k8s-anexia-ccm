@@ -302,7 +302,7 @@ var _ = Describe("reconcile", func() {
 		})
 
 		It("waits for the resources to get ready", func() {
-			const waitTime = 2 * time.Second
+			const waitTime = 4 * time.Second
 
 			time.AfterFunc(waitTime, func() {
 				GinkgoRecover()
