@@ -11,11 +11,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Please add your changelog entry under this comment in the correct category (Security, Fixed, Added, Changed, Deprecated, Removed - in this order).
 -->
 
+## [1.5.4] - 2023-05-02
+
 ### Fixed
 * Fix deprecation warning for set-output in internal docker-scan job
 
 ### Added
 * Register optional json log format @eiabea (#189)
+* Configuration entry `loadBalancerBackoffSteps` to specify number of retries to wait for loadbalancer resources @eiabea (#187)
 
 ### Changes
 * upgrade to Go 1.20 @eiabea (#189)
