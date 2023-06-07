@@ -12,7 +12,7 @@ EXPOSE 8080
 # Hadolint wants us to pin apk packages to specific versions, mostly to make sure sudden incompatible changes
 # don't get released - for ca-certificates this only gives us the downside of randomly failing docker builds
 # hadolint ignore=DL3018
-RUN apk --no-cache add ca-certificates
+RUN apk --no-cache add ca-certificates libcrypto3>=3.1.1-r0
 
 WORKDIR /app/
 COPY --from=builder /go/src/github.com/github.com/anexia-it/k8s-anexia-ccm/ccm .
