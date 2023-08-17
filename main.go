@@ -18,6 +18,7 @@ import (
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/cloud-provider/app"
 	cloudcontrollerconfig "k8s.io/cloud-provider/app/config"
+	"k8s.io/cloud-provider/names"
 	cliflag "k8s.io/component-base/cli/flag"
 	"k8s.io/component-base/logs"
 	_ "k8s.io/component-base/logs/json/register"          // register optional JSON log format
@@ -45,8 +46,14 @@ func main() {
 	controllerInitializers := app.DefaultInitFuncConstructors
 
 	fss := cliflag.NamedFlagSets{}
-	command := app.NewCloudControllerManagerCommand(ccmOptions, cloudInitializer, controllerInitializers,
-		fss, wait.NeverStop)
+	command := app.NewCloudControllerManagerCommand(
+		ccmOptions,
+		cloudInitializer,
+		controllerInitializers,
+		names.CCMControllerAliases(),
+		fss,
+		wait.NeverStop,
+	)
 
 	logs.InitLogs()
 	defer logs.FlushLogs()
