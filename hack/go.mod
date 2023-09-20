@@ -5,7 +5,6 @@ go 1.20
 require (
 	github.com/client9/misspell v0.3.4
 	github.com/golangci/golangci-lint v1.54.2
-	github.com/onsi/ginkgo/v2 v2.12.0
 )
 
 require (
@@ -49,7 +48,6 @@ require (
 	github.com/fsnotify/fsnotify v1.5.4 // indirect
 	github.com/fzipp/gocyclo v0.6.0 // indirect
 	github.com/go-critic/go-critic v0.9.0 // indirect
-	github.com/go-task/slim-sprig v0.0.0-20230315185526-52ccab3ef572 // indirect
 	github.com/go-toolsmith/astcast v1.1.0 // indirect
 	github.com/go-toolsmith/astcopy v1.1.0 // indirect
 	github.com/go-toolsmith/astequal v1.1.0 // indirect

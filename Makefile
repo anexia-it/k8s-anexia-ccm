@@ -1,12 +1,12 @@
 k8s-anexia-ccm:
 	go build
 
-test: hack
-	hack/ginkgo run -p              \
-	    -timeout 0                  \
-	    -race                       \
-	    -coverprofile coverage.out  \
-	    --keep-going                \
+test:
+	go run github.com/onsi/ginkgo/v2/ginkgo -p 	\
+	    -timeout 0                  			\
+	    -race                       			\
+	    -coverprofile coverage.out  			\
+	    --keep-going                			\
 	    ./anx/...
 	go tool cover -html=coverage.out -o coverage.html
 
@@ -19,7 +19,6 @@ debug:
 hack:
 	cd hack && go build -o . github.com/client9/misspell/cmd/misspell
 	cd hack && go build -o . github.com/golangci/golangci-lint/cmd/golangci-lint
-	cd hack && go build -o . github.com/onsi/ginkgo/v2/ginkgo
 
 docs:
 	+make -C docs html
