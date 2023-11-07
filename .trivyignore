@@ -1,1 +1,4 @@
-
+# fixed in k8s 1.29.0-alpha.3 with this change:
+# https://github.com/kubernetes/kubernetes/commit/702d911e22604aa69b42f77804c27caaab7e4def#diff-d77fd5c2608c149855c7e0097ede2760f459a58e2310c1199aecfff1a3f97e9aR29
+# Accepting the risk for our CCM, remove this after upgrading to k8s 1.29+
+CVE-2023-45142
