@@ -9,7 +9,6 @@ import (
 	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/configuration"
 	"github.com/go-logr/logr"
 	"k8s.io/component-base/config"
-	"k8s.io/klog/v2/klogr"
 
 	"github.com/spf13/pflag"
 
@@ -57,7 +56,7 @@ func main() {
 
 	logs.InitLogs()
 	defer logs.FlushLogs()
-	cmdContext := logr.NewContext(context.Background(), klogr.New())
+	cmdContext := logr.NewContext(context.Background(), klog.NewKlogr())
 	if err := command.ExecuteContext(cmdContext); err != nil {
 		os.Exit(1)
 	}
