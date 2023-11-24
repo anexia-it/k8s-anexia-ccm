@@ -19,7 +19,6 @@ import (
 
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog/v2"
-	"k8s.io/klog/v2/klogr"
 )
 
 const (
@@ -57,7 +56,7 @@ func newAnxProvider(config configuration.ProviderConfig) (*anxProvider, error) {
 		return nil, err
 	}
 
-	logger := klogr.NewWithOptions()
+	logger := klog.NewKlogr()
 
 	legacyClient, err := client.New(client.TokenFromString(config.Token))
 	if err != nil {

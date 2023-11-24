@@ -9,7 +9,7 @@ import (
 	. "github.com/onsi/gomega"
 	"go.anx.io/go-anxcloud/pkg/api"
 	"go.anx.io/go-anxcloud/pkg/client"
-	"k8s.io/klog/v2/klogr"
+	"k8s.io/klog/v2"
 )
 
 var _ = Describe("Initialization", func() {
@@ -19,7 +19,7 @@ var _ = Describe("Initialization", func() {
 			CustomerID: "CUSTOMER",
 		}
 
-		logger := klogr.NewWithOptions()
+		logger := klog.NewKlogr()
 
 		legacyClient, _ := client.New(client.TokenFromString(config.Token))
 
