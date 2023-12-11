@@ -1,4 +1,4 @@
-FROM golang:1.20 as builder
+FROM golang:1.21 as builder
 ARG version="v0.0.0-unreleased"
 WORKDIR /go/src/github.com/github.com/anexia-it/k8s-anexia-ccm
 COPY go.sum go.mod ./
@@ -6,7 +6,7 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 go build -o ccm -ldflags "-s -w -X github.com/anexia-it/k8s-anexia-ccm/anx/provider.Version=$version"
 
-FROM alpine:3.18.4
+FROM alpine:3.19.0
 EXPOSE 8080
 
 # Hadolint wants us to pin apk packages to specific versions, mostly to make sure sudden incompatible changes

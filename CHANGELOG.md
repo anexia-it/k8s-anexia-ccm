@@ -13,6 +13,7 @@ Please add your changelog entry under this comment in the correct category (Secu
 
 ### Changes
 * Update base image to Alpine v3.18.2 @eiabea (#218)
+* Update base image to Alpine v3.19.0 @anx-mschaefer (#256)
 
 ## [1.5.4] - 2023-05-02
 
