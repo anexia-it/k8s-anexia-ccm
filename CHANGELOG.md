@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Please add your changelog entry under this comment in the correct category (Security, Fixed, Added, Changed, Deprecated, Removed - in this order).
 -->
 
+### Fixed
+* Fix leaky `cloud_provider_anexia_reconcile_resources_pending` metric @anx-mschaefer (#255)
+
 ### Changes
 * Update base image to Alpine v3.18.2 @eiabea (#218)
 * Update base image to Alpine v3.19.0 @anx-mschaefer (#256)

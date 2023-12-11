@@ -222,9 +222,6 @@ func (r *reconciliation) Reconcile() error {
 			}
 		}
 
-		r.metrics.ReconciliationPendingResources.WithLabelValues("lbaas", "create").Add(float64(len(toCreate)))
-		r.metrics.ReconciliationPendingResources.WithLabelValues("lbaas", "destroy").Add(float64(len(toDestroy)))
-
 		// if there is something to destroy: destroy it and start again from retrieving the state
 		// if there is nothing to destroy, but something to create: create it and start again from retrieving the state
 		// if there is nothing to destroy or create: we are finished
@@ -235,6 +232,7 @@ func (r *reconciliation) Reconcile() error {
 		// after there is nothing left to destroy.
 
 		if len(toDestroy) > 0 {
+			r.metrics.ReconciliationPendingResources.WithLabelValues("lbaas", "destroy").Add(float64(len(toDestroy)))
 			r.logger.V(1).Info("destroying resources", "objects", mustStringifyObjects(toDestroy))
 
 			allowRetry := true
@@ -275,6 +273,7 @@ func (r *reconciliation) Reconcile() error {
 				return ErrResourcesNotDestroyable
 			}
 		} else if len(toCreate) > 0 {
+			r.metrics.ReconciliationPendingResources.WithLabelValues("lbaas", "create").Add(float64(len(toCreate)))
 			r.logger.V(1).Info("creating resources", "count", len(toCreate))
 
 			for _, obj := range toCreate {
