@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,7 +19,9 @@ import (
 	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/metrics"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	. "go.anx.io/go-anxcloud/pkg/api/mock/matcher"
+	kubemetrics "k8s.io/component-base/metrics"
 )
 
 const (
@@ -37,8 +40,16 @@ var _ = Describe("reconcile", func() {
 	var ports map[string]Port
 	var servers []Server
 
+	var providerMetrics metrics.ProviderMetrics
+	var kubeRegistry kubemetrics.KubeRegistry
+
 	BeforeEach(func() {
-		apiClient = mock.NewMockAPI()
+		apiClient = mock.NewMockAPI(mock.WithPreCreateHook(func(ctx context.Context, a mock.API, o types.IdentifiedObject) {
+			if server, ok := o.(*lbaasv1.Server); ok {
+				server.State.Type = gs.StateTypeOK
+			}
+		}))
+
 		apiClient.FakeExisting(&lbaasv1.LoadBalancer{
 			Identifier: testLoadBalancerIdentifier,
 		})
@@ -77,9 +88,11 @@ var _ = Describe("reconcile", func() {
 	JustBeforeEach(func() {
 		ctx := context.TODO()
 
-		metrics := metrics.NewProviderMetrics("anexia", "0.0.0-unit-tests")
+		providerMetrics = metrics.NewProviderMetrics("anexia", "0.0.0-unit-tests")
+		kubeRegistry = kubemetrics.NewKubeRegistry()
+		kubeRegistry.MustRegister(providerMetrics.ReconciliationPendingResources)
 
-		r, err := New(ctx, apiClient, testClusterName, testLoadBalancerIdentifier, svcUID, externalAddresses, ports, servers, 10, metrics)
+		r, err := New(ctx, apiClient, testClusterName, testLoadBalancerIdentifier, svcUID, externalAddresses, ports, servers, 10, providerMetrics)
 		Expect(err).NotTo(HaveOccurred())
 
 		recon = r.(*reconciliation)
@@ -539,6 +552,33 @@ var _ = Describe("reconcile", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(toCreate).To(HaveLen(0))
 			Expect(toDestroy).To(HaveLen(0))
+		})
+
+		Context("destroy and create a server in a single Reconcile call", func() {
+			BeforeEach(func() {
+				servers = []Server{
+					{
+						Name:    "test-server-01",
+						Address: net.ParseIP("10.244.0.4"),
+					},
+					{
+						Name:    "test-server-03",
+						Address: net.ParseIP("8.8.4.4"),
+					},
+				}
+			})
+
+			It("sets the `cloud_provider_anexia_reconcile_resources_pending` back to 0 after successful reconciliation", func() {
+				err := recon.Reconcile()
+				Expect(err).NotTo(HaveOccurred())
+				err = testutil.GatherAndCompare(kubeRegistry, strings.NewReader(`
+				# HELP cloud_provider_anexia_reconcile_resources_pending [ALPHA] Gauge of pending creation or deletion operations of resources
+				# TYPE cloud_provider_anexia_reconcile_resources_pending gauge
+				cloud_provider_anexia_reconcile_resources_pending{operation="create",service="lbaas"} 0
+				cloud_provider_anexia_reconcile_resources_pending{operation="destroy",service="lbaas"} 0
+				`), "cloud_provider_anexia_reconcile_resources_pending")
+				Expect(err).ToNot(HaveOccurred())
+			})
 		})
 
 		Context("deleting the service", func() {
