@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	v1 "k8s.io/api/core/v1"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	"go.anx.io/go-anxcloud/pkg/api"
 	"go.anx.io/go-anxcloud/pkg/api/mock"
@@ -63,7 +63,7 @@ var _ = Describe("prefix", func() {
 				}
 
 				if withTaggedAddress {
-					p, err = newPrefix(context.TODO(), a, ipamClient, identifier, pointer.String("clustername"))
+					p, err = newPrefix(context.TODO(), a, ipamClient, identifier, ptr.To("clustername"))
 				} else {
 					p, err = newPrefix(context.TODO(), a, ipamClient, identifier, nil)
 				}
@@ -109,7 +109,7 @@ var _ = Describe("prefix", func() {
 			It("retrieves the prefix and address", func() {
 				prefixClient.EXPECT().Get(gomock.Any(), identifier).Return(anxprefix.Info{Name: expectedPrefix}, nil)
 
-				p, err = newPrefix(context.TODO(), a, ipamClient, identifier, pointer.String("clustername"))
+				p, err = newPrefix(context.TODO(), a, ipamClient, identifier, ptr.To("clustername"))
 
 				Expect(err).NotTo(HaveOccurred())
 
