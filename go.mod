@@ -1,6 +1,8 @@
 module github.com/anexia-it/k8s-anexia-ccm
 
-go 1.20
+go 1.21
+
+toolchain go1.21.1
 
 require (
 	github.com/blang/semver/v4 v4.0.0
