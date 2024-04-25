@@ -15,7 +15,7 @@ Please add your changelog entry under this comment in the correct category (Secu
 * omit disk_type from InstanceType if not set @anx-mschaefer (#292)
 
 ### Changes
-* upgrade to Go 1.21 @anx-mschaefer (#269)
+* upgrade to Go 1.22 @anx-mschaefer (#292)
 
 ## [1.5.5] - 2023-12-13
 
