@@ -370,6 +370,43 @@ func TestInstanceTypeFromInfo(t *testing.T) {
 		require.Equal(t, "C5-M4-ENT7", instanceTypeStr)
 	})
 
+	t.Run("WithDiskInfo but performance type missing for largest disk", func(t *testing.T) {
+		t.Parallel()
+		instanceTypeStr := instanceType(info.Info{
+			RAM: 4096,
+			CPU: 5,
+			DiskInfo: []info.DiskInfo{
+				{
+					DiskType: "ENT6",
+					DiskGB:   5,
+				},
+				{
+					DiskGB: 100,
+				},
+			},
+		})
+
+		require.Equal(t, "C5-M4-ENT6", instanceTypeStr)
+	})
+
+	t.Run("WithDiskInfo but performance type missing", func(t *testing.T) {
+		t.Parallel()
+		instanceTypeStr := instanceType(info.Info{
+			RAM: 4096,
+			CPU: 5,
+			DiskInfo: []info.DiskInfo{
+				{
+					DiskGB: 5,
+				},
+				{
+					DiskGB: 100,
+				},
+			},
+		})
+
+		require.Equal(t, "C5-M4", instanceTypeStr)
+	})
+
 	t.Run("NoDiskInfo", func(t *testing.T) {
 		t.Parallel()
 		instanceTypeStr := instanceType(info.Info{

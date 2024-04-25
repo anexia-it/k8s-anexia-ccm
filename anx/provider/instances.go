@@ -229,7 +229,9 @@ func instanceType(info vminfo.Info) string {
 	ram := info.RAM / 1024
 	var largestDisk *vminfo.DiskInfo
 	for _, diskInfo := range info.DiskInfo {
-		if largestDisk == nil || largestDisk.DiskGB < diskInfo.DiskGB {
+		// skip if DiskType is zero-val as this will result in a trailing `-`
+		// which is not allowed for `metadata.labels` values
+		if diskInfo.DiskType != "" && (largestDisk == nil || largestDisk.DiskGB < diskInfo.DiskGB) {
 			largestDisk = &diskInfo
 		}
 	}
