@@ -3,23 +3,33 @@ updates:
   - package-ecosystem: "gomod"
     directory: "/"
     schedule:
-      interval: "daily"
-    assignees:
-    - LittleFox94
-    - marioreggiori
-    - eiabea
+      interval: "weekly"
     ignore:
-    # we update all of them via updating k8s.io/cloud-provider
-    - dependency-name: k8s.io/api
-    - dependency-name: k8s.io/apimachinery
-    - dependency-name: k8s.io/client-go
-    - dependency-name: k8s.io/component-base
+      # we update all of them via updating k8s.io/cloud-provider
+      - dependency-name: k8s.io/api
+      - dependency-name: k8s.io/apimachinery
+      - dependency-name: k8s.io/client-go
+      - dependency-name: k8s.io/component-base
+    reviewers:
+      - 'anexia/system-engineering'
 
   - package-ecosystem: "gomod"
     directory: "/hack"
     schedule:
-      interval: "daily"
-    assignees:
-    - LittleFox94
-    - marioreggiori
-    - eiabea
+      interval: "weekly"
+    reviewers:
+      - 'anexia/system-engineering'
+
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    reviewers:
+      - 'anexia/system-engineering'
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    reviewers:
+      - 'anexia/system-engineering'
