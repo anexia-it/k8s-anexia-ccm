@@ -105,7 +105,7 @@ jobs:
       - name: build docs
         run:  make versioned-docs
 
-      - uses: actions/upload-pages-artifact@v1
+      - uses: actions/upload-pages-artifact@v3
         with:
           path: docs/build/html
           name: github-pages
