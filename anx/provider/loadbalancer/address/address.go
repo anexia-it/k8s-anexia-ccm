@@ -119,7 +119,7 @@ func (m *mgr) AllocateAddresses(ctx context.Context, svc *v1.Service) ([]string,
 		if !ok {
 			m.logger.V(1).Info("No addresses for IP family allocated yet", "family", fam)
 
-			addr, err := m.allocateAddress(ctx, svc, fam)
+			addr, err := m.allocateAddress(ctx, fam)
 			if err != nil {
 				return nil, fmt.Errorf("error allocating address for family %q: %w", fam, err)
 			}
@@ -146,7 +146,7 @@ func (m *mgr) prefixes(ctx context.Context) ([]*prefix, error) {
 
 	ret := make([]*prefix, 0)
 
-	if m.fixedPrefixes != nil && len(m.fixedPrefixes) > 0 {
+	if len(m.fixedPrefixes) > 0 {
 		ret = append(ret, m.fixedPrefixes...)
 	}
 
@@ -185,7 +185,7 @@ func (m *mgr) prefixes(ctx context.Context) ([]*prefix, error) {
 	return ret, nil
 }
 
-func (m *mgr) allocateAddress(ctx context.Context, svc *v1.Service, fam v1.IPFamily) (net.IP, error) {
+func (m *mgr) allocateAddress(ctx context.Context, fam v1.IPFamily) (net.IP, error) {
 	log := logr.FromContextOrDiscard(ctx)
 
 	prefixes, err := m.prefixes(ctx)
@@ -244,7 +244,7 @@ func serviceAddressFamilies(svc *v1.Service) ([]v1.IPFamily, error) {
 func serviceAddresses(svc *v1.Service) []string {
 	status := svc.Status.LoadBalancer
 
-	if status.Ingress == nil || len(status.Ingress) == 0 {
+	if len(status.Ingress) == 0 {
 		return []string{}
 	}
 
