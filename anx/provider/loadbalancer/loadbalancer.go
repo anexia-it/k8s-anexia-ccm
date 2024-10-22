@@ -179,7 +179,7 @@ func (m *mgr) configureLoadBalancers(ctx context.Context, config *configuration.
 		m.loadBalancers = []string{config.LoadBalancerIdentifier}
 	}
 
-	if m.loadBalancers == nil || len(m.loadBalancers) == 0 {
+	if len(m.loadBalancers) == 0 {
 		return ErrNoLoadBalancers
 	}
 
