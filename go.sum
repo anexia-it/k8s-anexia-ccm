@@ -182,8 +182,8 @@ github.com/xiang90/probing v0.0.0-20190116061207-43a291ad63a2/go.mod h1:UETIi67q
 github.com/yuin/goldmark v1.1.27/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.2.1/go.mod h1:3hX8gzYuyVAZsxl0MRgGTJEmQBFcNTphYh9decYSb74=
 github.com/yuin/goldmark v1.3.5/go.mod h1:mwnBkeHKe2W/ZEtQ+71ViKU8L12m81fl3OWwC1Zlc8k=
-go.anx.io/go-anxcloud v0.7.5 h1:FpvaXEXWWp9JS8+wyBggN83h1k9m8KFx9EdYpAdzrNI=
-go.anx.io/go-anxcloud v0.7.5/go.mod h1:4OObxqH+9mkf4i4C6VG7u6HCG4qTiMNsj+2kNP60WcE=
+go.anx.io/go-anxcloud v0.7.6 h1:n1dbOtKx85Qpcw6wWrLeLST01zsmwmPyRR3IoyC9QGg=
+go.anx.io/go-anxcloud v0.7.6/go.mod h1:4OObxqH+9mkf4i4C6VG7u6HCG4qTiMNsj+2kNP60WcE=
 go.etcd.io/bbolt v1.3.9 h1:8x7aARPEXiXbHmtUwAIv7eV2fQFHrLLavdiJ3uzJXoI=
 go.etcd.io/bbolt v1.3.9/go.mod h1:zaO32+Ti0PK1ivdPtgMESzuzL2VPoIG1PCQNvOdo/dE=
 go.etcd.io/etcd/api/v3 v3.5.14 h1:vHObSCxyB9zlF60w7qzAdTcGaglbJOpSj1Xj9+WGxq0=
