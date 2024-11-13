@@ -65,6 +65,7 @@ func newPrefix(ctx context.Context, apiclient api.API, ipamClient ipam.API, iden
 	return &ret, nil
 }
 
+// this function is now the fallback if the VIP wasn't tagged...
 func (p prefix) allocateAddress(ctx context.Context, fam v1.IPFamily) (net.IP, error) {
 	if fam != p.family {
 		return nil, errFamilyMismatch

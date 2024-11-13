@@ -187,7 +187,8 @@ func (m *mgr) prefixes(ctx context.Context) ([]*prefix, error) {
 
 func (m *mgr) allocateAddress(ctx context.Context, fam v1.IPFamily) (net.IP, error) {
 	log := logr.FromContextOrDiscard(ctx)
-
+	// We declare the VIP var here as it is used 2 times to reduce the return statements by one so code climate is happy
+	var vip net.IP
 	prefixes, err := m.prefixes(ctx)
 	if err != nil {
 		return nil, err
@@ -196,12 +197,22 @@ func (m *mgr) allocateAddress(ctx context.Context, fam v1.IPFamily) (net.IP, err
 	// for every prefix, try to allocate an address from it, returning the first that works
 	for _, p := range prefixes {
 		if p.family == fam {
-			ip, err := p.allocateAddress(ctx, fam)
+			// Set the err to nil just in case...
+			err = nil
+			// this is a bit hacky but we're using the function to discover the VIP if it is tagged and exists otherwise we just use the first IP.
+			// this should work just fine..TM....
+			vip, err = p.discoverVIP(ctx, m.api, m.ipam, fmt.Sprintf("kubernetes-lb-vip-%s", *m.autoDiscoveryName))
 			if err != nil {
-				return nil, err
+				// Set the err to nil just in case...
+				err = nil
+				m.logger.Error(err, "failed to auto discover vip, likely not tagged, using first IP in prefix", "identifier", p.identifier)
+				vip, err = p.allocateAddress(ctx, fam)
+				if err != nil {
+					return nil, err
+				}
 			}
-
-			return ip, nil
+			// return the vip here, might actually the vip or just the first IP, we can't know at this point.
+			return vip, nil
 		}
 	}
 

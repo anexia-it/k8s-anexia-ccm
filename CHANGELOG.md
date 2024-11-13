@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Please add your changelog entry under this comment in the correct category (Security, Fixed, Added, Changed, Deprecated, Removed - in this order).
 -->
 
+### Fixed
+* Fix not attempting to discover the VIP when using autodiscovery(when no prefixes are statically configure) @89q12 (#354)
+
 ## [1.5.6] - 2024-04-25
 
 ### Fixed
