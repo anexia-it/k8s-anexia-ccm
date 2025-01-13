@@ -54,6 +54,15 @@ Like most cloud providers, we allow configuring some features via annotations on
    If this annotation is not set, ``.spec.ipFamilies`` of the service is used instead, meaning a service internally
    being dual-stack is dual-stack externally, too.
 
+#. ``lbaas.anx.io/load-balancer-proxy-pass-hostname: <RFC 1123-valid hostname>``
+
+   Allows to set the hostname for a given service instead of its IP addresses.
+   This is necessary in order to support the PROXY protocol, which otherwise
+   would be broken due to hairpinning of kube-proxy.
+
+   It can be set to any hostname that is valid according to `RFC 1123 <https://www.rfc-editor.org/rfc/rfc1123>`_.
+
+
 
 Load Balancer Discovery
 -----------------------

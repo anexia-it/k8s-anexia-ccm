@@ -11,6 +11,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Please add your changelog entry under this comment in the correct category (Security, Fixed, Added, Changed, Deprecated, Removed - in this order).
 -->
 
+## Added
+
+* Add support for setting the hostname on services (#355, @nachtjasmin)
+
+  This is one of the changes that's required to support the PROXY protocol.
+  It is now possible to set the hostname on services via the `lbaas.anx.io/
+  load-balancer-proxy-pass-hostname` annotation. Unfortunately, proper support
+  for the PROXY protocol inside the cluster still requires operators to create
+  a support ticket, so that we (the Anexia support) can properly set the feature
+  flag in the background.
+
+  We're working hard to remove the need for this manual intervention.
+
 ### Fixed
 
 * golang/x/net: update to 0.33.0 due to CVE-2024-45338 (#372, @drpsychick)

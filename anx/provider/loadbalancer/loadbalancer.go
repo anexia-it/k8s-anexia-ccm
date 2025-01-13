@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
 	"strings"
 	"sync"
 
@@ -56,6 +57,14 @@ var (
 
 	// ErrSingleVIPConflict is returned when asked to provision a LoadBalancer service while another already uses the single load balancer IP usable for Anexia Kubernetes Service beta.
 	ErrSingleVIPConflict = errors.New("only a single LoadBalancer can be used in Anexia Kubernetes Service beta, but found another service using the external IP already")
+
+	// If this annotation is set, it is used instead of the external IP(s). This must be a valid hostname, otherwise it will cause issues.
+	// This is to prevent hair-pinning by Kubernetes, when accessing internal services via their external URL.
+	//
+	// Said workaround can likely be deprecated with Kubernetes 1.32 and [KEP #1860].
+	//
+	// [KEP #1860]: https://github.com/kubernetes/enhancements/issues/1860
+	AKEAnnotationHostname = "lbaas.anx.io/load-balancer-proxy-pass-hostname"
 )
 
 // New creates a new LoadBalancer manager for the given Anexia generic client, cluster name and identifier of the
@@ -108,7 +117,7 @@ func (m mgr) GetLoadBalancer(ctx context.Context, clusterName string, service *v
 		return nil, false, err
 	}
 
-	status := lbStatusFromReconcileStatus(reconStatus)
+	status := lbStatusFromReconcileStatus(reconStatus, service)
 
 	created := true
 	for _, ea := range externalAddresses {
@@ -153,7 +162,7 @@ func (m mgr) EnsureLoadBalancer(ctx context.Context, clusterName string, service
 		return nil, err
 	}
 
-	return m.reconciliationStatus(recon)
+	return m.reconciliationStatus(recon, service)
 }
 
 func (m mgr) UpdateLoadBalancer(ctx context.Context, clusterName string, service *v1.Service, nodes []*v1.Node) error {
@@ -219,7 +228,7 @@ func (m mgr) prepare(ctx context.Context, clusterName string, svc *v1.Service) (
 	return logr.NewContext(ctx, logger), m.clusterName
 }
 
-func (m mgr) reconciliationStatus(recon reconciliation.Reconciliation) (*v1.LoadBalancerStatus, error) {
+func (m mgr) reconciliationStatus(recon reconciliation.Reconciliation, service *v1.Service) (*v1.LoadBalancerStatus, error) {
 	status, err := recon.Status()
 	if err != nil {
 		return nil, err
@@ -227,7 +236,7 @@ func (m mgr) reconciliationStatus(recon reconciliation.Reconciliation) (*v1.Load
 
 	m.logger.V(2).Info("Reconcilation completed", "recon-status", status)
 
-	return lbStatusFromReconcileStatus(status), nil
+	return lbStatusFromReconcileStatus(status, service), nil
 }
 
 func (m mgr) reconciliationForService(ctx context.Context, clusterName string, svc *v1.Service, nodes []*v1.Node) (reconciliation.Reconciliation, []net.IP, error) {
@@ -364,29 +373,58 @@ func (m mgr) checkIPCollision(ctx context.Context, ip net.IP, svc *v1.Service) e
 	return nil
 }
 
-func lbStatusFromReconcileStatus(reconStatus map[string][]uint16) *v1.LoadBalancerStatus {
-	ret := v1.LoadBalancerStatus{
-		Ingress: make([]v1.LoadBalancerIngress, 0, len(reconStatus)),
+// lbStatusFromReconcileStatus crafts a [v1.LoadBalancerStatus] out of the given service and status mapping.
+// [ipPortMap] is a map that maps from each IP address to the given ports.
+//
+// Right now, only TCP ports are supported and are therefore hardcoded.
+func lbStatusFromReconcileStatus(ipPortMap map[string][]uint16, service *v1.Service) *v1.LoadBalancerStatus {
+	// First, we're constructing a slice of unique portNumbers.
+	// This is intentionally a int32 slice to avoid the casting at a later point.
+	var portNumbers []int32
+	for _, ipPorts := range ipPortMap {
+		for _, p := range ipPorts {
+			portNumbers = append(portNumbers, int32(p))
+		}
 	}
 
-	for externalIP := range reconStatus {
-		portStatus := reconStatus[externalIP]
-		ports := make([]v1.PortStatus, 0, len(portStatus))
+	// After we constructed our slice of port numbers, we remove any duplicate elements from it.
+	slices.Sort(portNumbers)                  // sort the slice, so that compact finds duplicates
+	portNumbers = slices.Compact(portNumbers) // remove any duplicates
 
-		for _, port := range portStatus {
-			ports = append(ports, v1.PortStatus{
-				Port:     int32(port),
-				Protocol: v1.ProtocolTCP,
-			})
+	// To make use of the port numbers, we have to build a slice out of it
+	// that is compatible with our status.
+	var ports []v1.PortStatus
+	for _, p := range portNumbers {
+		// Since slices.Compact fills duplicates with the zero value, we skip them.
+		if p == 0 {
+			continue
 		}
 
-		ret.Ingress = append(ret.Ingress, v1.LoadBalancerIngress{
+		ports = append(ports, v1.PortStatus{
+			Port:     p,
+			Protocol: v1.ProtocolTCP,
+		})
+	}
+
+	// For the case that the annotation was set, we short-circuit and return the one ingress immediately.
+	// This is important, because otherwise we could return the same hostname multiple times for a dual-stack service.
+	if hostname := strings.ToLower(service.Annotations[AKEAnnotationHostname]); hostname != "" {
+		return &v1.LoadBalancerStatus{Ingress: []v1.LoadBalancerIngress{{
+			Hostname: hostname,
+			Ports:    ports,
+		}}}
+	}
+
+	// Otherwise, we construct a IP -> port mapping for each individiual IP.
+	var ingresses []v1.LoadBalancerIngress
+	for externalIP := range ipPortMap {
+		ingresses = append(ingresses, v1.LoadBalancerIngress{
 			IP:    externalIP,
 			Ports: ports,
 		})
 	}
 
-	return &ret
+	return &v1.LoadBalancerStatus{Ingress: ingresses}
 }
 
 func getNodeEndpointAddress(n *v1.Node) (net.IP, error) {
