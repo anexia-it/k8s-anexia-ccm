@@ -7,3 +7,4 @@ k8s-anexia-ccm
 _anxkube-dev
 coverage.out
 coverage.html
+__debug*
