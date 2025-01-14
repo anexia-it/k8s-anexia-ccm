@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Please add your changelog entry under this comment in the correct category (Security, Fixed, Added, Changed, Deprecated, Removed - in this order).
 -->
 
+## [1.5.7] - 2025-01-14
+
 ## Added
 
 * Add support for setting the hostname on services (#355, @nachtjasmin)
