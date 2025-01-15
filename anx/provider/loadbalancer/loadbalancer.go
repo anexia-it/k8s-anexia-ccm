@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"slices"
 	"strings"
 	"sync"
 
@@ -378,49 +377,24 @@ func (m mgr) checkIPCollision(ctx context.Context, ip net.IP, svc *v1.Service) e
 //
 // Right now, only TCP ports are supported and are therefore hardcoded.
 func lbStatusFromReconcileStatus(ipPortMap map[string][]uint16, service *v1.Service) *v1.LoadBalancerStatus {
-	// First, we're constructing a slice of unique portNumbers.
-	// This is intentionally a int32 slice to avoid the casting at a later point.
-	var portNumbers []int32
-	for _, ipPorts := range ipPortMap {
-		for _, p := range ipPorts {
-			portNumbers = append(portNumbers, int32(p))
-		}
-	}
-
-	// After we constructed our slice of port numbers, we remove any duplicate elements from it.
-	slices.Sort(portNumbers)                  // sort the slice, so that compact finds duplicates
-	portNumbers = slices.Compact(portNumbers) // remove any duplicates
-
-	// To make use of the port numbers, we have to build a slice out of it
-	// that is compatible with our status.
-	var ports []v1.PortStatus
-	for _, p := range portNumbers {
-		// Since slices.Compact fills duplicates with the zero value, we skip them.
-		if p == 0 {
-			continue
-		}
-
-		ports = append(ports, v1.PortStatus{
-			Port:     p,
-			Protocol: v1.ProtocolTCP,
-		})
-	}
-
-	// For the case that the annotation was set, we short-circuit and return the one ingress immediately.
-	// This is important, because otherwise we could return the same hostname multiple times for a dual-stack service.
-	if hostname := strings.ToLower(service.Annotations[AKEAnnotationHostname]); hostname != "" {
-		return &v1.LoadBalancerStatus{Ingress: []v1.LoadBalancerIngress{{
-			Hostname: hostname,
-			Ports:    ports,
-		}}}
-	}
-
-	// Otherwise, we construct a IP -> port mapping for each individiual IP.
 	var ingresses []v1.LoadBalancerIngress
-	for externalIP := range ipPortMap {
+
+	for externalIP, portNumbers := range ipPortMap {
+		var ports []v1.PortStatus
+		for _, p := range portNumbers {
+			ports = append(ports, v1.PortStatus{
+				Port:     int32(p),
+				Protocol: v1.ProtocolTCP,
+			})
+		}
+
 		ingresses = append(ingresses, v1.LoadBalancerIngress{
-			IP:    externalIP,
-			Ports: ports,
+			IP: externalIP,
+
+			// Luckily for us, the value of the annotation is not important. It is just important
+			// that there's any value set so that the hair-pinning by kube-proxy is disabled.
+			Hostname: strings.ToLower(service.Annotations[AKEAnnotationHostname]),
+			Ports:    ports,
 		})
 	}
 
