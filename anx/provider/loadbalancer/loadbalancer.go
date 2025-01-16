@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/go-logr/logr"
 
@@ -17,6 +18,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	cloudprovider "k8s.io/cloud-provider"
+	cloudproviderapi "k8s.io/cloud-provider/api"
 
 	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/configuration"
 	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/loadbalancer/address"
@@ -99,6 +101,18 @@ func New(config *configuration.ProviderConfig, logger logr.Logger, k8sClient kub
 	return &m, nil
 }
 
+// handleRateLimitError is converting a rate limit error returned by the Anexia Engine into
+// an [cloudproviderapi.RetryError]. This is only effective in the [EnsureLoadBalancer]
+// method, where the rate limiting was most noticeable.
+func handleRateLimitError(err error) error {
+	var rateLimitErr api.RateLimitError
+	if errors.As(err, &rateLimitErr) {
+		return cloudproviderapi.NewRetryError("rate limiting by engine", time.Until(rateLimitErr.RetryAfter))
+	}
+
+	return err
+}
+
 func (m mgr) GetLoadBalancerName(ctx context.Context, clusterName string, service *v1.Service) string {
 	_, clusterName = m.prepare(ctx, clusterName, service)
 	return strings.Join([]string{service.Name, service.Namespace, clusterName}, ".")
@@ -155,14 +169,19 @@ func (m mgr) EnsureLoadBalancer(ctx context.Context, clusterName string, service
 
 	recon, _, err := m.reconciliationForService(ctx, clusterName, service, nodes)
 	if err != nil {
-		return nil, err
+		return nil, handleRateLimitError(err)
 	}
 
 	if err := recon.Reconcile(); err != nil {
-		return nil, err
+		return nil, handleRateLimitError(err)
 	}
 
-	return m.reconciliationStatus(recon, service)
+	status, err := m.reconciliationStatus(recon, service)
+	if err != nil {
+		return nil, handleRateLimitError(err)
+	}
+
+	return status, nil
 }
 
 func (m mgr) UpdateLoadBalancer(ctx context.Context, clusterName string, service *v1.Service, nodes []*v1.Node) error {

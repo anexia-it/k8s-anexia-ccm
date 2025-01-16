@@ -237,27 +237,38 @@ func (r *reconciliation) Reconcile() error {
 
 			allowRetry := true
 
+		outer:
 			for len(toDestroy) > 0 && allowRetry {
 				allowRetry = false
 
 				newToDestroy := make([]types.Object, 0, len(toDestroy))
 
 				for _, obj := range toDestroy {
-					if err := r.api.Destroy(r.ctx, obj); api.IgnoreNotFound(err) != nil {
+					err := r.api.Destroy(r.ctx, obj)
+					err = api.IgnoreNotFound(err) // We deliberately want to ignore not found errors, as they indicate success.
+
+					if err != nil {
+						newToDestroy = append(newToDestroy, obj)
+						r.metrics.ReconciliationDeleteRetriesTotal.WithLabelValues("lbaas").Inc()
+
+						if api.IsRateLimitError(err) {
+							r.logger.Error(err, "aborting reconciliation, waiting for rate-limit to be released")
+							// If we run into a rate-limiting error, abort immediately.
+							break outer
+						}
+
 						r.logger.Info("Destroying LBaaS resource failed, marking for retry and continuing",
 							"object", mustStringifyObject(obj),
 						)
-
-						r.metrics.ReconciliationDeleteRetriesTotal.WithLabelValues("lbaas").Inc()
-
-						newToDestroy = append(newToDestroy, obj)
-					} else {
-						// something was deleted successfully, allow retrying to delete other things in case it failed for conflicts
-						allowRetry = true
-
-						r.metrics.ReconciliationDeletedTotal.WithLabelValues("lbaas").Inc()
-						r.metrics.ReconciliationPendingResources.WithLabelValues("lbaas", "destroy").Dec()
 					}
+
+					// The loadbalancer got already deleted, we're successful with this one!
+					//
+					// Allow retry to delete other things, in case they failed previously.
+					allowRetry = true
+
+					r.metrics.ReconciliationDeletedTotal.WithLabelValues("lbaas").Inc()
+					r.metrics.ReconciliationPendingResources.WithLabelValues("lbaas", "destroy").Dec()
 				}
 
 				toDestroy = newToDestroy
