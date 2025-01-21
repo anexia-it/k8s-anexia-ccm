@@ -412,6 +412,14 @@ func lbStatusFromReconcileStatus(ipPortMap map[string][]uint16, service *v1.Serv
 		return &v1.LoadBalancerStatus{Ingress: []v1.LoadBalancerIngress{{
 			Hostname: hostname,
 			Ports:    ports,
+
+			// Do not, under any circumstance, set the IP address here. Otherwise, Kubernetes is going to short-circuit
+			// all outgoing traffic to the service. As such, the modifications made by the external load balancer
+			// and therefore the PROXY protocol support is going to break *from within the cluster*.
+			//
+			// See also: https://github.com/kubernetes/kubernetes/issues/66607
+			//
+			// It is going to be fixed with Kubernetes 1.32: https://kubernetes.io/blog/2024/11/08/kubernetes-1-32-upcoming-changes/#make-kubernetes-aware-of-the-loadbalancer-behavior
 		}}}
 	}
 
