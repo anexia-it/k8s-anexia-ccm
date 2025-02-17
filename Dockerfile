@@ -6,7 +6,7 @@ RUN go mod download
 COPY . .
 RUN CGO_ENABLED=0 go build -o ccm -ldflags "-s -w -X github.com/anexia-it/k8s-anexia-ccm/anx/provider.Version=$version"
 
-FROM alpine:3.21.0
+FROM alpine:3.21.3
 EXPOSE 8080
 
 # Hadolint wants us to pin apk packages to specific versions, mostly to make sure sudden incompatible changes
