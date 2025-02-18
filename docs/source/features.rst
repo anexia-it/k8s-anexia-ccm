@@ -62,7 +62,41 @@ Like most cloud providers, we allow configuring some features via annotations on
 
    It can be set to any hostname that is valid according to `RFC 1123 <https://www.rfc-editor.org/rfc/rfc1123>`_.
 
+   The actual value for the hostname does not have an effect on the actual routing.
+   Technically, it just sets the `hostname` on the status of the service.
 
+   If you want to expose multiple ingresses, like `first.example.com` and `second.example.com`, you can do so without
+   any problems, independent of the value of the annotation.
+
+PROXY protocol support
+----------------------
+
+In order to enable PROXY protocol support, there are two things to be done:
+
+# Create a support ticket, so that we can enable it on our side. This has to be done manually for now.
+# Set the `lbaas.anx.io/load-balancer-proxy-pass-hostname` on the `Service` of type `LoadBalancer` to *any* hostname (see documentation above).
+
+Example: stefanprodan/podinfo together with nginx Ingress Controller
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The `stefanprodan/podinfo` provides an example workflow to test the ingress stack as intended.
+
+.. code-block::
+
+   # Install podinfo
+   kubectl apply -k github.com/stefanprodan/podinfo//kustomize
+
+   # Install nginx ingress controller
+   kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.12.0/deploy/static/provider/cloud/deploy.yaml
+
+   # Enable proxy protocol
+   kubectl patch -p '{"data":{"use-proxy-protocol":"true"}}' configmaps ingress-nginx-controller
+
+   # Annotate the ingress service with the hostname (replace test.anx.io with the actual hostname)
+   kubectl annotate service -n ingress-nginx ingress-nginx-controller lbaas.anx.io/load-balancer-proxy-pass-hostname=test.anx.io
+
+   # Expose the podinfo via a new Ingress resource
+   kubectl create ingress podinfo --class=nginx --rule="test.anx.io/*=podinfo:http"
 
 Load Balancer Discovery
 -----------------------
