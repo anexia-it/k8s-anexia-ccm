@@ -247,21 +247,10 @@ func (r *reconciliation) Reconcile() error {
 					err := r.api.Destroy(r.ctx, obj)
 					err = api.IgnoreNotFound(err) // We deliberately want to ignore not found errors, as they indicate success.
 
+					newToDestroy, err = handleDestroyError(err, newToDestroy, obj, r)
 					if err != nil {
-						newToDestroy = append(newToDestroy, obj)
-						r.metrics.ReconciliationDeleteRetriesTotal.WithLabelValues("lbaas").Inc()
-
-						if api.IsRateLimitError(err) {
-							r.logger.Error(err, "aborting reconciliation, waiting for rate-limit to be released")
-							// If we run into a rate-limiting error, abort immediately.
-							break outer
-						}
-
-						r.logger.Info("Destroying LBaaS resource failed, marking for retry and continuing",
-							"object", mustStringifyObject(obj),
-						)
+						break outer
 					}
-
 					// The loadbalancer got already deleted, we're successful with this one!
 					//
 					// Allow retry to delete other things, in case they failed previously.
@@ -323,6 +312,24 @@ func (r *reconciliation) Reconcile() error {
 	}
 
 	return nil
+}
+
+func handleDestroyError(err error, newToDestroy []types.Object, obj types.Object, r *reconciliation) ([]types.Object, error) {
+	if err != nil {
+		newToDestroy = append(newToDestroy, obj)
+		r.metrics.ReconciliationDeleteRetriesTotal.WithLabelValues("lbaas").Inc()
+
+		if api.IsRateLimitError(err) {
+			r.logger.Error(err, "aborting reconciliation, waiting for rate-limit to be released")
+			// If we run into a rate-limiting error, abort immediately.
+			return newToDestroy, err
+		}
+
+		r.logger.Info("Destroying LBaaS resource failed, marking for retry and continuing",
+			"object", mustStringifyObject(obj))
+
+	}
+	return newToDestroy, nil
 }
 
 var _engsup5902_mutex = sync.Mutex{}
