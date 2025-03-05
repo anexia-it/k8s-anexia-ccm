@@ -62,9 +62,10 @@ func newAnxProvider(config configuration.ProviderConfig) (*anxProvider, error) {
 
 	httpClient := http.Client{Timeout: 30 * time.Second}
 
+	providerMetrics := setupProviderMetrics()
 	legacyClient, err := client.New(
 		client.TokenFromString(config.Token),
-		client.WithMetricReceiver(metrics.MetricReceiver),
+		client.WithMetricReceiver(providerMetrics.MetricReceiver),
 		client.HTTPClient(&httpClient),
 	)
 	if err != nil {
@@ -74,7 +75,7 @@ func newAnxProvider(config configuration.ProviderConfig) (*anxProvider, error) {
 	genericClient, err := api.NewAPI(
 		api.WithClientOptions(
 			client.TokenFromString(config.Token),
-			client.WithMetricReceiver(metrics.MetricReceiver),
+			client.WithMetricReceiver(providerMetrics.MetricReceiver),
 			client.HTTPClient(&httpClient),
 		),
 		api.WithLogger(logger.WithName("go-anxcloud")),
@@ -89,13 +90,12 @@ func newAnxProvider(config configuration.ProviderConfig) (*anxProvider, error) {
 		legacyClient:  legacyClient,
 		logger:        logger.WithName("anx/provider"),
 		config:        &config,
+		providerMetrics: providerMetrics,
 	}, nil
 }
 
 func (a *anxProvider) Initialize(builder cloudprovider.ControllerClientBuilder, stop <-chan struct{}) {
 	a.logger.Info("Anexia provider initializing", "version", Version)
-
-	a.setupProviderMetrics()
 
 	a.initializeLoadBalancerManager(builder)
 	a.instanceManager = &instanceManager{Provider: a}
@@ -118,7 +118,7 @@ func (a *anxProvider) initializeLoadBalancerManager(builder cloudprovider.Contro
 			k8sClient = c
 		}
 	}
-
+<
 	config := a.Config()
 	logger := a.logger.WithName("LoadBalancer")
 
@@ -175,8 +175,8 @@ func (a anxProvider) Config() *configuration.ProviderConfig {
 	return a.config
 }
 
-func (a *anxProvider) setupProviderMetrics() {
-	a.providerMetrics = metrics.NewProviderMetrics("anexia", Version)
+func  setupProviderMetrics() metrics.ProviderMetrics{
+	providerMetrics := metrics.NewProviderMetrics("anexia", Version)
 	legacyregistry.MustRegister(&a.providerMetrics)
 	legacyregistry.MustRegister(a.providerMetrics.ReconciliationTotalDuration)
 	legacyregistry.MustRegister(a.providerMetrics.ReconciliationCreateErrorsTotal)
@@ -187,9 +187,13 @@ func (a *anxProvider) setupProviderMetrics() {
 	legacyregistry.MustRegister(a.providerMetrics.ReconciliationCreateResources)
 	legacyregistry.MustRegister(a.providerMetrics.ReconciliationPendingResources)
 	legacyregistry.MustRegister(a.providerMetrics.ReconciliationRetrievedResourcesTotal)
+	legacyregistry.MustRegister(a.providerMetrics.HttpClientRequestCount)
+	legacyregistry.MustRegister(a.providerMetrics.HttpClientRequestDuration)
+	legacyregistry.MustRegister(a.providerMetrics.HttpClientRequestInFlight)
 
-	a.providerMetrics.MarkFeatureDisabled(featureNameLoadBalancer)
-	a.providerMetrics.MarkFeatureDisabled(featureNameInstancesV2)
+	providerMetrics.MarkFeatureDisabled(featureNameLoadBalancer)
+	providerMetrics.MarkFeatureDisabled(featureNameInstancesV2)
+	return providerMetrics
 }
 
 func registerCloudProvider() {
