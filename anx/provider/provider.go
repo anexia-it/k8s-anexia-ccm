@@ -85,11 +85,11 @@ func newAnxProvider(config configuration.ProviderConfig) (*anxProvider, error) {
 	}
 
 	return &anxProvider{
-		API:           anexia.NewAPI(legacyClient),
-		genericClient: genericClient,
-		legacyClient:  legacyClient,
-		logger:        logger.WithName("anx/provider"),
-		config:        &config,
+		API:             anexia.NewAPI(legacyClient),
+		genericClient:   genericClient,
+		legacyClient:    legacyClient,
+		logger:          logger.WithName("anx/provider"),
+		config:          &config,
 		providerMetrics: providerMetrics,
 	}, nil
 }
@@ -118,7 +118,6 @@ func (a *anxProvider) initializeLoadBalancerManager(builder cloudprovider.Contro
 			k8sClient = c
 		}
 	}
-<
 	config := a.Config()
 	logger := a.logger.WithName("LoadBalancer")
 
@@ -175,21 +174,21 @@ func (a anxProvider) Config() *configuration.ProviderConfig {
 	return a.config
 }
 
-func  setupProviderMetrics() metrics.ProviderMetrics{
+func setupProviderMetrics() metrics.ProviderMetrics {
 	providerMetrics := metrics.NewProviderMetrics("anexia", Version)
-	legacyregistry.MustRegister(&a.providerMetrics)
-	legacyregistry.MustRegister(a.providerMetrics.ReconciliationTotalDuration)
-	legacyregistry.MustRegister(a.providerMetrics.ReconciliationCreateErrorsTotal)
-	legacyregistry.MustRegister(a.providerMetrics.ReconciliationDeleteRetriesTotal)
-	legacyregistry.MustRegister(a.providerMetrics.ReconciliationDeleteErrorsTotal)
-	legacyregistry.MustRegister(a.providerMetrics.ReconciliationCreatedTotal)
-	legacyregistry.MustRegister(a.providerMetrics.ReconciliationDeletedTotal)
-	legacyregistry.MustRegister(a.providerMetrics.ReconciliationCreateResources)
-	legacyregistry.MustRegister(a.providerMetrics.ReconciliationPendingResources)
-	legacyregistry.MustRegister(a.providerMetrics.ReconciliationRetrievedResourcesTotal)
-	legacyregistry.MustRegister(a.providerMetrics.HttpClientRequestCount)
-	legacyregistry.MustRegister(a.providerMetrics.HttpClientRequestDuration)
-	legacyregistry.MustRegister(a.providerMetrics.HttpClientRequestInFlight)
+	legacyregistry.MustRegister(&providerMetrics)
+	legacyregistry.MustRegister(providerMetrics.ReconciliationTotalDuration)
+	legacyregistry.MustRegister(providerMetrics.ReconciliationCreateErrorsTotal)
+	legacyregistry.MustRegister(providerMetrics.ReconciliationDeleteRetriesTotal)
+	legacyregistry.MustRegister(providerMetrics.ReconciliationDeleteErrorsTotal)
+	legacyregistry.MustRegister(providerMetrics.ReconciliationCreatedTotal)
+	legacyregistry.MustRegister(providerMetrics.ReconciliationDeletedTotal)
+	legacyregistry.MustRegister(providerMetrics.ReconciliationCreateResources)
+	legacyregistry.MustRegister(providerMetrics.ReconciliationPendingResources)
+	legacyregistry.MustRegister(providerMetrics.ReconciliationRetrievedResourcesTotal)
+	legacyregistry.MustRegister(providerMetrics.HttpClientRequestCount)
+	legacyregistry.MustRegister(providerMetrics.HttpClientRequestDuration)
+	legacyregistry.MustRegister(providerMetrics.HttpClientRequestInFlight)
 
 	providerMetrics.MarkFeatureDisabled(featureNameLoadBalancer)
 	providerMetrics.MarkFeatureDisabled(featureNameInstancesV2)
