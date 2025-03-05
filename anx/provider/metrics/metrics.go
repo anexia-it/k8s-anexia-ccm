@@ -43,10 +43,8 @@ type ProviderMetrics struct {
 	ReconciliationRetrievedResourcesTotal *k8smetrics.CounterVec
 	featureState                          map[string]prometheus.Metric
 	descriptions                          []*prometheus.Desc
-	HttpRequestDuration                   *prometheus.HistogramVec
 	HttpClientRequestCount                *k8smetrics.CounterVec
 	HttpClientRequestInFlight             *k8smetrics.GaugeVec
-	HttpClientRequestDuration             *k8smetrics.HistogramVec
 }
 
 func getCounterOpts(metricName string, helpMessage string) *k8smetrics.CounterOpts {
@@ -110,11 +108,6 @@ func setReconcileMetrics(providerMetrics *ProviderMetrics) {
 		Name: getFQMetricName("reconcile_retrieved_resources_total"),
 		Help: "Counter of total numbers of resources retrieved grouped by type"},
 		[]string{"service", "type"},
-	)
-
-	providerMetrics.HttpClientRequestDuration = k8smetrics.NewHistogramVec(
-		getHistogramOpts("http_client_request_duration_seconds", "Duration from sending a request to Anexia Engine to retrieving the response in seconds"),
-		[]string{"resource", "method"},
 	)
 
 	providerMetrics.HttpClientRequestCount = k8smetrics.NewCounterVec(&k8smetrics.CounterOpts{
@@ -214,8 +207,6 @@ func (p *ProviderMetrics) MetricReceiver(metrics map[anxclient.Metric]float64, l
 
 	for metric, value := range metrics {
 		switch metric {
-		case anxclient.MetricRequestDuration:
-			p.HttpClientRequestDuration.WithLabelValues(resource, method).Observe(value)
 		case anxclient.MetricRequestCount:
 			p.HttpClientRequestCount.WithLabelValues(resource, method, status).Add(value)
 		case anxclient.MetricRequestInflight:

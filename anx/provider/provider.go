@@ -187,7 +187,6 @@ func setupProviderMetrics() metrics.ProviderMetrics {
 	legacyregistry.MustRegister(providerMetrics.ReconciliationPendingResources)
 	legacyregistry.MustRegister(providerMetrics.ReconciliationRetrievedResourcesTotal)
 	legacyregistry.MustRegister(providerMetrics.HttpClientRequestCount)
-	legacyregistry.MustRegister(providerMetrics.HttpClientRequestDuration)
 	legacyregistry.MustRegister(providerMetrics.HttpClientRequestInFlight)
 
 	providerMetrics.MarkFeatureDisabled(featureNameLoadBalancer)
