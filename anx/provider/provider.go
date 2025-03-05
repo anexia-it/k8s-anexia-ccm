@@ -3,7 +3,9 @@ package provider
 import (
 	"fmt"
 	"io"
+	"net/http"
 	"os"
+	"time"
 
 	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/metrics"
 	"github.com/go-logr/logr"
@@ -58,7 +60,13 @@ func newAnxProvider(config configuration.ProviderConfig) (*anxProvider, error) {
 
 	logger := klog.NewKlogr()
 
-	legacyClient, err := client.New(client.TokenFromString(config.Token))
+	httpClient := http.Client{Timeout: 30 * time.Second}
+
+	legacyClient, err := client.New(
+		client.TokenFromString(config.Token),
+		client.WithMetricReceiver(metrics.MetricReceiver),
+		client.HTTPClient(&httpClient),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("could not create legacy anexia client. %w", err)
 	}
@@ -66,6 +74,8 @@ func newAnxProvider(config configuration.ProviderConfig) (*anxProvider, error) {
 	genericClient, err := api.NewAPI(
 		api.WithClientOptions(
 			client.TokenFromString(config.Token),
+			client.WithMetricReceiver(metrics.MetricReceiver),
+			client.HTTPClient(&httpClient),
 		),
 		api.WithLogger(logger.WithName("go-anxcloud")),
 	)

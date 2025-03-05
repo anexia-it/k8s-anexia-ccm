@@ -95,13 +95,15 @@ func setReconcileMetrics(providerMetrics *ProviderMetrics) {
 
 	providerMetrics.ReconciliationPendingResources = k8smetrics.NewGaugeVec(&k8smetrics.GaugeOpts{
 		Name: getFQMetricName("reconcile_resources_pending"),
-		Help: "Gauge of pending creation or deletion operations of resources",
-	}, []string{"service", "operation"})
+		Help: "Gauge of pending creation or deletion operations of resources"},
+		[]string{"service", "operation"},
+	)
 
 	providerMetrics.ReconciliationRetrievedResourcesTotal = k8smetrics.NewCounterVec(&k8smetrics.CounterOpts{
 		Name: getFQMetricName("reconcile_retrieved_resources_total"),
-		Help: "Counter of total numbers of resources retrieved grouped by type",
-	}, []string{"service", "type"})
+		Help: "Counter of total numbers of resources retrieved grouped by type"},
+		[]string{"service", "type"},
+	)
 }
 
 // NewProviderMetrics returns a prometheus.Collector for Provider Metrics.
