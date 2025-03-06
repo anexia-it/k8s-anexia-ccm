@@ -3,7 +3,10 @@ package provider
 import (
 	"fmt"
 	"io"
+	"net/http"
 	"os"
+	"sync"
+	"time"
 
 	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/metrics"
 	"github.com/go-logr/logr"
@@ -58,7 +61,14 @@ func newAnxProvider(config configuration.ProviderConfig) (*anxProvider, error) {
 
 	logger := klog.NewKlogr()
 
-	legacyClient, err := client.New(client.TokenFromString(config.Token))
+	httpClient := http.Client{Timeout: 30 * time.Second}
+
+	providerMetrics := setupProviderMetrics()
+	legacyClient, err := client.New(
+		client.TokenFromString(config.Token),
+		client.WithMetricReceiver(providerMetrics.MetricReceiver),
+		client.HTTPClient(&httpClient),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("could not create legacy anexia client. %w", err)
 	}
@@ -66,6 +76,8 @@ func newAnxProvider(config configuration.ProviderConfig) (*anxProvider, error) {
 	genericClient, err := api.NewAPI(
 		api.WithClientOptions(
 			client.TokenFromString(config.Token),
+			client.WithMetricReceiver(providerMetrics.MetricReceiver),
+			client.HTTPClient(&httpClient),
 		),
 		api.WithLogger(logger.WithName("go-anxcloud")),
 	)
@@ -74,18 +86,17 @@ func newAnxProvider(config configuration.ProviderConfig) (*anxProvider, error) {
 	}
 
 	return &anxProvider{
-		API:           anexia.NewAPI(legacyClient),
-		genericClient: genericClient,
-		legacyClient:  legacyClient,
-		logger:        logger.WithName("anx/provider"),
-		config:        &config,
+		API:             anexia.NewAPI(legacyClient),
+		genericClient:   genericClient,
+		legacyClient:    legacyClient,
+		logger:          logger.WithName("anx/provider"),
+		config:          &config,
+		providerMetrics: providerMetrics,
 	}, nil
 }
 
 func (a *anxProvider) Initialize(builder cloudprovider.ControllerClientBuilder, stop <-chan struct{}) {
 	a.logger.Info("Anexia provider initializing", "version", Version)
-
-	a.setupProviderMetrics()
 
 	a.initializeLoadBalancerManager(builder)
 	a.instanceManager = &instanceManager{Provider: a}
@@ -108,7 +119,6 @@ func (a *anxProvider) initializeLoadBalancerManager(builder cloudprovider.Contro
 			k8sClient = c
 		}
 	}
-
 	config := a.Config()
 	logger := a.logger.WithName("LoadBalancer")
 
@@ -165,21 +175,28 @@ func (a anxProvider) Config() *configuration.ProviderConfig {
 	return a.config
 }
 
-func (a *anxProvider) setupProviderMetrics() {
-	a.providerMetrics = metrics.NewProviderMetrics("anexia", Version)
-	legacyregistry.MustRegister(&a.providerMetrics)
-	legacyregistry.MustRegister(a.providerMetrics.ReconciliationTotalDuration)
-	legacyregistry.MustRegister(a.providerMetrics.ReconciliationCreateErrorsTotal)
-	legacyregistry.MustRegister(a.providerMetrics.ReconciliationDeleteRetriesTotal)
-	legacyregistry.MustRegister(a.providerMetrics.ReconciliationDeleteErrorsTotal)
-	legacyregistry.MustRegister(a.providerMetrics.ReconciliationCreatedTotal)
-	legacyregistry.MustRegister(a.providerMetrics.ReconciliationDeletedTotal)
-	legacyregistry.MustRegister(a.providerMetrics.ReconciliationCreateResources)
-	legacyregistry.MustRegister(a.providerMetrics.ReconciliationPendingResources)
-	legacyregistry.MustRegister(a.providerMetrics.ReconciliationRetrievedResourcesTotal)
+var registerOnce sync.Once
 
-	a.providerMetrics.MarkFeatureDisabled(featureNameLoadBalancer)
-	a.providerMetrics.MarkFeatureDisabled(featureNameInstancesV2)
+func setupProviderMetrics() metrics.ProviderMetrics {
+	providerMetrics := metrics.NewProviderMetrics("anexia", Version)
+	registerOnce.Do(func() {
+		legacyregistry.MustRegister(&providerMetrics)
+		legacyregistry.MustRegister(providerMetrics.ReconciliationTotalDuration)
+		legacyregistry.MustRegister(providerMetrics.ReconciliationCreateErrorsTotal)
+		legacyregistry.MustRegister(providerMetrics.ReconciliationDeleteRetriesTotal)
+		legacyregistry.MustRegister(providerMetrics.ReconciliationDeleteErrorsTotal)
+		legacyregistry.MustRegister(providerMetrics.ReconciliationCreatedTotal)
+		legacyregistry.MustRegister(providerMetrics.ReconciliationDeletedTotal)
+		legacyregistry.MustRegister(providerMetrics.ReconciliationCreateResources)
+		legacyregistry.MustRegister(providerMetrics.ReconciliationPendingResources)
+		legacyregistry.MustRegister(providerMetrics.ReconciliationRetrievedResourcesTotal)
+		legacyregistry.MustRegister(providerMetrics.HttpClientRequestCount)
+		legacyregistry.MustRegister(providerMetrics.HttpClientRequestInFlight)
+	})
+
+	providerMetrics.MarkFeatureDisabled(featureNameLoadBalancer)
+	providerMetrics.MarkFeatureDisabled(featureNameInstancesV2)
+	return providerMetrics
 }
 
 func registerCloudProvider() {
