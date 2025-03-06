@@ -2,6 +2,9 @@ package metrics
 
 import (
 	"fmt"
+	anxclient "go.anx.io/go-anxcloud/pkg/client"
+	"path"
+	"strings"
 	"sync"
 
 	"github.com/blang/semver/v4"
@@ -40,6 +43,8 @@ type ProviderMetrics struct {
 	ReconciliationRetrievedResourcesTotal *k8smetrics.CounterVec
 	featureState                          map[string]prometheus.Metric
 	descriptions                          []*prometheus.Desc
+	HttpClientRequestCount                *k8smetrics.CounterVec
+	HttpClientRequestInFlight             *k8smetrics.GaugeVec
 }
 
 func getCounterOpts(metricName string, helpMessage string) *k8smetrics.CounterOpts {
@@ -95,13 +100,27 @@ func setReconcileMetrics(providerMetrics *ProviderMetrics) {
 
 	providerMetrics.ReconciliationPendingResources = k8smetrics.NewGaugeVec(&k8smetrics.GaugeOpts{
 		Name: getFQMetricName("reconcile_resources_pending"),
-		Help: "Gauge of pending creation or deletion operations of resources",
-	}, []string{"service", "operation"})
+		Help: "Gauge of pending creation or deletion operations of resources"},
+		[]string{"service", "operation"},
+	)
 
 	providerMetrics.ReconciliationRetrievedResourcesTotal = k8smetrics.NewCounterVec(&k8smetrics.CounterOpts{
 		Name: getFQMetricName("reconcile_retrieved_resources_total"),
-		Help: "Counter of total numbers of resources retrieved grouped by type",
-	}, []string{"service", "type"})
+		Help: "Counter of total numbers of resources retrieved grouped by type"},
+		[]string{"service", "type"},
+	)
+
+	providerMetrics.HttpClientRequestCount = k8smetrics.NewCounterVec(&k8smetrics.CounterOpts{
+		Name: getFQMetricName("http_client_requests_total"),
+		Help: "Total amount of requests sent to Anexia Engine"},
+		[]string{"resource", "method", "status"},
+	)
+
+	providerMetrics.HttpClientRequestInFlight = k8smetrics.NewGaugeVec(&k8smetrics.GaugeOpts{
+		Name: getFQMetricName("http_client_requests_in_flight"),
+		Help: "Amount of requests sent to Anexia Engine currently waiting for response"},
+		[]string{"resource", "method"},
+	)
 }
 
 // NewProviderMetrics returns a prometheus.Collector for Provider Metrics.
@@ -170,4 +189,64 @@ func (p *ProviderMetrics) FQName() string {
 
 func getFQMetricName(metricName string) string {
 	return fmt.Sprintf("%s_%s", fqCollectorName, metricName)
+}
+
+func (p *ProviderMetrics) MetricReceiver(metrics map[anxclient.Metric]float64, labels map[anxclient.MetricLabel]string) {
+	var resource, method, status string
+
+	for label, value := range labels {
+		switch label {
+		case anxclient.MetricLabelResource:
+			resource = filterResourceLabel(value)
+		case anxclient.MetricLabelMethod:
+			method = value
+		case anxclient.MetricLabelStatus:
+			status = value
+		}
+	}
+
+	for metric, value := range metrics {
+		switch metric {
+		case anxclient.MetricRequestCount:
+			p.HttpClientRequestCount.WithLabelValues(resource, method, status).Add(value)
+		case anxclient.MetricRequestInflight:
+			p.HttpClientRequestInFlight.WithLabelValues(resource, method).Add(value)
+		}
+	}
+}
+
+// filterResourceLabel takes the resource label given to the MetricReceiver by go-anxcloud client and tries to
+// prevent swamping Prometheus with high-cardinality labels by
+//   - removing the /api/ prefix (not high-cardinality relevant, but still nice)
+//   - checking if the second to last path element ends with ".json", truncating the last path element in this case
+//   - for metrics we do not care for the exact resource but the type of resource
+//   - "it takes X seconds to retrieve VM infos"
+//   - some resource-specific handling
+//
+// Having this here is if course not ideal, but it's the least-invasive way to add metrics to go-anxcloud and use
+// them here. Once we have the new generic client in go-anxcloud for everything, this will get better as we then
+// just generate metrics by Object type and Operation, not by URL.
+func filterResourceLabel(resource string) string {
+	resource = strings.TrimPrefix(resource, "/api/")
+
+	if identifierRemoved := path.Base(path.Dir(resource)); strings.HasSuffix(identifierRemoved, ".json") {
+		resource = identifierRemoved
+	}
+
+	// the vsphere info API endpoint is at "vsphere/v1/info.json/$identifier/info" for some reason, so the
+	// identifier stripping above does not catch it
+	const vsphereInfo = "vsphere/v1/info.json"
+	if strings.HasPrefix(resource, vsphereInfo+"/") {
+		resource = vsphereInfo
+	}
+
+	// the vsphere provisioning API endpoint is at
+	// "vsphere/v1/provisioning/vm.json/$location/$template_type/$template", which again prevents the identifier
+	// stripping above from catching it
+	const vsphereProvisioning = "vsphere/v1/provisioning/vm.json"
+	if strings.HasPrefix(resource, vsphereProvisioning+"/") {
+		resource = vsphereProvisioning
+	}
+
+	return resource
 }
