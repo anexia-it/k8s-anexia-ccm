@@ -29,8 +29,6 @@ const (
 	featureNameInstancesV2  = "instances_v2"
 )
 
-var registerOnce sync.Once
-
 var Version = "v0.0.0-unreleased"
 
 type Provider interface {
@@ -176,6 +174,8 @@ func (a anxProvider) HasClusterID() bool {
 func (a anxProvider) Config() *configuration.ProviderConfig {
 	return a.config
 }
+
+var registerOnce sync.Once
 
 func setupProviderMetrics() metrics.ProviderMetrics {
 	providerMetrics := metrics.NewProviderMetrics("anexia", Version)
