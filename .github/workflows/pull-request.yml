@@ -18,8 +18,8 @@ jobs:
       - name: check code format
         run: make fmtcheck
 
-      - name: check code quality
-        run: make go-lint
+      - name: Run golangci-lint
+        uses: golangci/golangci-lint-action@v8
 
       - name: run unit tests
         run: make test
