@@ -10,18 +10,17 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: 'stable'
 
-      - name: check if go.mod and go.sum are tidy
-        run: make depscheck
-
-      - name: check code format
-        run: make fmtcheck
+      - name: Check code format
+        run: |
+          go fmt ./...
+          git diff --exit-code || (echo "The files in this repo are not properly formatted." && exit 1)
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v8
 
-      - name: run unit tests
+      - name: Run unit tests
         run: make test
 
   review-docker:

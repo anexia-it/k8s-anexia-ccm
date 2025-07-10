@@ -33,8 +33,6 @@ depscheck:
 fmt:
 	gofmt -s -w .
 
-fmtcheck:
-	@hack/gofmtcheck.sh
 docs-lint:
 	@echo "==> Checking docs against linters..."
 	@go tool misspell -error -source=text docs/ || (echo; \
@@ -46,9 +44,9 @@ docs-lint:
 		echo "To apply any automatic fixes, run 'make docs-lint-fix' and commit the changes."; \
 		exit 1)
 
-docs-lint-fix: tools
+docs-lint-fix:
 	@echo "==> Applying automatic docs linter fixes..."
 	@go tool misspell -w -source=text docs/
 	@docker run -v $(PWD):/markdown 06kellyjac/markdownlint-cli --fix docs/
 
-.PHONY: k8s-anexia-ccm test run debug docs versioned-docs go-lint docs-lint docs-lint-fix depscheck fmt fmtcheck
+.PHONY: k8s-anexia-ccm test run debug docs versioned-docs go-lint docs-lint docs-lint-fix fmt
