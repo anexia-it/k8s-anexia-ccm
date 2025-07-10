@@ -55,7 +55,7 @@ var (
 	ErrPortNameNotUnique = errors.New("port name not unique")
 
 	// ErrNoUsableNodeAddress is returned when asked to reconcile a Service for set of Nodes from which at least one does not have a usable address.
-	ErrNoUsableNodeAddress = errors.New("Node lacks usable address")
+	ErrNoUsableNodeAddress = errors.New("node lacks usable address")
 
 	// ErrSingleVIPConflict is returned when asked to provision a LoadBalancer service while another already uses the single load balancer IP usable for Anexia Kubernetes Service beta.
 	ErrSingleVIPConflict = errors.New("only a single LoadBalancer can be used in Anexia Kubernetes Service beta, but found another service using the external IP already")
@@ -232,7 +232,7 @@ func (m *mgr) configurePrefixes(ctx context.Context, config *configuration.Provi
 // prepare extends the context with a logger and checks if the cluster name is overriden for this manager.
 func (m mgr) prepare(ctx context.Context, clusterName string, svc *v1.Service) (context.Context, string) {
 	logger := m.logger.WithValues(
-		"service-uid", svc.ObjectMeta.UID,
+		"service-uid", svc.UID,
 		"service-name", svc.Name,
 		"service-namespace", svc.Namespace,
 		"cluster-name", m.clusterName,
@@ -464,9 +464,10 @@ func getNodeEndpointAddress(n *v1.Node) (net.IP, error) {
 			continue
 		}
 
-		if addr.Type == v1.NodeInternalIP {
+		switch addr.Type {
+		case v1.NodeInternalIP:
 			internalIP = ip
-		} else if addr.Type == v1.NodeExternalIP {
+		case v1.NodeExternalIP:
 			externalIP = ip
 		}
 	}

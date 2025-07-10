@@ -333,9 +333,9 @@ var _ = Describe("reconcile", func() {
 
 					switch obj := o.(type) {
 					case *lbaasv1.Backend:
-						obj.HasState.State = lbaasv1.Deployed
+						obj.State = lbaasv1.Deployed
 					case *lbaasv1.Frontend:
-						obj.HasState.State = lbaasv1.Deployed
+						obj.State = lbaasv1.Deployed
 					}
 
 					err = apiClient.Update(context.TODO(), o)
