@@ -473,7 +473,7 @@ func (r *reconciliation) retrieveResources() error {
 		var he api.HTTPError
 
 		// error 422 is returned when nothing is tagged with the searched-for tag
-		if !(errors.As(err, &he) && he.StatusCode() == 422) {
+		if !errors.As(err, &he) || he.StatusCode() != 422 {
 			return fmt.Errorf("error retrieving resources: %w", err)
 		}
 
