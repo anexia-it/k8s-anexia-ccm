@@ -16,10 +16,6 @@ run: k8s-anexia-ccm
 debug:
 	hack/anxkube-dev-run debug
 
-hack:
-	cd hack && go build -o . github.com/client9/misspell/cmd/misspell
-	cd hack && go build -o . github.com/golangci/golangci-lint/cmd/golangci-lint
-
 docs:
 	+make -C docs html
 
@@ -39,14 +35,9 @@ fmt:
 
 fmtcheck:
 	@hack/gofmtcheck.sh
-
-go-lint: hack
-	@echo "==> Checking source code against linters..."
-	@hack/golangci-lint run --timeout 5m ./...
-
-docs-lint: hack
+docs-lint:
 	@echo "==> Checking docs against linters..."
-	@hack/misspell -error -source=text docs/ || (echo; \
+	@go tool misspell -error -source=text docs/ || (echo; \
 		echo "Unexpected misspelling found in docs files."; \
 		echo "To automatically fix the misspelling, run 'make docs-lint-fix' and commit the changes."; \
 		exit 1)
@@ -57,7 +48,7 @@ docs-lint: hack
 
 docs-lint-fix: tools
 	@echo "==> Applying automatic docs linter fixes..."
-	@hack/misspell -w -source=text docs/
+	@go tool misspell -w -source=text docs/
 	@docker run -v $(PWD):/markdown 06kellyjac/markdownlint-cli --fix docs/
 
-.PHONY: k8s-anexia-ccm test run debug hack docs versioned-docs go-lint docs-lint docs-lint-fix depscheck fmt fmtcheck
+.PHONY: k8s-anexia-ccm test run debug docs versioned-docs go-lint docs-lint docs-lint-fix depscheck fmt fmtcheck
