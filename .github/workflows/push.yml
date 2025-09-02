@@ -67,7 +67,7 @@ jobs:
         id: git
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@0.32.0
+        uses: aquasecurity/trivy-action@0.33.0
         with:
           image-ref: 'anx-cr.io/anexia/anx-cloud-controller-manager:${{ steps.git.outputs.tag }}'
           format: 'table'
