@@ -14,14 +14,17 @@ jobs:
         with:
           go-version: 'stable'
 
-      - uses: paambaati/codeclimate-action@v9.0.0
-        env:
-          CC_TEST_REPORTER_ID: ${{ secrets.CODECLIMATE_COVERAGE_ID }}
-        with:
-          prefix: github.com/anexia-it/k8s-anexia-ccm
-          coverageCommand: make test
-          coverageLocations: coverage.out:gocov
+      - name: Run tests with coverage
+        run: |
+          go test ./... -coverprofile=coverage.out -covermode=atomic
 
+      - name: Show coverage in summary
+        run: |
+          go tool cover -func=coverage.out | tee coverage.txt
+          echo "## Coverage Report" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          cat coverage.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
   build:
     runs-on: ubuntu-latest
     if:      "github.actor != 'dependabot[bot]'"
@@ -67,7 +70,7 @@ jobs:
         id: git
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@0.32.0
+        uses: aquasecurity/trivy-action@0.34.0
         with:
           image-ref: 'anx-cr.io/anexia/anx-cloud-controller-manager:${{ steps.git.outputs.tag }}'
           format: 'table'
