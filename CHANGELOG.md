@@ -14,10 +14,12 @@ Please add your changelog entry under this comment in the correct category (Secu
 ### Added
 
 * Add http client metrics for requests towards the anexia engine (#390, @koflanx)
+* Added extending logging for Multiple IP Addresses
 
 ### Fixed
 
 * Handle rate-limiting errors from the Anexia Engine (#382, @nachtjasmin)
+* Bumped Alpine Image
 
 ## [1.5.7] - 2025-01-14
 
