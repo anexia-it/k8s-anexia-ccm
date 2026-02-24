@@ -29,6 +29,7 @@ var (
 	errVirtualMachineNameNotUnique = errors.New("virtual machine name not unique")
 )
 
+// NodeAddressesByProviderID gets Node Ips for Given ProviderID,
 func (i *instanceManager) NodeAddressesByProviderID(ctx context.Context, providerID string) ([]v1.NodeAddress, error) {
 	if providerID == "" {
 		return nil, errors.New("empty providerId is not allowed")
@@ -41,11 +42,14 @@ func (i *instanceManager) NodeAddressesByProviderID(ctx context.Context, provide
 	if len(info.Network) == 0 {
 		return nil, nil
 	}
-
 	nodeAddresses := make([]v1.NodeAddress, 0, len(info.Network))
 	if len(info.Network) > 1 {
 		klog.Warningf("found multiple networks for VM '%s'. This can potentially break stuff. Since only the first one"+
 			"will be used", providerID)
+		for index, Networks := range info.Network {
+			klog.Warningf("List IPs Index:%d : %s", index, Networks.IPv4)
+		}
+
 	}
 
 	for _, ip := range info.Network[0].IPv4 {
