@@ -2,7 +2,6 @@ package test
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"sync"
@@ -238,22 +237,35 @@ func (f *FakeAPI) doList(ctx context.Context, filter types.FilterObject, opts ..
 
 // deepCopyObject returns a deep copy of the given object using json marshal/unmarshal
 func deepCopyObject(o types.Object) types.Object {
-	b, _ := json.Marshal(o)
-	// create a new zero value of the same type
 	t := reflect.TypeOf(o)
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
-	newv := reflect.New(t).Interface()
-	_ = json.Unmarshal(b, newv)
-	return newv.(types.Object)
+	newv := reflect.New(t).Elem()
+	// set fields from source
+	srcv := reflect.ValueOf(o)
+	if srcv.Kind() == reflect.Ptr {
+		srcv = srcv.Elem()
+	}
+	newv.Set(srcv)
+	return newv.Addr().Interface().(types.Object)
 }
 
 func copyInto(src types.Object, dst types.Object) error {
-	b, err := json.Marshal(src)
-	if err != nil {
-		return err
+	srcv := reflect.ValueOf(src)
+	dstv := reflect.ValueOf(dst)
+	if srcv.Kind() == reflect.Ptr {
+		srcv = srcv.Elem()
 	}
-	// dst is a pointer to struct implementing types.Object
-	return json.Unmarshal(b, dst)
+	if dstv.Kind() == reflect.Ptr {
+		dstv = dstv.Elem()
+	}
+	if !srcv.IsValid() || !dstv.IsValid() {
+		return fmt.Errorf("invalid values for copy")
+	}
+	if srcv.Type() != dstv.Type() {
+		return fmt.Errorf("type mismatch copying object: %v -> %v", srcv.Type(), dstv.Type())
+	}
+	dstv.Set(srcv)
+	return nil
 }
