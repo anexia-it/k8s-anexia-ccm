@@ -9,8 +9,12 @@ import (
 	"github.com/golang/mock/gomock"
 	"k8s.io/apimachinery/pkg/util/rand"
 
+	anxmock "go.anx.io/go-anxcloud/pkg/api/mock"
+
 	"go.anx.io/go-anxcloud/pkg/api"
 	"go.anx.io/go-anxcloud/pkg/api/types"
+	corev1 "go.anx.io/go-anxcloud/pkg/apis/core/v1"
+	lbaasv1 "go.anx.io/go-anxcloud/pkg/apis/lbaas/v1"
 
 	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/test/apimock"
 )
@@ -25,6 +29,8 @@ type FakeAPI struct {
 	store map[string]types.Object
 	// tag -> identifiers
 	tags map[string][]string
+	// type identifier mapping for stored objects
+	typeMap map[string]string
 
 	preCreateHook func(ctx context.Context, a api.API, o types.Object)
 }
@@ -35,6 +41,7 @@ func NewFakeAPI(ctrl *gomock.Controller) *FakeAPI {
 		ApiMock: apimock.NewMockAPI(ctrl),
 		store:   make(map[string]types.Object),
 		tags:    make(map[string][]string),
+		typeMap: make(map[string]string),
 	}
 
 	// Wire mock methods to the helper implementations
@@ -78,38 +85,79 @@ func (f *FakeAPI) FakeExisting(o types.Object, tag ...string) string {
 	f.store[id] = deepCopyObject(o)
 
 	for _, t := range tag {
-		f.tags[t] = append(f.tags[t], id)
+		if id == "" {
+			continue
+		}
+		// avoid duplicate entries for the same tag
+		ids := f.tags[t]
+		found := false
+		for _, existing := range ids {
+			if existing == id {
+				found = true
+				break
+			}
+		}
+		if !found {
+			f.tags[t] = append(f.tags[t], id)
+		}
+	}
+
+	// map type to resource type identifier constants used by reconciliation
+	switch o := o.(type) {
+	case *lbaasv1.Frontend:
+		f.typeMap[id] = "da9d14b9d95840c08213de67f9cee6e2"
+	case *lbaasv1.Backend:
+		f.typeMap[id] = "33164a3066a04a52be43c607f0c5dd8c"
+	case *lbaasv1.Bind:
+		f.typeMap[id] = "bd24def982aa478fb3352cb5f49aab47"
+	case *lbaasv1.Server:
+		f.typeMap[id] = "01f321a4875446409d7d8469503a905f"
+	default:
+		_ = o
 	}
 
 	return id
 }
 
 // Existing returns a copy of all stored objects.
-func (f *FakeAPI) Existing() []types.Object {
+// Existing returns a slice of *mock.APIObject wrappers for compatibility with
+// the original matcher expectations (the matcher expects *mock.APIObject).
+// We construct a temporary real mock.API, populate it with our stored objects
+// via its FakeExisting helper and return the pointers returned by Inspect.
+func (f *FakeAPI) Existing() []*anxmock.APIObject {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	ret := make([]types.Object, 0, len(f.store))
+
+	// create a fresh mock API implementation to produce *anxmock.APIObject pointers
+	m := anxmock.NewMockAPI()
+
+	ret := make([]*anxmock.APIObject, 0, len(f.store))
 	for _, o := range f.store {
-		ret = append(ret, deepCopyObject(o))
+		// use a deep copy to avoid sharing memory
+		copyObj := deepCopyObject(o)
+		id := m.FakeExisting(copyObj)
+		if ao := m.Inspect(id); ao != nil {
+			ret = append(ret, ao)
+		}
 	}
 	return ret
 }
 
 // Provide proxy methods so tests can use FakeAPI where previously mock.API was used.
 func (f *FakeAPI) Create(ctx context.Context, o types.Object, opts ...types.CreateOption) error {
-	return f.ApiMock.Create(ctx, o, opts...)
+	return f.doCreate(ctx, o, opts...)
 }
 func (f *FakeAPI) Get(ctx context.Context, o types.IdentifiedObject, opts ...types.GetOption) error {
-	return f.ApiMock.Get(ctx, o, opts...)
+	return f.doGet(ctx, o, opts...)
 }
 func (f *FakeAPI) Update(ctx context.Context, o types.IdentifiedObject, opts ...types.UpdateOption) error {
-	return f.ApiMock.Update(ctx, o, opts...)
+	return f.doUpdate(ctx, o, opts...)
 }
 func (f *FakeAPI) Destroy(ctx context.Context, o types.IdentifiedObject, opts ...types.DestroyOption) error {
-	return f.ApiMock.Destroy(ctx, o, opts...)
+	return f.doDestroy(ctx, o, opts...)
 }
 func (f *FakeAPI) List(ctx context.Context, filter types.FilterObject, opts ...types.ListOption) error {
-	return f.ApiMock.List(ctx, filter, opts...)
+	return f.doList(ctx, filter, opts...)
 }
 
 // internal implementations wired to gomock
@@ -133,9 +181,49 @@ func (f *FakeAPI) doCreate(ctx context.Context, o types.Object, opts ...types.Cr
 			}
 		}
 	}
-	f.mu.Lock()
-	f.store[id] = deepCopyObject(o)
-	f.mu.Unlock()
+	// If this is a ResourceWithTag, do not overwrite the target object's store entry.
+	// Instead add the identifier to the tag mapping (only if valid and present in store).
+	switch rt := o.(type) {
+	case *corev1.ResourceWithTag:
+		// rt.Identifier contains the target object's identifier
+		if rt.Identifier == "" {
+			return fmt.Errorf("empty identifier on ResourceWithTag")
+		}
+		f.mu.Lock()
+		// only append if the target exists in store
+		if _, ok := f.store[rt.Identifier]; ok {
+			ids := f.tags[rt.Tag]
+			found := false
+			for _, existing := range ids {
+				if existing == rt.Identifier {
+					found = true
+					break
+				}
+			}
+			if !found {
+				f.tags[rt.Tag] = append(f.tags[rt.Tag], rt.Identifier)
+			}
+		}
+		f.mu.Unlock()
+		return nil
+	default:
+		f.mu.Lock()
+		f.store[id] = deepCopyObject(o)
+		// ensure type mapping for lbaas resources created during tests
+		switch o := o.(type) {
+		case *lbaasv1.Frontend:
+			f.typeMap[id] = "da9d14b9d95840c08213de67f9cee6e2"
+		case *lbaasv1.Backend:
+			f.typeMap[id] = "33164a3066a04a52be43c607f0c5dd8c"
+		case *lbaasv1.Bind:
+			f.typeMap[id] = "bd24def982aa478fb3352cb5f49aab47"
+		case *lbaasv1.Server:
+			f.typeMap[id] = "01f321a4875446409d7d8469503a905f"
+		default:
+			_ = o
+		}
+		f.mu.Unlock()
+	}
 	return nil
 }
 
@@ -148,6 +236,14 @@ func (f *FakeAPI) doGet(ctx context.Context, o types.IdentifiedObject, opts ...t
 	stored, ok := f.store[id]
 	f.mu.Unlock()
 	if !ok {
+		// debug output to help locate missing identifiers during test migration
+		keys := make([]string, 0, len(f.store))
+		f.mu.Lock()
+		for k := range f.store {
+			keys = append(keys, k)
+		}
+		f.mu.Unlock()
+		fmt.Printf("FakeAPI.doGet: id %s not found; store keys=%v\n", id, keys)
 		return fmt.Errorf("not found")
 	}
 	return copyInto(stored, o)
@@ -170,8 +266,23 @@ func (f *FakeAPI) doDestroy(ctx context.Context, o types.IdentifiedObject, opts 
 		return err
 	}
 	f.mu.Lock()
-	defer f.mu.Unlock()
+	// remove from store
 	delete(f.store, id)
+	// also remove id from any tag lists
+	for tag, ids := range f.tags {
+		newIds := make([]string, 0, len(ids))
+		for _, tid := range ids {
+			if tid != id {
+				newIds = append(newIds, tid)
+			}
+		}
+		if len(newIds) == 0 {
+			delete(f.tags, tag)
+		} else {
+			f.tags[tag] = newIds
+		}
+	}
+	f.mu.Unlock()
 	return nil
 }
 
@@ -207,28 +318,72 @@ func (f *FakeAPI) doList(ctx context.Context, filter types.FilterObject, opts ..
 		ch := make(chan types.ObjectRetriever, 4)
 		*lo.ObjectChannel = types.ObjectChannel(ch)
 
+		// snapshot ids and stored objects under lock, then send asynchronously
 		f.mu.Lock()
-		// if tags provided, return those ids
+		ids := make([]string, 0)
+		storedMap := make(map[string]types.Object)
 		if len(wantedTags) > 0 {
 			for _, t := range wantedTags {
 				for _, id := range f.tags[t] {
-					stored := f.store[id]
-					ch <- func(obj types.Object) error {
-						return copyInto(stored, obj)
+					if s, ok := f.store[id]; ok {
+						ids = append(ids, id)
+						storedMap[id] = s
 					}
 				}
 			}
 		} else {
-			// return all stored
-			for _, stored := range f.store {
-				s := stored
-				ch <- func(obj types.Object) error {
-					return copyInto(s, obj)
-				}
+			for id, stored := range f.store {
+				ids = append(ids, id)
+				storedMap[id] = stored
 			}
 		}
 		f.mu.Unlock()
-		close(ch)
+
+		// debug: log how many ids we'll return for this List call
+		if len(ids) > 8 {
+			fmt.Printf("FakeAPI.doList: returning %d ids for tags=%v (showing up to 8)\n", len(ids), wantedTags)
+		}
+
+		go func(ids []string, storedMap map[string]types.Object) {
+			defer close(ch)
+			for _, id := range ids {
+				stored := storedMap[id]
+				// return a retriever that sets at least the Identifier on the provided object
+				ch <- func(id string, stored types.Object) types.ObjectRetriever {
+					return func(obj types.Object) error {
+						// try to set Identifier field if present
+						rv := reflect.ValueOf(obj)
+						if rv.Kind() == reflect.Ptr {
+							rv = rv.Elem()
+						}
+						if rv.IsValid() {
+							field := rv.FieldByName("Identifier")
+							if field.IsValid() && field.CanSet() && field.Kind() == reflect.String {
+								field.SetString(id)
+								// also set Resource.Type.Identifier if present and known
+								if typeID, ok := f.typeMap[id]; ok {
+									typeField := rv.FieldByName("Type")
+									if typeField.IsValid() {
+										// Type may be a struct with Identifier field
+										ident := typeField.FieldByName("Identifier")
+										if ident.IsValid() && ident.CanSet() && ident.Kind() == reflect.String {
+											ident.SetString(typeID)
+										}
+									}
+								}
+								return nil
+							}
+						}
+						// fallback: copy whole object if types match
+						if reflect.TypeOf(obj) == reflect.TypeOf(stored) {
+							return copyInto(stored, obj)
+						}
+						return nil
+					}
+				}(id, stored)
+			}
+		}(ids, storedMap)
+
 		return nil
 	}
 

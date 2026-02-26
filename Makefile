@@ -3,7 +3,7 @@ k8s-anexia-ccm:
 
 test:
 	go run github.com/onsi/ginkgo/v2/ginkgo -p 	\
-	    -timeout 0                  			\
+	    -timeout 60s                  		\
 	    -race                       			\
 	    -coverprofile coverage.out  			\
 	    --keep-going                			\

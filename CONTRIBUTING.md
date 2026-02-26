@@ -52,6 +52,8 @@ In its documentation you also find help if you have to skip a check for some rea
 We use `Ginkgo` (v2) for our unit tests, though there are some older ones. Unit tests are located directly in the
 package they test. Tests are executed with `make test`.
 
-To run unit tests for a single package or everything below a given package you can use either `go test
-./anx/provider/loadbalancer` (for testing only the `loadbalancer` package) or `go test ./anx/provider/loadbalancer/...`
-(for testing everything below the `loadbalancer` package, including the `loadbalancer` package itself).
+To run unit tests for a single package or everything below a given package you can use either
+`go test -timeout 60s ./anx/provider/loadbalancer` (for testing only the `loadbalancer` package) or
+`go test -timeout 60s ./anx/provider/loadbalancer/...` (for testing everything below the `loadbalancer`
+package, including the `loadbalancer` package itself). We recommend the `-timeout 60s` flag for local
+`go test` runs to avoid very long or hanging test executions; CI may use different timeouts.
