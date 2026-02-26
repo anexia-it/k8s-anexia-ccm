@@ -1,8 +1,6 @@
 module github.com/anexia-it/k8s-anexia-ccm
 
-go 1.24.0
-
-toolchain go1.24.4
+go 1.25.1
 
 require (
 	github.com/blang/semver/v4 v4.0.0
@@ -15,7 +13,7 @@ require (
 	github.com/prometheus/client_model v0.6.2
 	github.com/spf13/pflag v1.0.10
 	github.com/stretchr/testify v1.11.1
-	go.anx.io/go-anxcloud v0.7.8
+	go.anx.io/go-anxcloud v0.10.2
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.34.1
 	k8s.io/apimachinery v0.34.1
