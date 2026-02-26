@@ -50,3 +50,28 @@ docs-lint-fix:
 	@docker run -v $(PWD):/markdown 06kellyjac/markdownlint-cli --fix docs/
 
 .PHONY: k8s-anexia-ccm test run debug docs versioned-docs go-lint docs-lint docs-lint-fix fmt
+
+.PHONY: regen-mocks verify-mocks
+
+regen-mocks:
+	@echo "==> Installing mock tools (mockgen)"
+	@export PATH="$(shell go env GOPATH)/bin:$$PATH"; \
+		go install github.com/golang/mock/mockgen@latest
+	@echo "==> Regenerating GoMock mocks"
+	@export PATH="$(shell go env GOPATH)/bin:$$PATH"; \
+		mockgen -package legacyapimock -destination anx/provider/test/legacyapimock/ipam_address.go -mock_names API=MockIPAMAddressAPI go.anx.io/go-anxcloud/pkg/ipam/address API; \
+		mockgen -package legacyapimock -destination anx/provider/test/legacyapimock/ipam_prefix.go -mock_names API=MockIPAMPrefixAPI go.anx.io/go-anxcloud/pkg/ipam/prefix API; \
+		mockgen -package legacyapimock -destination anx/provider/test/legacyapimock/ipam.go -mock_names API=MockIPAMAPI go.anx.io/go-anxcloud/pkg/ipam API; \
+		mockgen -package apimock -destination anx/provider/test/apimock/api_mock.go go.anx.io/go-anxcloud/pkg/api/types API
+
+verify-mocks: regen-mocks
+	@echo "==> Verifying generated mocks are committed"
+	@git diff --exit-code -- \
+		anx/provider/test/legacyapimock \
+		anx/provider/test/apimock \
+		anx/provider/test/gomockapi \
+		anx/provider/test/mockvsphere \
+		anx/provider/test/mocklbaas \
+		anx/provider/test/mockclouddns \
+		anx/provider/test/mockvlan \
+		anx/provider/test/mocktest || (echo "Generated mocks differ, run 'make regen-mocks' and commit changes" && exit 1)
