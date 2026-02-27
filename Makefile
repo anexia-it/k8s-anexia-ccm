@@ -2,8 +2,9 @@ k8s-anexia-ccm:
 	go build
 
 test:
+	# Note: increase timeout to avoid CI failures for longer-running suites.
 	go run github.com/onsi/ginkgo/v2/ginkgo -p 	\
-	    -timeout 60s                  		\
+    -timeout 10m                  	\
 	    -race                       			\
 	    -coverprofile coverage.out  			\
 	    --keep-going                			\

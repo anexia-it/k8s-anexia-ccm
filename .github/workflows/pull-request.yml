@@ -10,7 +10,21 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v6
         with:
-          go-version: 'stable'
+          # pin to the repo go.mod version to avoid toolchain mismatches
+          go-version: '1.24'
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ${{ github.workspace }}/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Ensure GOPATH bin on PATH
+        run: echo "::add-path::$(go env GOPATH)/bin"
 
       - name: Check code format
         run: |
@@ -21,7 +35,13 @@ jobs:
         uses: golangci/golangci-lint-action@v8
 
       - name: Run unit tests
-        run: make test
+        run: |
+          set -eux
+          # show Go and system info for debugging flaky CI failures
+          go version
+          go env
+          uname -a
+          make test
 
   review-docker:
     runs-on: ubuntu-latest
