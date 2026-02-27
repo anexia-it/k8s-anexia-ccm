@@ -20,6 +20,7 @@ import (
 	"go.anx.io/go-anxcloud/pkg/vsphere/info"
 	"go.anx.io/go-anxcloud/pkg/vsphere/powercontrol"
 	"go.anx.io/go-anxcloud/pkg/vsphere/search"
+
 	// vmlist no longer directly used; expectations moved to gomock submocks
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,8 +35,8 @@ func TestFetchingID(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
-	provider := tUtils.GetMockedAnxProviderWithController(ctrl)
-	provider.ProviderConfig.CustomerID = ""
+		provider := tUtils.GetMockedAnxProviderWithController(ctrl)
+		provider.ProviderConfig.CustomerID = ""
 		nodeIdentifier := randomNodeIdentifier()
 		provider.ProviderConfig.CustomerID = "test"
 		provider.SearchMock.EXPECT().ByName(ctx, gomock.Eq(fmt.Sprintf("%s-%s", "test",
@@ -61,8 +62,8 @@ func TestFetchingID(t *testing.T) {
 		t.Parallel()
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
-	provider := tUtils.GetMockedAnxProviderWithController(ctrl)
-	provider.ProviderConfig.CustomerID = ""
+		provider := tUtils.GetMockedAnxProviderWithController(ctrl)
+		provider.ProviderConfig.CustomerID = ""
 
 		manager := instanceManager{Provider: provider}
 
@@ -81,8 +82,8 @@ func TestFetchingID(t *testing.T) {
 
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
-	provider := tUtils.GetMockedAnxProviderWithController(ctrl)
-	provider.ProviderConfig.CustomerID = ""
+		provider := tUtils.GetMockedAnxProviderWithController(ctrl)
+		provider.ProviderConfig.CustomerID = ""
 		provider.ProviderConfig.CustomerID = customerPrefix
 
 		// no pre-existing VM listing needed for this code path
@@ -125,7 +126,7 @@ func TestFetchingID(t *testing.T) {
 			},
 		}, nil)
 
-	provider.InfoMock.EXPECT().Get(ctx, gomock.Eq(randomNodeIdentifier)).AnyTimes().Return(info.Info{
+		provider.InfoMock.EXPECT().Get(ctx, gomock.Eq(randomNodeIdentifier)).AnyTimes().Return(info.Info{
 			Name:       fmt.Sprintf("%s-VM", provider.Config().CustomerID),
 			Identifier: randomNodeIdentifier,
 			Network: []info.Network{
@@ -136,7 +137,7 @@ func TestFetchingID(t *testing.T) {
 			},
 		}, nil)
 
-	provider.InfoMock.EXPECT().Get(ctx, gomock.Eq("secondIdentifier")).AnyTimes().Return(info.Info{
+		provider.InfoMock.EXPECT().Get(ctx, gomock.Eq("secondIdentifier")).AnyTimes().Return(info.Info{
 			Name:       "test-VM",
 			Identifier: "secondIdentifier",
 			Network: []info.Network{
@@ -184,7 +185,7 @@ func TestFetchingID(t *testing.T) {
 			},
 		}, nil)
 
-	provider.InfoMock.EXPECT().Get(ctx, gomock.Eq(randomNodeIdentifier)).AnyTimes().Return(info.Info{
+		provider.InfoMock.EXPECT().Get(ctx, gomock.Eq(randomNodeIdentifier)).AnyTimes().Return(info.Info{
 			Name:       fmt.Sprintf("%s-VM", provider.Config().CustomerID),
 			Identifier: randomNodeIdentifier,
 			Network: []info.Network{
@@ -195,7 +196,7 @@ func TestFetchingID(t *testing.T) {
 			},
 		}, nil)
 
-	provider.InfoMock.EXPECT().Get(ctx, gomock.Eq("secondIdentifier")).AnyTimes().Return(info.Info{
+		provider.InfoMock.EXPECT().Get(ctx, gomock.Eq("secondIdentifier")).AnyTimes().Return(info.Info{
 			Name:       "test-VM",
 			Identifier: "secondIdentifier",
 			Network: []info.Network{
@@ -236,7 +237,7 @@ func TestInstanceExists(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 		provider := tUtils.GetMockedAnxProviderWithController(ctrl)
-	provider.InfoMock.EXPECT().Get(ctx, gomock.Eq(identifier)).AnyTimes().Return(info.Info{}, nil)
+		provider.InfoMock.EXPECT().Get(ctx, gomock.Eq(identifier)).AnyTimes().Return(info.Info{}, nil)
 		manager := instanceManager{Provider: provider}
 		exists, err := manager.InstanceExists(ctx, &node)
 
@@ -249,7 +250,7 @@ func TestInstanceExists(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 		provider := tUtils.GetMockedAnxProviderWithController(ctrl)
-	provider.InfoMock.EXPECT().Get(ctx, gomock.Eq(identifier)).AnyTimes().Return(info.Info{}, &client.ResponseError{
+		provider.InfoMock.EXPECT().Get(ctx, gomock.Eq(identifier)).AnyTimes().Return(info.Info{}, &client.ResponseError{
 			Response: &http.Response{
 				StatusCode: http.StatusNotFound,
 			},
@@ -267,7 +268,7 @@ func TestInstanceExists(t *testing.T) {
 		defer ctrl.Finish()
 		provider := tUtils.GetMockedAnxProviderWithController(ctrl)
 
-	provider.InfoMock.EXPECT().Get(ctx, gomock.Eq(identifier)).AnyTimes().Return(info.Info{}, errors.New("unknownError"))
+		provider.InfoMock.EXPECT().Get(ctx, gomock.Eq(identifier)).AnyTimes().Return(info.Info{}, errors.New("unknownError"))
 		manager := instanceManager{Provider: provider}
 		exists, err := manager.InstanceExists(ctx, &node)
 
@@ -280,7 +281,7 @@ func TestInstanceExists(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 		provider := tUtils.GetMockedAnxProviderWithController(ctrl)
-	provider.InfoMock.EXPECT().Get(ctx, gomock.Eq(identifier)).AnyTimes().Return(info.Info{}, &client.ResponseError{
+		provider.InfoMock.EXPECT().Get(ctx, gomock.Eq(identifier)).AnyTimes().Return(info.Info{}, &client.ResponseError{
 			Response: &http.Response{
 				StatusCode: http.StatusUnauthorized,
 			},
@@ -297,22 +298,21 @@ func TestInstanceExists(t *testing.T) {
 		require.Error(t, err)
 		require.ErrorIs(t, err, utils.ErrUnauthorizedForbiddenBackoff)
 
-	// advance the backoff window so next call will hit the API again
-	manager.lastUnauthorizedOrForbiddenInstanceExistCall = time.Now().Add(-time.Minute)
+		// advance the backoff window so next call will hit the API again
+		manager.lastUnauthorizedOrForbiddenInstanceExistCall = time.Now().Add(-time.Minute)
 
-	// unauthorized request block passed -> returns unauthorized
-	_, err = manager.InstanceExists(ctx, &node)
-	require.Error(t, err)
-	require.IsType(t, err, &client.ResponseError{})
+		// unauthorized request block passed -> returns unauthorized
+		_, err = manager.InstanceExists(ctx, &node)
+		require.Error(t, err)
+		require.IsType(t, err, &client.ResponseError{})
 
-	manager.lastUnauthorizedOrForbiddenInstanceExistCall = time.Time{}
+		manager.lastUnauthorizedOrForbiddenInstanceExistCall = time.Time{}
 	})
 }
 
 func TestInstanceShutdown(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	const nodeName = "test-node"
 	identifier := randomNodeIdentifier()
 	node := tUtils.ProviderManagedNode(identifier)
 
@@ -437,7 +437,7 @@ func TestInstanceMetadata(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 		provider := tUtils.GetMockedAnxProviderWithController(ctrl)
-	provider.InfoMock.EXPECT().Get(ctx, gomock.Eq(identifier)).AnyTimes().Return(info.Info{
+		provider.InfoMock.EXPECT().Get(ctx, gomock.Eq(identifier)).AnyTimes().Return(info.Info{
 			CPU:             5,
 			RAM:             4096,
 			LocationCountry: "AT",
@@ -465,7 +465,7 @@ func TestInstanceMetadata(t *testing.T) {
 		ctrl := gomock.NewController(t)
 		defer ctrl.Finish()
 		provider := tUtils.GetMockedAnxProviderWithController(ctrl)
-	provider.InfoMock.EXPECT().Get(ctx, gomock.Eq(identifier)).AnyTimes().Return(info.Info{
+		provider.InfoMock.EXPECT().Get(ctx, gomock.Eq(identifier)).AnyTimes().Return(info.Info{
 			CPU:             5,
 			RAM:             4096,
 			LocationCountry: "AT",

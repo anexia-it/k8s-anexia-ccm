@@ -10,6 +10,25 @@ test:
 	    ./anx/...
 	go tool cover -html=coverage.out -o coverage.html
 
+# Generate coverage report for the whole module using the standard go test runner.
+# COVERAGE_TARGET can be set to an integer percentage (default: 100) used by
+# the `coverage-check` target to decide success/failure.
+coverage:
+	@echo "==> Running tests and writing coverage.out"
+	go test ./... -coverprofile=coverage.out -covermode=atomic -timeout 60s
+	@echo "==> Generating HTML report coverage.html"
+	go tool cover -html=coverage.out -o coverage.html
+
+# Run coverage and fail if total coverage is below COVERAGE_TARGET (default 100)
+coverage-check:
+	@echo "==> Running coverage check (target=$${COVERAGE_TARGET:-100}%)"
+	go test ./... -coverprofile=coverage.out -covermode=atomic -timeout 60s
+	@percent=$$(go tool cover -func=coverage.out | awk '/^total:/ {print $$3}' | sed 's/%//'); \
+	 target=$${COVERAGE_TARGET:-100}; \
+	 percent_int=$$(printf "%.0f" $$percent); \
+	 echo "coverage=$$percent_int% target=$$target%"; \
+	 if [ $$percent_int -lt $$target ]; then echo "ERROR: coverage $$percent_int% < target $$target%"; exit 1; fi
+
 run: k8s-anexia-ccm
 	hack/anxkube-dev-run
 

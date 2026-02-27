@@ -1,0 +1,57 @@
+name: Coverage
+
+on:
+  push:
+    branches: [ main, master, Ewiebe-02 ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  coverage:
+    runs-on: ubuntu-latest
+    env:
+      GOFLAGS: -mod=mod
+      COVERAGE_TARGET: ${{ inputs.coverage_target || '100' }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.24'
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ${{ github.workspace }}/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: Install tools
+        run: |
+          go install github.com/golang/mock/mockgen@latest || true
+
+      - name: Verify generated mocks
+        run: |
+          echo "==> Verifying generated mocks are up-to-date"
+          # regen-mocks runs mockgen and verify-mocks checks for diffs
+          make verify-mocks
+
+      - name: Run coverage check
+        run: |
+          # Allow overriding target via workflow env or repository secrets
+          echo "Running coverage check (target=${COVERAGE_TARGET})"
+          make coverage-check COVERAGE_TARGET=${COVERAGE_TARGET}
+
+      - name: Upload coverage artifacts
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-reports
+          path: |
+            coverage.out
+            coverage.html

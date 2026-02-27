@@ -7,8 +7,8 @@ import (
 	gomockapi "github.com/anexia-it/k8s-anexia-ccm/anx/provider/test/gomockapi"
 	mockvsphere "github.com/anexia-it/k8s-anexia-ccm/anx/provider/test/mockvsphere"
 	mockvsphere_info "github.com/anexia-it/k8s-anexia-ccm/anx/provider/test/mockvsphere/info"
-	mockvsphere_search "github.com/anexia-it/k8s-anexia-ccm/anx/provider/test/mockvsphere/search"
 	mockvsphere_powercontrol "github.com/anexia-it/k8s-anexia-ccm/anx/provider/test/mockvsphere/powercontrol"
+	mockvsphere_search "github.com/anexia-it/k8s-anexia-ccm/anx/provider/test/mockvsphere/search"
 	mockvsphere_vmlist "github.com/anexia-it/k8s-anexia-ccm/anx/provider/test/mockvsphere/vmlist"
 )
 

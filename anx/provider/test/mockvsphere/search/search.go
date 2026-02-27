@@ -5,48 +5,47 @@
 package mockvsphere_search
 
 import (
-    context "context"
-    reflect "reflect"
+	context "context"
+	reflect "reflect"
 
-    gomock "github.com/golang/mock/gomock"
-    search "go.anx.io/go-anxcloud/pkg/vsphere/search"
+	gomock "github.com/golang/mock/gomock"
+	search "go.anx.io/go-anxcloud/pkg/vsphere/search"
 )
 
 // MockAPI is a mock of API interface.
 type MockAPI struct {
-    ctrl     *gomock.Controller
-    recorder *MockAPIMockRecorder
+	ctrl     *gomock.Controller
+	recorder *MockAPIMockRecorder
 }
 
 // MockAPIMockRecorder is the mock recorder for MockAPI.
 type MockAPIMockRecorder struct {
-    mock *MockAPI
+	mock *MockAPI
 }
 
 // NewMockAPI creates a new mock instance.
 func NewMockAPI(ctrl *gomock.Controller) *MockAPI {
-    mock := &MockAPI{ctrl: ctrl}
-    mock.recorder = &MockAPIMockRecorder{mock}
-    return mock
+	mock := &MockAPI{ctrl: ctrl}
+	mock.recorder = &MockAPIMockRecorder{mock}
+	return mock
 }
 
 // EXPECT returns an object that allows the caller to indicate expected use.
 func (m *MockAPI) EXPECT() *MockAPIMockRecorder {
-    return m.recorder
+	return m.recorder
 }
 
 // ByName mocks base method.
 func (m *MockAPI) ByName(arg0 context.Context, arg1 string) ([]search.VM, error) {
-    m.ctrl.T.Helper()
-    ret := m.ctrl.Call(m, "ByName", arg0, arg1)
-    ret0, _ := ret[0].([]search.VM)
-    ret1, _ := ret[1].(error)
-    return ret0, ret1
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ByName", arg0, arg1)
+	ret0, _ := ret[0].([]search.VM)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // ByName indicates an expected call of ByName.
 func (mr *MockAPIMockRecorder) ByName(arg0, arg1 interface{}) *gomock.Call {
-    mr.mock.ctrl.T.Helper()
-    return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ByName", reflect.TypeOf((*MockAPI)(nil).ByName), arg0, arg1)
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ByName", reflect.TypeOf((*MockAPI)(nil).ByName), arg0, arg1)
 }
-
