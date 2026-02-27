@@ -1,6 +1,9 @@
 k8s-anexia-ccm:
 	go build
 
+# Default mockgen version; override by environment if needed
+MOCKGEN_VERSION ?= v1.6.0
+
 test:
 	# Note: increase timeout to avoid CI failures for longer-running suites.
 	go run github.com/onsi/ginkgo/v2/ginkgo -p 	\
@@ -76,13 +79,15 @@ docs-lint-fix:
 regen-mocks:
 	@echo "==> Installing mock tools (mockgen)"
 	@export PATH="$(shell go env GOPATH)/bin:$$PATH"; \
-		go install github.com/golang/mock/mockgen@latest
+		go install github.com/golang/mock/mockgen@${MOCKGEN_VERSION}
 	@echo "==> Regenerating GoMock mocks"
 	@export PATH="$(shell go env GOPATH)/bin:$$PATH"; \
 		mockgen -package legacyapimock -destination anx/provider/test/legacyapimock/ipam_address.go -mock_names API=MockIPAMAddressAPI go.anx.io/go-anxcloud/pkg/ipam/address API; \
 		mockgen -package legacyapimock -destination anx/provider/test/legacyapimock/ipam_prefix.go -mock_names API=MockIPAMPrefixAPI go.anx.io/go-anxcloud/pkg/ipam/prefix API; \
 		mockgen -package legacyapimock -destination anx/provider/test/legacyapimock/ipam.go -mock_names API=MockIPAMAPI go.anx.io/go-anxcloud/pkg/ipam API; \
-		mockgen -package apimock -destination anx/provider/test/apimock/api_mock.go go.anx.io/go-anxcloud/pkg/api/types API
+		mockgen -package apimock -destination anx/provider/test/apimock/api_mock.go go.anx.io/go-anxcloud/pkg/api/types API; \
+		# Normalize formatting of generated files to avoid whitespace diffs
+		gofmt -w anx/provider/test/legacyapimock anx/provider/test/apimock || true
 
 verify-mocks: regen-mocks
 	@echo "==> Verifying generated mocks are committed"
