@@ -31,12 +31,10 @@ jobs:
         run: echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
 
       - name: Regenerate and verify mocks + run tests
-        env:
-          PATH: ${{ env.PATH }}:$(go env GOPATH)/bin
         run: |
           set -eux
-           go version
-           go env
+          go version
+          go env
           # Install pinned mockgen matching Makefile
           go install github.com/golang/mock/mockgen@v1.6.0
           /usr/bin/make --version
