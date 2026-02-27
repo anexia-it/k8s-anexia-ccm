@@ -24,7 +24,8 @@ jobs:
             ${{ runner.os }}-go-
 
       - name: Ensure GOPATH bin on PATH
-        run: echo "::add-path::$(go env GOPATH)/bin"
+        # `add-path` command is deprecated/disabled; use the GITHUB_PATH file instead
+        run: echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
 
       - name: Check code format
         run: |
