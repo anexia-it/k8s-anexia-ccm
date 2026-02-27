@@ -80,18 +80,18 @@ func (mr *MockIPAMPrefixAPIMockRecorder) Get(arg0, arg1 interface{}) *gomock.Cal
 }
 
 // List mocks base method.
-func (m *MockIPAMPrefixAPI) List(arg0 context.Context, arg1, arg2 int) ([]prefix.Summary, error) {
+func (m *MockIPAMPrefixAPI) List(arg0 context.Context, arg1, arg2 int, arg3 string) ([]prefix.Summary, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "List", arg0, arg1, arg2)
+	ret := m.ctrl.Call(m, "List", arg0, arg1, arg2, arg3)
 	ret0, _ := ret[0].([]prefix.Summary)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // List indicates an expected call of List.
-func (mr *MockIPAMPrefixAPIMockRecorder) List(arg0, arg1, arg2 interface{}) *gomock.Call {
+func (mr *MockIPAMPrefixAPIMockRecorder) List(arg0, arg1, arg2, arg3 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockIPAMPrefixAPI)(nil).List), arg0, arg1, arg2)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockIPAMPrefixAPI)(nil).List), arg0, arg1, arg2, arg3)
 }
 
 // Update mocks base method.

@@ -38,8 +38,8 @@ var _ = Describe("prefix", func() {
 		addressClient = legacyapimock.NewMockIPAMAddressAPI(c)
 		prefixClient = legacyapimock.NewMockIPAMPrefixAPI(c)
 		genericClient = apimock.NewMockAPI(c)
-		ipamClient.EXPECT().Address().AnyTimes().Return(addressClient)
-		ipamClient.EXPECT().Prefix().AnyTimes().Return(prefixClient)
+		ipamClient.EXPECT().Address().AnyTimes().Return(address.API(addressClient))
+		ipamClient.EXPECT().Prefix().AnyTimes().Return(anxprefix.API(prefixClient))
 	})
 
 	prefixTest := func(withTaggedAddress bool, identifier string, expectedFamily v1.IPFamily, expectedPrefix, expectedAddress string) {
