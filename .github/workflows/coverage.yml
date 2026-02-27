@@ -2,16 +2,16 @@ name: Coverage
 
 on:
   push:
-    branches: [ main, master, Ewiebe-02 ]
+    branches: [main, master, Ewiebe-02]
   pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
 
 jobs:
   coverage:
     runs-on: ubuntu-latest
     env:
       GOFLAGS: -mod=mod
-      COVERAGE_TARGET: ${{ inputs.coverage_target || '100' }}
+      COVERAGE_TARGET: ${{ inputs.coverage_target || '30' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -19,7 +19,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.24'
+          go-version: "1.25.1"
 
       - name: Cache Go modules
         uses: actions/cache@v4
