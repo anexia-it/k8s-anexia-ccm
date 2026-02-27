@@ -24,7 +24,7 @@ jobs:
       - name: Install build tools
         run: |
           # make is required by later steps but may not be installed by default
-          sudo apt-get update && sudo apt-get install -y make
+          sudo apt-get update && sudo apt-get install -y make git
 
       - name: Ensure GOPATH bin on PATH
         # `add-path` command is deprecated/disabled; use the GITHUB_PATH file instead
