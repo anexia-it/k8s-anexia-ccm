@@ -49,7 +49,8 @@ jobs:
 
       - name: Upload coverage artifacts
         if: always()
-        uses: actions/upload-artifact@v3
+        # actions/upload-artifact v4 is the current supported major version
+        uses: actions/upload-artifact@v4
         with:
           name: coverage-reports
           path: |
