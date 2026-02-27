@@ -36,6 +36,6 @@ jobs:
           set -eux
           # Install pinned mockgen matching Makefile
           go install github.com/golang/mock/mockgen@v1.6.0
-          make --version
-          make verify-mocks
-          make test
+          /usr/bin/make --version
+          /usr/bin/make verify-mocks
+          /usr/bin/make test

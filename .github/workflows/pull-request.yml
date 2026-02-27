@@ -29,8 +29,10 @@ jobs:
 
       - name: Check code format
         run: |
+          # run linter in fix mode to address simple issues and formatting
+          golangci-lint run --fix
           go fmt ./...
-          git diff --exit-code || (echo "The files in this repo are not properly formatted." && exit 1)
+          git diff --exit-code || (echo "The files in this repo are not properly formatted or linting rules require changes." && exit 1)
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v8
