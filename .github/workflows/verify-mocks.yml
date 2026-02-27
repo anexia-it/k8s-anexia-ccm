@@ -18,7 +18,8 @@ jobs:
       - name: Setup Go
         uses: actions/setup-go@v4
         with:
-          go-version: '1.20'
+           # match the local toolchain to avoid "compile version does not match" errors
+           go-version: '1.25.1'
 
       - name: Install build tools
         run: |
@@ -34,6 +35,8 @@ jobs:
           PATH: ${{ env.PATH }}:$(go env GOPATH)/bin
         run: |
           set -eux
+           go version
+           go env
           # Install pinned mockgen matching Makefile
           go install github.com/golang/mock/mockgen@v1.6.0
           /usr/bin/make --version

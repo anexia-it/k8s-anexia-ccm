@@ -11,50 +11,23 @@ jobs:
         uses: actions/setup-go@v6
         with:
           # pin to the repo go.mod version to avoid toolchain mismatches
-          go-version: '1.25.1'
-
-      - name: Cache Go modules
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cache/go-build
-            ${{ github.workspace }}/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
-
-      - name: Ensure GOPATH bin on PATH
-        # `add-path` command is deprecated/disabled; use the GITHUB_PATH file instead
-        run: echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+          go-version: 'stable'
 
       - name: Check code format
         run: |
-          # run linter in fix mode to address simple issues and formatting
-          golangci-lint run --fix
           go fmt ./...
-          git diff --exit-code || (echo "The files in this repo are not properly formatted or linting rules require changes." && exit 1)
+          git diff --exit-code || (echo "The files in this repo are not properly formatted." && exit 1)
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v8
 
       - name: Run unit tests
-        run: |
-          set -eux
-          # show Go and system info for debugging flaky CI failures
-          go version
-          go env
-          uname -a
-          make test
+        run: make test
 
   review-docker:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      # hadolint via reviewdog was failing with exit code 127; instead lint Dockerfiles
-      - name: Lint Dockerfiles with hadolint
-        run: |
-          # use docker image to guarantee hadolint binary availability
-          for f in $(git ls-files '*Dockerfile*' || true); do
-            echo "linting $f";
-            docker run --rm -i hadolint/hadolint < "$f";
-          done
+      - uses: actions/checkout@v3
+      - uses: hadolint/hadolint-action@v3.1.0
+        with:
+          dockerfile: Dockerfile
