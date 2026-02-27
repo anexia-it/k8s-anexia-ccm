@@ -8,7 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"go.anx.io/go-anxcloud/pkg/api/mock"
+	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/test"
+	"github.com/golang/mock/gomock"
+	"go.anx.io/go-anxcloud/pkg/api"
 	"go.anx.io/go-anxcloud/pkg/api/types"
 	gs "go.anx.io/go-anxcloud/pkg/apis/common/gs"
 	lbaasv1 "go.anx.io/go-anxcloud/pkg/apis/lbaas/v1"
@@ -30,7 +32,8 @@ const (
 )
 
 var _ = Describe("reconcile", func() {
-	var apiClient mock.API
+	var apiClient *test.FakeAPI
+	var mockCtrl *gomock.Controller
 
 	var recon *reconciliation
 
@@ -44,11 +47,13 @@ var _ = Describe("reconcile", func() {
 	var kubeRegistry kubemetrics.KubeRegistry
 
 	BeforeEach(func() {
-		apiClient = mock.NewMockAPI(mock.WithPreCreateHook(func(ctx context.Context, a mock.API, o types.IdentifiedObject) {
+		mockCtrl = gomock.NewController(GinkgoT())
+		apiClient = test.NewFakeAPI(mockCtrl)
+		apiClient.SetPreCreateHook(func(ctx context.Context, a api.API, o types.Object) {
 			if server, ok := o.(*lbaasv1.Server); ok {
 				server.State.Type = gs.StateTypeOK
 			}
-		}))
+		})
 
 		apiClient.FakeExisting(&lbaasv1.LoadBalancer{
 			Identifier: testLoadBalancerIdentifier,

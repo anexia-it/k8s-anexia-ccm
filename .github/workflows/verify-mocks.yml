@@ -1,0 +1,42 @@
+name: Verify generated mocks
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - dependabot/**
+
+jobs:
+  verify-mocks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+           # match the local toolchain to avoid "compile version does not match" errors
+           go-version: '1.25.1'
+
+      - name: Install build tools
+        run: |
+          # make is required by later steps but may not be installed by default
+          sudo apt-get update && sudo apt-get install -y make git
+
+      - name: Ensure GOPATH bin on PATH
+        # `add-path` command is deprecated/disabled; use the GITHUB_PATH file instead
+        run: echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
+
+      - name: Regenerate and verify mocks + run tests
+        run: |
+          set -eux
+          go version
+          go env
+          # Install pinned mockgen matching Makefile
+          go install github.com/golang/mock/mockgen@v1.6.0
+          /usr/bin/make --version
+          /usr/bin/make verify-mocks
+          /usr/bin/make test

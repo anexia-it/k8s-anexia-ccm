@@ -1,14 +1,37 @@
 k8s-anexia-ccm:
 	go build
 
+# Default mockgen version; override by environment if needed
+MOCKGEN_VERSION ?= v1.6.0
+
 test:
+	# Note: increase timeout to avoid CI failures for longer-running suites.
 	go run github.com/onsi/ginkgo/v2/ginkgo -p 	\
-	    -timeout 0                  			\
+    -timeout 10m                  	\
 	    -race                       			\
 	    -coverprofile coverage.out  			\
 	    --keep-going                			\
 	    ./anx/...
 	go tool cover -html=coverage.out -o coverage.html
+
+# Generate coverage report for the whole module using the standard go test runner.
+# COVERAGE_TARGET can be set to an integer percentage (default: 100) used by
+# the `coverage-check` target to decide success/failure.
+coverage:
+	@echo "==> Running tests and writing coverage.out"
+	go test ./... -coverprofile=coverage.out -covermode=atomic -timeout 60s
+	@echo "==> Generating HTML report coverage.html"
+	go tool cover -html=coverage.out -o coverage.html
+
+# Run coverage and fail if total coverage is below COVERAGE_TARGET (default 100)
+coverage-check:
+	@echo "==> Running coverage check (target=$${COVERAGE_TARGET:-100}%)"
+	go test ./... -coverprofile=coverage.out -covermode=atomic -timeout 60s
+	@percent=$$(go tool cover -func=coverage.out | awk '/^total:/ {print $$3}' | sed 's/%//'); \
+	 target=$${COVERAGE_TARGET:-100}; \
+	 percent_int=$$(printf "%.0f" $$percent); \
+	 echo "coverage=$$percent_int% target=$$target%"; \
+	 if [ $$percent_int -lt $$target ]; then echo "ERROR: coverage $$percent_int% < target $$target%"; exit 1; fi
 
 run: k8s-anexia-ccm
 	hack/anxkube-dev-run
@@ -50,3 +73,30 @@ docs-lint-fix:
 	@docker run -v $(PWD):/markdown 06kellyjac/markdownlint-cli --fix docs/
 
 .PHONY: k8s-anexia-ccm test run debug docs versioned-docs go-lint docs-lint docs-lint-fix fmt
+
+.PHONY: regen-mocks verify-mocks
+
+regen-mocks:
+	@echo "==> Installing mock tools (mockgen)"
+	@export PATH="$(shell go env GOPATH)/bin:$$PATH"; \
+		go install github.com/golang/mock/mockgen@${MOCKGEN_VERSION}
+	@echo "==> Regenerating GoMock mocks"
+	@export PATH="$(shell go env GOPATH)/bin:$$PATH"; \
+		mockgen -package legacyapimock -destination anx/provider/test/legacyapimock/ipam_address.go -mock_names API=MockIPAMAddressAPI go.anx.io/go-anxcloud/pkg/ipam/address API; \
+		mockgen -package legacyapimock -destination anx/provider/test/legacyapimock/ipam_prefix.go -mock_names API=MockIPAMPrefixAPI go.anx.io/go-anxcloud/pkg/ipam/prefix API; \
+		mockgen -package legacyapimock -destination anx/provider/test/legacyapimock/ipam.go -mock_names API=MockIPAMAPI go.anx.io/go-anxcloud/pkg/ipam API; \
+		mockgen -package apimock -destination anx/provider/test/apimock/api_mock.go go.anx.io/go-anxcloud/pkg/api/types API; \
+		# Normalize formatting of generated files to avoid whitespace diffs
+		gofmt -w anx/provider/test/legacyapimock anx/provider/test/apimock || true
+
+verify-mocks: regen-mocks
+	@echo "==> Verifying generated mocks are committed"
+	@git diff --exit-code -- \
+		anx/provider/test/legacyapimock \
+		anx/provider/test/apimock \
+		anx/provider/test/gomockapi \
+		anx/provider/test/mockvsphere \
+		anx/provider/test/mocklbaas \
+		anx/provider/test/mockclouddns \
+		anx/provider/test/mockvlan \
+		anx/provider/test/mocktest || (echo "Generated mocks differ, run 'make regen-mocks' and commit changes" && exit 1)

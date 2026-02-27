@@ -10,8 +10,8 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/utils/ptr"
 
+	testhelper "github.com/anexia-it/k8s-anexia-ccm/anx/provider/test"
 	"go.anx.io/go-anxcloud/pkg/api"
-	"go.anx.io/go-anxcloud/pkg/api/mock"
 	corev1 "go.anx.io/go-anxcloud/pkg/apis/core/v1"
 	lbaasv1 "go.anx.io/go-anxcloud/pkg/apis/lbaas/v1"
 	"go.anx.io/go-anxcloud/pkg/ipam/address"
@@ -25,7 +25,7 @@ import (
 )
 
 var _ = Describe("prefix", func() {
-	var a mock.API
+	var a *testhelper.FakeAPI
 	var c *gomock.Controller
 	var ipamClient *legacyapimock.MockIPAMAPI
 	var addressClient *legacyapimock.MockIPAMAddressAPI
@@ -45,7 +45,7 @@ var _ = Describe("prefix", func() {
 	prefixTest := func(withTaggedAddress bool, identifier string, expectedFamily v1.IPFamily, expectedPrefix, expectedAddress string) {
 		Context(fmt.Sprintf("for family %v", expectedFamily), Ordered, func() {
 			BeforeEach(func() {
-				a = mock.NewMockAPI()
+				a = testhelper.NewFakeAPI(c)
 				if withTaggedAddress {
 					// used to find a tagged resources identifier
 					// using lbaasv1.Backend is very hacky.. but currently except the lbaas
@@ -101,7 +101,7 @@ var _ = Describe("prefix", func() {
 	fallbackPrefixTest := func(identifier string, expectedFamily v1.IPFamily, expectedPrefix, expectedAddress string) {
 		Context(fmt.Sprintf("for family %v", expectedFamily), Ordered, func() {
 			BeforeEach(func() {
-				a = mock.NewMockAPI()
+				a = testhelper.NewFakeAPI(c)
 			})
 
 			var p *prefix
