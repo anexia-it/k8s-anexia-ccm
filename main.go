@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"math/rand"
 	"os"
 	"time"
@@ -56,6 +57,8 @@ func main() {
 
 	logs.InitLogs()
 	defer logs.FlushLogs()
+	klog.InitFlags(nil)
+	flag.Parse()
 	cmdContext := logr.NewContext(context.Background(), klog.NewKlogr())
 	if err := command.ExecuteContext(cmdContext); err != nil {
 		os.Exit(1)

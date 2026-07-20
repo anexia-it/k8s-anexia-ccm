@@ -111,6 +111,7 @@ func (p prefix) discoverVIP(ctx context.Context, apiClient api.API, ipamClient i
 	for retriever := range oc {
 		var res corev1.Resource
 		err := retriever(&res)
+		// This is a bug. If one resource was not fetchable, we need to continue. Might warning log though....
 		if err != nil {
 			return nil, fmt.Errorf("error retrieving resource: %w", err)
 		}

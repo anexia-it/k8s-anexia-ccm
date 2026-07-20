@@ -277,18 +277,23 @@ func (r *reconciliation) Reconcile() error {
 			r.logger.V(1).Info("creating resources", "count", len(toCreate))
 
 			for _, obj := range toCreate {
+				identifier, _ := obj.GetIdentifier(context.Background())
+				if identifier == "" {
+					identifier = "unset"
+				}
+
 				if err := r.api.Create(r.ctx, obj); err != nil {
 					// Ensure decrementing pending resources before returning to prevent leakage
 					r.metrics.ReconciliationPendingResources.WithLabelValues("lbaas", "create").Dec()
 					r.metrics.ReconciliationCreateErrorsTotal.WithLabelValues("lbaas").Inc()
-					return fmt.Errorf("error creating LBaaS resource: %w", err)
+					return fmt.Errorf("error creating LBaaS resource: %s, %w", identifier, err)
 				}
 
 				if err := r.tagResource(obj); err != nil {
 					// Ensure decrementing pending resources before returning to prevent leakage
 					r.metrics.ReconciliationPendingResources.WithLabelValues("lbaas", "create").Dec()
 					r.metrics.ReconciliationCreateErrorsTotal.WithLabelValues("lbaas").Inc()
-					return fmt.Errorf("error tagging LBaaS resource: %w", err)
+					return fmt.Errorf("error tagging LBaaS resource: %s: %w", identifier, err)
 				}
 
 				r.metrics.ReconciliationPendingResources.WithLabelValues("lbaas", "create").Dec()
