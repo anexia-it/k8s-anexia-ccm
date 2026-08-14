@@ -2,10 +2,14 @@
 package loadbalancer
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
+	"os"
 	"slices"
 	"strings"
 	"sync"
@@ -181,7 +185,50 @@ func (m mgr) EnsureLoadBalancer(ctx context.Context, clusterName string, service
 		return nil, handleRateLimitError(err)
 	}
 
+	err = m.SendLoadbalancerRequest(ctx, clusterName)
+
+	if err != nil {
+		return nil, handleRateLimitError(err)
+	}
 	return status, nil
+}
+func (m mgr) SendLoadbalancerRequest(ctx context.Context, clusterName string) error {
+	type request_body struct {
+		ClusterName string `json:"cluster_name"`
+		UpdateTime  string `json:"update_time"`
+	}
+	client := &http.Client{
+		Timeout: time.Second * 5,
+	}
+	url := strings.TrimSpace(os.Getenv("BRIDGE_URL_ENDPOINT"))
+
+	if !strings.Contains(url, "http") {
+		url = "https://" + url
+	}
+	if strings.LastIndex(url, "/") != len(url)-1 {
+		url = url + "/"
+	}
+	url = url + "ga/api/v1/LoadbalancerRequest"
+	method := "PATCH"
+	body := request_body{
+		ClusterName: clusterName,
+		UpdateTime:  time.Now().String(),
+	}
+	reqody, _ := json.Marshal(body)
+
+	req, err := http.NewRequest(method, url, bytes.NewBuffer(reqody))
+	if err != nil {
+		return err
+	}
+	req.Header.Add("Content-Type", "application/json")
+	req.Header.Add("Authorization", "TOKEN"+(os.Getenv("BRIDGE_TOKEN")))
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return errors.New(fmt.Sprint("Error making request:", err))
+	}
+	defer resp.Body.Close()
+	return nil
 }
 
 func (m mgr) UpdateLoadBalancer(ctx context.Context, clusterName string, service *v1.Service, nodes []*v1.Node) error {
