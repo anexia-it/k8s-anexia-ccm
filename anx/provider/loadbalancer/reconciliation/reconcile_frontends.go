@@ -40,6 +40,10 @@ func (r *reconciliation) reconcileFrontends() (toCreate, toDestroy []types.Objec
 		return nil, nil, err
 	}
 
+	if len(toCreate) > 0 || len(toDestroy) > 0 {
+		r.logReconcileDiff("Frontend", targetFrontends, r.frontends, "Name", "Mode", "LoadBalancer.Identifier", "DefaultBackend.Identifier")
+	}
+
 	if len(toCreate) == 0 && len(toDestroy) == 0 {
 		for name := range r.ports {
 			expectedName := r.makeResourceName(name)
