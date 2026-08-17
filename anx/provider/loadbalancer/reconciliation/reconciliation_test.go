@@ -207,6 +207,80 @@ var _ = Describe("reconcile", func() {
 		)
 	})
 
+	Context("with a resource in failure state", func() {
+		var failedBackendIdentifier string
+
+		JustBeforeEach(func() {
+			failedBackendIdentifier = apiClient.FakeExisting(&lbaasv1.Backend{
+				Name:         "http." + testClusterName,
+				Mode:         lbaasv1.TCP,
+				HealthCheck:  `"adv_check": "tcp-check"`,
+				LoadBalancer: lbaasv1.LoadBalancer{Identifier: testLoadBalancerIdentifier},
+				HasState:     gs.HasState{State: lbaasv1.DeploymentError},
+			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
+		})
+
+		It("updates the resource instead of deleting it", func() {
+			toCreate, toDestroy, err := recon.ReconcileCheck()
+			Expect(err).To(MatchError(ErrLBaaSResourceRecoveryPending))
+			Expect(toCreate).To(BeEmpty())
+			Expect(toDestroy).To(BeEmpty())
+
+			failedBackend := apiClient.Inspect(failedBackendIdentifier)
+			Expect(failedBackend).NotTo(BeNil())
+			Expect(failedBackend.Existing()).To(BeTrue())
+			Expect(failedBackend.UpdatedCount()).To(Equal(1))
+			Expect(failedBackend.DestroyedCount()).To(BeZero())
+		})
+
+		It("returns after one recovery update so the controller can requeue", func() {
+			err := recon.Reconcile()
+			Expect(err).To(MatchError(ErrLBaaSResourceRecoveryPending))
+
+			failedBackend := apiClient.Inspect(failedBackendIdentifier)
+			Expect(failedBackend).NotTo(BeNil())
+			Expect(failedBackend.UpdatedCount()).To(Equal(1))
+			Expect(failedBackend.DestroyedCount()).To(BeZero())
+		})
+	})
+
+	Context("with a resource in Updating state", func() {
+		var updatingBackendIdentifier string
+
+		JustBeforeEach(func() {
+			updatingBackendIdentifier = apiClient.FakeExisting(&lbaasv1.Backend{
+				Name:         "http." + testClusterName,
+				Mode:         lbaasv1.TCP,
+				HealthCheck:  `"adv_check": "tcp-check"`,
+				LoadBalancer: lbaasv1.LoadBalancer{Identifier: testLoadBalancerIdentifier},
+				HasState:     gs.HasState{State: lbaasv1.Updating},
+			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
+		})
+
+		It("requeues without updating or deleting the resource", func() {
+			toCreate, toDestroy, err := recon.ReconcileCheck()
+			Expect(err).To(MatchError(ErrLBaaSResourceRecoveryPending))
+			Expect(toCreate).To(BeEmpty())
+			Expect(toDestroy).To(BeEmpty())
+
+			updatingBackend := apiClient.Inspect(updatingBackendIdentifier)
+			Expect(updatingBackend).NotTo(BeNil())
+			Expect(updatingBackend.Existing()).To(BeTrue())
+			Expect(updatingBackend.UpdatedCount()).To(BeZero())
+			Expect(updatingBackend.DestroyedCount()).To(BeZero())
+		})
+
+		It("returns from reconciliation so the controller can requeue", func() {
+			err := recon.Reconcile()
+			Expect(err).To(MatchError(ErrLBaaSResourceRecoveryPending))
+
+			updatingBackend := apiClient.Inspect(updatingBackendIdentifier)
+			Expect(updatingBackend).NotTo(BeNil())
+			Expect(updatingBackend.UpdatedCount()).To(BeZero())
+			Expect(updatingBackend.DestroyedCount()).To(BeZero())
+		})
+	})
+
 	Context("with some existing and valid resources", func() {
 		var httpBackendIdentifier string
 		var httpsBackendIdentifier string
