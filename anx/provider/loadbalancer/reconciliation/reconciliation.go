@@ -29,6 +29,10 @@ var (
 	// ErrLBaaSResourceProgressing is returned by ReconcileCheck() when an existing resource was retrieved as not yet ready.
 	ErrLBaaSResourceProgressing = errors.New("LBaaS resource still progressing")
 
+	// ErrLBaaSResourceRecoveryPending is returned after a failed resource was reset to Updating, or while a
+	// previously reset resource is still Updating. Returning it lets the Kubernetes controller requeue the service.
+	ErrLBaaSResourceRecoveryPending = errors.New("LBaaS resource recovery pending")
+
 	// ErrLBaaSResourceFailed is returned when a LBaaS resource is in a not-ok state.
 	ErrLBaaSResourceFailed = errors.New("LBaaS resource in failure state")
 )
@@ -72,11 +76,14 @@ type reconciliation struct {
 	binds     []*lbaasv1.Bind
 	servers   []*lbaasv1.Server
 
-	// we store existing failed Objects here
+	// we store existing failed Objects here so they can be reset to Updating
 	existingFailed []types.Object
 
 	// and store existing Objects that are not yet ready here
 	existingProgressing []types.Object
+
+	// existing Objects in Updating are rechecked by the next controller reconciliation
+	existingUpdating []types.Object
 
 	// information and connections gathered from existing resources
 
@@ -170,7 +177,18 @@ func (r *reconciliation) ReconcileCheck() ([]types.Object, []types.Object, error
 	}
 
 	if len(r.existingFailed) > 0 {
-		return []types.Object{}, r.existingFailed, nil
+		if err := r.updateFailedResources(); err != nil {
+			return nil, nil, err
+		}
+
+		// Stop this reconciliation after one recovery attempt. The returned
+		// error causes Kubernetes to requeue the service and check the state in
+		// a new reconciliation instead of retrying forever in this invocation.
+		return nil, nil, ErrLBaaSResourceRecoveryPending
+	}
+
+	if len(r.existingUpdating) > 0 {
+		return nil, nil, ErrLBaaSResourceRecoveryPending
 	}
 
 	if len(r.existingProgressing) > 0 {
@@ -199,6 +217,22 @@ func (r *reconciliation) ReconcileCheck() ([]types.Object, []types.Object, error
 	}
 
 	return retToCreate, retToDestroy, nil
+}
+
+// updateFailedResources asks the Engine to retry applying the existing LBaaS
+// configuration. The LBaaS API serializes Update operations with state ID 0
+// (Updating), so failed resources are recovered without deleting their Engine
+// object while leaving the corresponding HAProxy configuration behind.
+func (r *reconciliation) updateFailedResources() error {
+	r.logger.Info("Resetting failed LBaaS resources to Updating", "objects", mustStringifyObjects(r.existingFailed))
+
+	for _, obj := range r.existingFailed {
+		if err := r.api.Update(r.ctx, obj); err != nil {
+			return fmt.Errorf("error resetting failed LBaaS resource to Updating: %w", err)
+		}
+	}
+
+	return nil
 }
 
 // Reconcile calls ReconcileCheck in a loop, every time creating and destroying resources, until reconciliation
@@ -398,7 +432,7 @@ func (r *reconciliation) waitForResources(toCreate []types.Object) error {
 				}
 
 				// if we already retrieved Objects: shortcut
-				if state.StateOK() && !firstPass {
+				if state.StateOK() && !isResourceUpdating(obj) && !firstPass {
 					continue
 				}
 
@@ -409,7 +443,7 @@ func (r *reconciliation) waitForResources(toCreate []types.Object) error {
 					continue
 				}
 
-				if state.StatePending() {
+				if isResourceUpdating(obj) || state.StatePending() {
 					notReady = append(notReady, obj)
 				} else if state.StateError() {
 					failed = append(failed, obj)
@@ -442,6 +476,7 @@ func (r *reconciliation) retrieveState() error {
 
 	r.existingFailed = make([]types.Object, 0)
 	r.existingProgressing = make([]types.Object, 0)
+	r.existingUpdating = make([]types.Object, 0)
 
 	if err := r.retrieveResources(); err != nil {
 		return err
@@ -456,10 +491,29 @@ func (r *reconciliation) sortObjectIntoStateArray(o types.Object) {
 		return
 	}
 
-	if sr.StateError() {
+	if isResourceUpdating(o) {
+		r.existingUpdating = append(r.existingUpdating, o)
+	} else if sr.StateError() {
 		r.existingFailed = append(r.existingFailed, o)
 	} else if sr.StatePending() {
 		r.existingProgressing = append(r.existingProgressing, o)
+	}
+}
+
+// isResourceUpdating checks the LBaaS state ID explicitly because Updating
+// (ID 0) is classified as an OK state by the API rather than a Pending state.
+func isResourceUpdating(o types.Object) bool {
+	switch obj := o.(type) {
+	case *lbaasv1.Backend:
+		return obj.State.ID == lbaasv1.Updating.ID
+	case *lbaasv1.Frontend:
+		return obj.State.ID == lbaasv1.Updating.ID
+	case *lbaasv1.Bind:
+		return obj.State.ID == lbaasv1.Updating.ID
+	case *lbaasv1.Server:
+		return obj.State.ID == lbaasv1.Updating.ID
+	default:
+		return false
 	}
 }
 
