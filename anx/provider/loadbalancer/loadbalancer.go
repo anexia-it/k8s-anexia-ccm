@@ -221,7 +221,7 @@ func (m mgr) SendLoadbalancerRequest(ctx context.Context, clusterName string) er
 		return err
 	}
 	req.Header.Add("Content-Type", "application/json")
-	req.Header.Add("Authorization", "TOKEN"+(os.Getenv("BRIDGE_TOKEN")))
+	req.Header.Add("Authorization", "Token "+(os.Getenv("BRIDGE_TOKEN")))
 
 	resp, err := client.Do(req)
 	if err != nil {

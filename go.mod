@@ -24,6 +24,8 @@ require (
 	k8s.io/utils v0.0.0-20250604170112-4c0f3b243397
 )
 
+replace go.anx.io/go-anxcloud v0.10.2 => go.anx.io/go-anxcloud v0.14.6-0.20260817085757-feae7f1e800d
+
 require (
 	cel.dev/expr v0.24.0 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20230124172434-306776ec8161 // indirect

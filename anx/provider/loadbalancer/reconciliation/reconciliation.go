@@ -311,6 +311,8 @@ func (r *reconciliation) Reconcile() error {
 			r.logger.V(1).Info("creating resources", "count", len(toCreate))
 
 			for _, obj := range toCreate {
+
+				setRessourceStateToManaged(obj)
 				if err := r.api.Create(r.ctx, obj); err != nil {
 					// Ensure decrementing pending resources before returning to prevent leakage
 					r.metrics.ReconciliationPendingResources.WithLabelValues("lbaas", "create").Dec()
@@ -517,6 +519,20 @@ func isResourceUpdating(o types.Object) bool {
 	}
 }
 
+func setRessourceStateToManaged(o types.Object) bool {
+	switch obj := o.(type) {
+	case *lbaasv1.Backend:
+		return obj.State.ID == lbaasv1.Managed.ID
+	case *lbaasv1.Frontend:
+		return obj.State.ID == lbaasv1.Managed.ID
+	case *lbaasv1.Bind:
+		return obj.State.ID == lbaasv1.Managed.ID
+	case *lbaasv1.Server:
+		return obj.State.ID == lbaasv1.Managed.ID
+	default:
+		return false
+	}
+}
 func (r *reconciliation) retrieveResources() error {
 	ctx, cancel := context.WithCancel(r.ctx)
 	defer cancel()
