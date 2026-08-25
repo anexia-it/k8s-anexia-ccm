@@ -440,6 +440,11 @@ func (r *reconciliation) waitForResources(toCreate []types.Object) error {
 
 				err := r.api.Get(r.ctx, obj)
 				if err != nil {
+					if api.IsRateLimitError(err) {
+						r.logger.Error(err, "aborting reconciliation, waiting for rate-limit to be released")
+						return false, err
+					}
+
 					r.logger.Error(err, "Error retrieving current state of Object, assuming it's failed", "object", mustStringifyObject(obj))
 					failed = append(failed, obj)
 					continue
@@ -519,18 +524,16 @@ func isResourceUpdating(o types.Object) bool {
 	}
 }
 
-func setRessourceStateToManaged(o types.Object) bool {
+func setRessourceStateToManaged(o types.Object) {
 	switch obj := o.(type) {
 	case *lbaasv1.Backend:
-		return obj.State.ID == lbaasv1.Managed.ID
+		obj.State = lbaasv1.Managed
 	case *lbaasv1.Frontend:
-		return obj.State.ID == lbaasv1.Managed.ID
+		obj.State = lbaasv1.Managed
 	case *lbaasv1.Bind:
-		return obj.State.ID == lbaasv1.Managed.ID
+		obj.State = lbaasv1.Managed
 	case *lbaasv1.Server:
-		return obj.State.ID == lbaasv1.Managed.ID
-	default:
-		return false
+		obj.State = lbaasv1.Managed
 	}
 }
 func (r *reconciliation) retrieveResources() error {
