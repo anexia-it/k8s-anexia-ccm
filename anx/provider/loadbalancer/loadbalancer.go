@@ -212,7 +212,7 @@ func (m mgr) SendLoadbalancerRequest(ctx context.Context, clusterName string) er
 	method := "PATCH"
 	body := request_body{
 		ClusterName: clusterName,
-		UpdateTime:  time.Now().String(),
+		UpdateTime:  time.Now().Format(time.RFC3339),
 	}
 	reqody, _ := json.Marshal(body)
 
@@ -226,6 +226,10 @@ func (m mgr) SendLoadbalancerRequest(ctx context.Context, clusterName string) er
 	resp, err := client.Do(req)
 	if err != nil {
 		return errors.New(fmt.Sprint("Error making request:", err))
+	}
+	if resp.StatusCode != 200 {
+		return errors.New(fmt.Sprint("Got response but with error making request, "+
+			"possibly wrong token:", resp.Status))
 	}
 	defer resp.Body.Close()
 	return nil

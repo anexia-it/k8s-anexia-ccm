@@ -24,7 +24,7 @@ require (
 	k8s.io/utils v0.0.0-20250604170112-4c0f3b243397
 )
 
-replace go.anx.io/go-anxcloud v0.10.2 => go.anx.io/go-anxcloud v0.14.6-0.20260817085757-feae7f1e800d
+replace go.anx.io/go-anxcloud v0.10.2 => go.anx.io/go-anxcloud v0.14.6-0.20260825070649-e9afb12c6b1d
 
 require (
 	cel.dev/expr v0.24.0 // indirect
