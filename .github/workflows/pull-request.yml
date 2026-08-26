@@ -18,7 +18,7 @@ jobs:
           git diff --exit-code || (echo "The files in this repo are not properly formatted." && exit 1)
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v8
+        uses: golangci/golangci-lint-action@v9
 
       - name: Run unit tests
         run: make test
