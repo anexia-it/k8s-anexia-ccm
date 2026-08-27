@@ -13,7 +13,7 @@ require (
 	github.com/prometheus/client_model v0.6.2
 	github.com/spf13/pflag v1.0.10
 	github.com/stretchr/testify v1.12.1
-	go.anx.io/go-anxcloud v0.10.3
+	go.anx.io/go-anxcloud v0.14.5
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.36.4
 	k8s.io/apimachinery v0.36.4
@@ -23,6 +23,8 @@ require (
 	k8s.io/klog/v2 v2.140.0
 	k8s.io/utils v0.0.0-20260210185600-b8788abfbbc2
 )
+
+replace go.anx.io/go-anxcloud v0.10.2 => go.anx.io/go-anxcloud v0.14.6-0.20260825070649-e9afb12c6b1d
 
 require (
 	cel.dev/expr v0.25.1 // indirect

@@ -32,6 +32,10 @@ func (r *reconciliation) reconcileBackends() (toCreate, toDestroy []types.Object
 		return nil, nil, err
 	}
 
+	if len(toCreate) > 0 || len(toDestroy) > 0 {
+		r.logReconcileDiff("Backend", targetBackends, r.backends, "Name", "Mode", "HealthCheck", "LoadBalancer.Identifier")
+	}
+
 	if len(toCreate) == 0 && len(toDestroy) == 0 {
 		for name := range r.ports {
 			expectedName := r.makeResourceName(name)

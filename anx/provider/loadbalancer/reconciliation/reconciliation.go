@@ -311,6 +311,12 @@ func (r *reconciliation) Reconcile() error {
 			r.logger.V(1).Info("creating resources", "count", len(toCreate))
 
 			for _, obj := range toCreate {
+
+				// This will cause all Anexia Engine automations to be skipped.
+				// Instead they will be managed by our new reconciler. Commented out for now.
+				// This should be a feature flag instead.
+				//setRessourceStateToManaged(obj)
+
 				if err := r.api.Create(r.ctx, obj); err != nil {
 					// Ensure decrementing pending resources before returning to prevent leakage
 					r.metrics.ReconciliationPendingResources.WithLabelValues("lbaas", "create").Dec()
@@ -438,6 +444,11 @@ func (r *reconciliation) waitForResources(toCreate []types.Object) error {
 
 				err := r.api.Get(r.ctx, obj)
 				if err != nil {
+					if api.IsRateLimitError(err) {
+						r.logger.Error(err, "aborting reconciliation, waiting for rate-limit to be released")
+						return false, err
+					}
+
 					r.logger.Error(err, "Error retrieving current state of Object, assuming it's failed", "object", mustStringifyObject(obj))
 					failed = append(failed, obj)
 					continue
@@ -517,6 +528,20 @@ func isResourceUpdating(o types.Object) bool {
 	}
 }
 
+// This waits on https://github.com/anexia-it/go-anxcloud/pull/542/changes to be released.
+//func setRessourceStateToManaged(o types.Object) {
+//	switch obj := o.(type) {
+//	case *lbaasv1.Backend:
+//		obj.State = lbaasv1.Managed
+//	case *lbaasv1.Frontend:
+//		obj.State = lbaasv1.Managed
+//	case *lbaasv1.Bind:
+//		obj.State = lbaasv1.Managed
+//	case *lbaasv1.Server:
+//		obj.State = lbaasv1.Managed
+//	}
+//}
+
 func (r *reconciliation) retrieveResources() error {
 	ctx, cancel := context.WithCancel(r.ctx)
 	defer cancel()
@@ -540,38 +565,52 @@ func (r *reconciliation) retrieveResources() error {
 	typedRetrievers := map[string]func(identifier string) error{
 		// frontends and backends are filtered for our LoadBalancer here already
 
-		frontendResourceTypeIdentifier: func(identifier string) (err error) {
+		frontendResourceTypeIdentifier: func(identifier string) error {
 			frontend := &lbaasv1.Frontend{Identifier: identifier}
-			if err = r.api.Get(ctx, frontend); err == nil && frontend.LoadBalancer.Identifier == r.lb.Identifier {
+			if err := r.api.Get(ctx, frontend); err != nil {
+				// the tag-based List result can lag behind an in-flight deletion, so a resource
+				// that just vanished is not an error, it is simply no longer part of the state
+				return api.IgnoreNotFound(err)
+			}
+
+			if frontend.LoadBalancer.Identifier == r.lb.Identifier {
 				r.frontends = append(r.frontends, frontend)
 				r.sortObjectIntoStateArray(frontend)
 			}
-			return
+			return nil
 		},
 
-		backendResourceTypeIdentifier: func(identifier string) (err error) {
+		backendResourceTypeIdentifier: func(identifier string) error {
 			backend := &lbaasv1.Backend{Identifier: identifier}
-			if err = r.api.Get(ctx, backend); err == nil && backend.LoadBalancer.Identifier == r.lb.Identifier {
+			if err := r.api.Get(ctx, backend); err != nil {
+				return api.IgnoreNotFound(err)
+			}
+
+			if backend.LoadBalancer.Identifier == r.lb.Identifier {
 				r.backends = append(r.backends, backend)
 				r.sortObjectIntoStateArray(backend)
 			}
-			return
+			return nil
 		},
 
-		bindResourceTypeIdentifier: func(identifier string) (err error) {
+		bindResourceTypeIdentifier: func(identifier string) error {
 			bind := &lbaasv1.Bind{Identifier: identifier}
-			if err = r.api.Get(ctx, bind); err == nil {
-				allBinds = append(allBinds, bind)
+			if err := r.api.Get(ctx, bind); err != nil {
+				return api.IgnoreNotFound(err)
 			}
-			return
+
+			allBinds = append(allBinds, bind)
+			return nil
 		},
 
-		serverResourceTypeIdentifier: func(identifier string) (err error) {
+		serverResourceTypeIdentifier: func(identifier string) error {
 			server := &lbaasv1.Server{Identifier: identifier}
-			if err = r.api.Get(ctx, server); err == nil {
-				allServers = append(allServers, server)
+			if err := r.api.Get(ctx, server); err != nil {
+				return api.IgnoreNotFound(err)
 			}
-			return
+
+			allServers = append(allServers, server)
+			return nil
 		},
 	}
 

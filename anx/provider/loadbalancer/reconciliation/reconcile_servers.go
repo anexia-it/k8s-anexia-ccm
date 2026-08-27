@@ -62,5 +62,9 @@ func (r *reconciliation) reconcileServers() (toCreate, toDestroy []types.Object,
 		return nil, nil, err
 	}
 
+	if len(toCreate) > 0 || len(toDestroy) > 0 {
+		r.logReconcileDiff("Server", targetServers, r.servers, "Name", "IP", "Port", "Check", "Backend.Identifier")
+	}
+
 	return
 }

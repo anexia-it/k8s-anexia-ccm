@@ -79,5 +79,9 @@ func (r *reconciliation) reconcileBinds() (toCreate, toDestroy []types.Object, e
 		return nil, nil, err
 	}
 
+	if len(toCreate) > 0 || len(toDestroy) > 0 {
+		r.logReconcileDiff("Bind", targetBinds, r.binds, "Name", "Address", "Port", "Frontend.Identifier")
+	}
+
 	return
 }
