@@ -185,11 +185,13 @@ func (m mgr) EnsureLoadBalancer(ctx context.Context, clusterName string, service
 		return nil, handleRateLimitError(err)
 	}
 
-	err = m.SendLoadbalancerRequest(ctx, clusterName)
-
-	if err != nil {
-		return nil, handleRateLimitError(err)
-	}
+	// This will trigger the akebridge and cause our new reconciler to immediately configure the haproxy/loadbalancer.
+	// Commented out for now until the feature is ready. This should be a feature flag instead.
+	//err = m.SendLoadbalancerRequest(ctx, clusterName)
+	//
+	//if err != nil {
+	//	return nil, handleRateLimitError(err)
+	//}
 	return status, nil
 }
 func (m mgr) SendLoadbalancerRequest(ctx context.Context, clusterName string) error {

@@ -312,7 +312,11 @@ func (r *reconciliation) Reconcile() error {
 
 			for _, obj := range toCreate {
 
-				setRessourceStateToManaged(obj)
+				// This will cause all Anexia Engine automations to be skipped.
+				// Instead they will be managed by our new reconciler. Commented out for now.
+				// This should be a feature flag instead.
+				//setRessourceStateToManaged(obj)
+
 				if err := r.api.Create(r.ctx, obj); err != nil {
 					// Ensure decrementing pending resources before returning to prevent leakage
 					r.metrics.ReconciliationPendingResources.WithLabelValues("lbaas", "create").Dec()
@@ -524,18 +528,20 @@ func isResourceUpdating(o types.Object) bool {
 	}
 }
 
-func setRessourceStateToManaged(o types.Object) {
-	switch obj := o.(type) {
-	case *lbaasv1.Backend:
-		obj.State = lbaasv1.Managed
-	case *lbaasv1.Frontend:
-		obj.State = lbaasv1.Managed
-	case *lbaasv1.Bind:
-		obj.State = lbaasv1.Managed
-	case *lbaasv1.Server:
-		obj.State = lbaasv1.Managed
-	}
-}
+// This waits on https://github.com/anexia-it/go-anxcloud/pull/542/changes to be released.
+//func setRessourceStateToManaged(o types.Object) {
+//	switch obj := o.(type) {
+//	case *lbaasv1.Backend:
+//		obj.State = lbaasv1.Managed
+//	case *lbaasv1.Frontend:
+//		obj.State = lbaasv1.Managed
+//	case *lbaasv1.Bind:
+//		obj.State = lbaasv1.Managed
+//	case *lbaasv1.Server:
+//		obj.State = lbaasv1.Managed
+//	}
+//}
+
 func (r *reconciliation) retrieveResources() error {
 	ctx, cancel := context.WithCancel(r.ctx)
 	defer cancel()
