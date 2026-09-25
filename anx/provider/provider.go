@@ -109,6 +109,11 @@ func (a *anxProvider) Initialize(builder cloudprovider.ControllerClientBuilder, 
 }
 
 func (a *anxProvider) initializeLoadBalancerManager(builder cloudprovider.ControllerClientBuilder) {
+	if a.config.DisableEngineLoadBalancer {
+		a.logger.Info("Anexia Engine LBaaS LoadBalancer reconciliation is disabled via configuration (disableEngineLoadBalancer/ANEXIA_DISABLE_ENGINE_LOAD_BALANCER); skipping initialization")
+		return
+	}
+
 	var k8sClient kubernetes.Interface
 
 	if builder != nil {

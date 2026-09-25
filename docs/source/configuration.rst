@@ -39,4 +39,9 @@ CloudProvider Configuration
      - ANEXIA_AUTO_DISCOVERY_TAG_PREFIX
      - This prefix will be used together with the cluster name to find load balancer objects that should be configured.
        (only when auto discovery is enabled)
+   * - disableEngineLoadBalancer
+     - ANEXIA_DISABLE_ENGINE_LOAD_BALANCER
+     - If set to `true`, disables the Anexia Engine LBaaS based LoadBalancer Service reconciliation entirely (no
+       LoadBalancer resources are read from or written to via the Engine API). Used to migrate clusters one at a
+       time to a different LoadBalancer reconciler. Defaults to `false`.
 

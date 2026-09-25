@@ -29,6 +29,13 @@ type ProviderConfig struct {
 
 	// defines the number of retries to wait for LoadBalancer resources to be ready
 	LoadBalancerBackoffSteps int `yaml:"loadBalancerBackoffSteps" default:"30"`
+
+	// DisableEngineLoadBalancer turns off this CCM's Anexia Engine LBaaS based LoadBalancer Service
+	// reconciliation (the frontend/backend/bind/server mirroring in anx/provider/loadbalancer). It exists
+	// to allow migrating clusters one by one to a CRD-based reconciler, without a code rollout: leave unset
+	// (false) for clusters still on the Engine LBaaS reconciler, set true once a cluster has been switched
+	// over. Defaults to false so existing deployments keep their current behaviour unless this is set explicitly.
+	DisableEngineLoadBalancer bool `yaml:"disableEngineLoadBalancer,omitempty" split_words:"true"`
 }
 
 const (
