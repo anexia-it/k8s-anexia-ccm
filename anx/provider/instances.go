@@ -115,11 +115,11 @@ func (i *instanceManager) InstanceMetadata(ctx context.Context, node *v1.Node) (
 
 	info, err := i.VSphere().Info().Get(ctx, providerID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not get provider info for %s (%s): %w", node, providerID, err)
 	}
 
 	return &cloudprovider.InstanceMetadata{
-		ProviderID:    providerID,
+		ProviderID:    info.Identifier,
 		InstanceType:  instanceType(info),
 		NodeAddresses: nodeAddressesFromInfo(providerID, info),
 		Zone:          info.LocationCode,
