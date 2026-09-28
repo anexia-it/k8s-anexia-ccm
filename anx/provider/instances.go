@@ -29,18 +29,11 @@ var (
 	errVirtualMachineNameNotUnique = errors.New("virtual machine name not unique")
 )
 
-// NodeAddressesByProviderID gets Node Ips for Given ProviderID,
-func (i *instanceManager) NodeAddressesByProviderID(ctx context.Context, providerID string) ([]v1.NodeAddress, error) {
-	if providerID == "" {
-		return nil, errors.New("empty providerId is not allowed")
-	}
-	info, err := i.VSphere().Info().Get(ctx, providerID)
-	if err != nil {
-		return nil, fmt.Errorf("could not get vm infoMock: %w", err)
-	}
-
+// nodeAddressesFromInfo extracts Node IPs from VM info that has already been fetched, so callers
+// that also need other fields from the same info (e.g. InstanceMetadata) don't have to fetch it twice.
+func nodeAddressesFromInfo(providerID string, info vminfo.Info) []v1.NodeAddress {
 	if len(info.Network) == 0 {
-		return nil, nil
+		return nil
 	}
 	nodeAddresses := make([]v1.NodeAddress, 0, len(info.Network))
 	if len(info.Network) > 1 {
@@ -59,7 +52,7 @@ func (i *instanceManager) NodeAddressesByProviderID(ctx context.Context, provide
 		})
 	}
 
-	return nodeAddresses, nil
+	return nodeAddresses
 }
 
 func (i *instanceManager) handleUnauthorizedForbidden(err error) {
@@ -120,11 +113,6 @@ func (i *instanceManager) InstanceMetadata(ctx context.Context, node *v1.Node) (
 		return nil, err
 	}
 
-	nodeAddresses, err := i.NodeAddressesByProviderID(ctx, providerID)
-	if err != nil {
-		return nil, err
-	}
-
 	info, err := i.VSphere().Info().Get(ctx, providerID)
 	if err != nil {
 		return nil, err
@@ -133,7 +121,7 @@ func (i *instanceManager) InstanceMetadata(ctx context.Context, node *v1.Node) (
 	return &cloudprovider.InstanceMetadata{
 		ProviderID:    providerID,
 		InstanceType:  instanceType(info),
-		NodeAddresses: nodeAddresses,
+		NodeAddresses: nodeAddressesFromInfo(providerID, info),
 		Zone:          info.LocationCode,
 		Region:        info.LocationCountry,
 	}, nil

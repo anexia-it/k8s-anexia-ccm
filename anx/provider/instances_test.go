@@ -449,6 +449,11 @@ func TestInstanceMetadata(t *testing.T) {
 		require.Len(t, metadata.NodeAddresses, 1)
 		require.Equal(t, metadata.NodeAddresses[0].Address, "10.0.0.1")
 		require.Equal(t, string(metadata.NodeAddresses[0].Type), "InternalIP")
+
+		// InstanceMetadata must only fetch VM info once per call: it needs the same info for both
+		// addresses and instance type/zone/region, and a second, redundant call doubles Engine load
+		// and doubles exposure to it 404ing a freshly created VM that hasn't propagated yet.
+		provider.InfoMock.AssertNumberOfCalls(t, "Get", 1)
 	})
 
 	t.Run("MultipleNetworks", func(t *testing.T) {
@@ -478,6 +483,8 @@ func TestInstanceMetadata(t *testing.T) {
 		require.Len(t, metadata.NodeAddresses, 1)
 		require.Equal(t, metadata.NodeAddresses[0].Address, "10.0.0.1")
 		require.Equal(t, string(metadata.NodeAddresses[0].Type), "InternalIP")
+
+		provider.InfoMock.AssertNumberOfCalls(t, "Get", 1)
 	})
 
 }
