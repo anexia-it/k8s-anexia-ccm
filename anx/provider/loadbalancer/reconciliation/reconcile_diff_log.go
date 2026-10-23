@@ -24,7 +24,7 @@ func (r *reconciliation) logReconcileDiff(resourceType string, target, existing 
 
 		idx, err := compare.Search(t, existing, "Name")
 		if err != nil {
-			r.logger.V(1).Info("could not compute human readable diff for resource", "resource-type", resourceType, "error", err.Error())
+			r.logger.V(1).Error(err, "could not compute human readable diff for resource", "resource-type", resourceType)
 			continue
 		}
 
@@ -40,7 +40,7 @@ func (r *reconciliation) logReconcileDiff(resourceType string, target, existing 
 
 		diffs, err := compare.Compare(t, e, compareAttributes...)
 		if err != nil {
-			r.logger.V(1).Info("could not compute human readable diff for resource", "resource-type", resourceType, "error", err.Error())
+			r.logger.V(1).Error(err, "could not compute human readable diff for resource", "resource-type", resourceType)
 			continue
 		}
 
@@ -63,7 +63,7 @@ func (r *reconciliation) logReconcileDiff(resourceType string, target, existing 
 
 		idx, err := compare.Search(e, target, "Name")
 		if err != nil {
-			r.logger.V(1).Info("could not compute human readable diff for resource", "resource-type", resourceType, "error", err.Error())
+			r.logger.V(1).Error(err, "could not compute human readable diff for resource", "resource-type", resourceType)
 			continue
 		}
 
