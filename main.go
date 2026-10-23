@@ -2,8 +2,10 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/configuration"
@@ -12,6 +14,7 @@ import (
 
 	"github.com/spf13/pflag"
 
+	_ "github.com/anexia-it/k8s-anexia-ccm/anx/logging" // register human-readable console log format
 	_ "github.com/anexia-it/k8s-anexia-ccm/anx/provider"
 	"k8s.io/apimachinery/pkg/util/wait"
 	cloudprovider "k8s.io/cloud-provider"
@@ -24,6 +27,11 @@ import (
 	_ "k8s.io/component-base/metrics/prometheus/clientgo" // load all the prometheus client-go plugins
 	_ "k8s.io/component-base/metrics/prometheus/version"  // for version metric registration
 	"k8s.io/klog/v2"
+)
+
+const (
+	logFormatEnvironmentVariable = "LOG_FORMAT"
+	logLevelEnvironmentVariable  = "LOG_LEVEL"
 )
 
 func main() {
@@ -53,6 +61,7 @@ func main() {
 		fss,
 		wait.NeverStop,
 	)
+	command.SetArgs(argumentsWithLoggingEnvironment(os.Args[1:], os.LookupEnv))
 
 	logs.InitLogs()
 	defer logs.FlushLogs()
@@ -60,6 +69,44 @@ func main() {
 	if err := command.ExecuteContext(cmdContext); err != nil {
 		os.Exit(1)
 	}
+}
+
+// argumentsWithLoggingEnvironment turns environment-based logging configuration into the
+// standard Kubernetes logging flags. Explicit command-line flags take precedence.
+func argumentsWithLoggingEnvironment(args []string, lookupEnv func(string) (string, bool)) []string {
+	environmentArgs := make([]string, 0, 2)
+
+	if format, ok := nonEmptyEnvironmentValue(lookupEnv, logFormatEnvironmentVariable); ok &&
+		!hasFlag(args, "--logging-format", "") {
+		environmentArgs = append(environmentArgs, fmt.Sprintf("--logging-format=%s", format))
+	}
+
+	if level, ok := nonEmptyEnvironmentValue(lookupEnv, logLevelEnvironmentVariable); ok &&
+		!hasFlag(args, "--v", "-v") {
+		environmentArgs = append(environmentArgs, fmt.Sprintf("--v=%s", level))
+	}
+
+	return append(environmentArgs, args...)
+}
+
+func nonEmptyEnvironmentValue(lookupEnv func(string) (string, bool), name string) (string, bool) {
+	value, ok := lookupEnv(name)
+	value = strings.TrimSpace(value)
+	return value, ok && value != ""
+}
+
+func hasFlag(args []string, longName, shortName string) bool {
+	for _, argument := range args {
+		if argument == longName || strings.HasPrefix(argument, longName+"=") {
+			return true
+		}
+
+		if shortName != "" && (argument == shortName || strings.HasPrefix(argument, shortName+"=")) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func cloudInitializer(config *cloudcontrollerconfig.CompletedConfig) cloudprovider.Interface {
