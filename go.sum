@@ -203,8 +203,8 @@ github.com/x448/float16 v0.8.4/go.mod h1:14CWIYCyZA/cWjXOioeEpHeN/83MdbZDRQHoFcY
 github.com/xiang90/probing v0.0.0-20221125231312-a49e3df8f510 h1:S2dVYn90KE98chqDkyE9Z4N61UnQd+KOfgp5Iu53llk=
 github.com/xiang90/probing v0.0.0-20221125231312-a49e3df8f510/go.mod h1:UETIi67q53MR2AWcXfiuqkDkRtnGDLqkBTpCHuJHxtU=
 github.com/yuin/goldmark v1.3.5/go.mod h1:mwnBkeHKe2W/ZEtQ+71ViKU8L12m81fl3OWwC1Zlc8k=
-go.anx.io/go-anxcloud v0.10.3 h1:ezZZ6Vnvg1/bTi1aRNWnaP/ILOOXmwiP8NYscNiqHGQ=
-go.anx.io/go-anxcloud v0.10.3/go.mod h1:9AI59yt39ioxjP8MUOgTcDK1zTD/0UGOxZ+m/h7eMTM=
+go.anx.io/go-anxcloud v0.14.5 h1:7oVdLWWe4hZtP4BJvcouzpKKNHqlaDGqnyggUC9Lom4=
+go.anx.io/go-anxcloud v0.14.5/go.mod h1:nhwk53AePw9CH91dAGGGzrjlpovbR8dfixtFUkHD/PA=
 go.etcd.io/bbolt v1.5.0 h1:S7GAl7Fxv12yohbwFfIbQCGDWbQbtDGPET4P/bD4lxU=
 go.etcd.io/bbolt v1.5.0/go.mod h1:mkltfYE5aUHQxUct9N9V+Kp7aSjFqjgrhcXIS70Lrdk=
 go.etcd.io/etcd/api/v3 v3.7.0 h1:WZlGK7pRtYGDB8ti8wkrQ5D2oWGMbtNL9VA5e+vF2Fg=
