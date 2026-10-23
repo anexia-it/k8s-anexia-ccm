@@ -117,7 +117,7 @@ func (m *mgr) AllocateAddresses(ctx context.Context, svc *v1.Service) ([]string,
 		addresses, ok := currentAddresses[fam]
 
 		if !ok {
-			m.logger.V(1).Info("No addresses for IP family allocated yet", "family", fam)
+			m.logger.V(0).Info("No addresses for IP family allocated yet", "family", fam)
 
 			addr, err := m.allocateAddress(ctx, fam)
 			if err != nil {

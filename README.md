@@ -23,3 +23,13 @@ that when not using your cluster only for development.
 Because of that magic, you need `kubectl` for running and debug and it has to be configured for the correct seed
 cluster as current context. The script also has more dependencies, but it will tell you.
 
+## Logging
+
+The application supports the standard Kubernetes logging flags `--logging-format` and `--v`. They can also be
+configured through environment variables:
+
+* `LOG_FORMAT`: `text` (Kubernetes legacy default), `console` (human-readable structured output), or `json`
+* `LOG_LEVEL`: numeric klog verbosity, where `0` is the default and higher values enable more detailed logs
+
+Explicit command-line flags take precedence over their environment-variable equivalents.
+

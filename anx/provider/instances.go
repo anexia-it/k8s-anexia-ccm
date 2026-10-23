@@ -150,13 +150,13 @@ func (i *instanceManager) instancesByName(ctx context.Context, name string) ([]s
 		namePrefix = "%"
 		logger.Info("Customer ID prefix not configured, using a wildcard", "prefix", namePrefix)
 	} else {
-		logger.V(1).Info("Listing VMs with configured prefix", "prefix", namePrefix)
+		logger.V(0).Info("Listing VMs with configured prefix", "prefix", namePrefix)
 	}
 
 	vms, err := i.VSphere().Search().ByName(ctx, fmt.Sprintf("%s-%s", namePrefix, name))
 
 	if err == nil && len(vms) == 0 {
-		logger.V(1).Info("Didn't find any VM by name with prefix, retrying without prefix", "prefix", namePrefix)
+		logger.V(0).Info("Didn't find any VM by name with prefix, retrying without prefix", "prefix", namePrefix)
 		vms, err = i.VSphere().Search().ByName(ctx, name)
 	}
 
