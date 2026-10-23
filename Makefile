@@ -10,6 +10,9 @@ test:
 	    ./anx/...
 	go tool cover -html=coverage.out -o coverage.html
 
+vulncheck:
+	go tool govulncheck ./...
+
 run: k8s-anexia-ccm
 	hack/anxkube-dev-run
 
@@ -49,4 +52,4 @@ docs-lint-fix:
 	@go tool misspell -w -source=text docs/
 	@docker run -v $(PWD):/markdown 06kellyjac/markdownlint-cli --fix docs/
 
-.PHONY: k8s-anexia-ccm test run debug docs versioned-docs go-lint docs-lint docs-lint-fix fmt
+.PHONY: k8s-anexia-ccm test vulncheck run debug docs versioned-docs go-lint docs-lint docs-lint-fix fmt
