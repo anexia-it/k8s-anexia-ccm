@@ -79,7 +79,7 @@ func (p prefix) allocateAddress(ctx context.Context, fam v1.IPFamily) (net.IP, e
 	// See SYSENG-918 for more info.
 	ip := p.addresses[0]
 
-	log.V(1).Info(
+	log.V(0).Info(
 		"allocated external IP",
 		"prefix", p.prefix.String(),
 		"address", ip.String(),
@@ -128,7 +128,7 @@ func (p prefix) discoverVIP(ctx context.Context, apiClient api.API, ipamClient i
 			continue
 		}
 
-		logger.V(1).Info("Found VIP Address via auto discovery", "identifier", address.ID)
+		logger.V(0).Info("Found VIP Address via auto discovery", "identifier", address.ID)
 		return net.ParseIP(address.Name), err
 	}
 

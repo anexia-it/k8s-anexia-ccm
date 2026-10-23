@@ -43,7 +43,7 @@ func DiscoverLoadBalancers(ctx context.Context, apiClient api.API, tag string) (
 			continue
 		}
 
-		logger.V(1).Info("Found LoadBalancer via auto discovery", "identifier", lb.Identifier)
+		logger.V(0).Info("Found LoadBalancer via auto discovery", "identifier", lb.Identifier)
 
 		ret = append(ret, res.Identifier)
 	}

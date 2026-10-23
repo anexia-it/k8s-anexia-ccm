@@ -267,7 +267,7 @@ func (r *reconciliation) Reconcile() error {
 
 		if len(toDestroy) > 0 {
 			r.metrics.ReconciliationPendingResources.WithLabelValues("lbaas", "destroy").Add(float64(len(toDestroy)))
-			r.logger.V(1).Info("destroying resources", "objects", mustStringifyObjects(toDestroy))
+			r.logger.V(0).Info("destroying resources", "objects", mustStringifyObjects(toDestroy))
 
 			allowRetry := true
 
@@ -308,7 +308,7 @@ func (r *reconciliation) Reconcile() error {
 			}
 		} else if len(toCreate) > 0 {
 			r.metrics.ReconciliationPendingResources.WithLabelValues("lbaas", "create").Add(float64(len(toCreate)))
-			r.logger.V(1).Info("creating resources", "count", len(toCreate))
+			r.logger.V(0).Info("creating resources", "count", len(toCreate))
 
 			for _, obj := range toCreate {
 				if err := r.api.Create(r.ctx, obj); err != nil {
