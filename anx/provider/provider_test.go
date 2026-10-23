@@ -54,7 +54,7 @@ var _ = Describe("Initialization", func() {
 		Expect(provider).To(Equal(manager.Provider))
 	})
 
-	It("should skip LoadBalancer manager initialization when disabled via config", func() {
+	It("should keep LoadBalancer support enabled when Engine reconciliation is disabled", func() {
 		provider, err := newAnxProvider(configuration.ProviderConfig{
 			Token:                     "RANDOME_VALUE",
 			CustomerID:                "CUSTOMER",
@@ -66,8 +66,8 @@ var _ = Describe("Initialization", func() {
 		provider.Initialize(nil, nil)
 		loadbalancer, loadbalancerEnabled := provider.LoadBalancer()
 
-		Expect(loadbalancer).To(BeNil())
-		Expect(loadbalancerEnabled).To(BeFalse())
+		Expect(loadbalancer).ToNot(BeNil())
+		Expect(loadbalancerEnabled).To(BeTrue())
 	})
 
 	It("should work with incomplete initialization", func() {

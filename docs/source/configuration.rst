@@ -42,6 +42,7 @@ CloudProvider Configuration
    * - disableEngineLoadBalancer
      - ANEXIA_DISABLE_ENGINE_LOAD_BALANCER
      - If set to `true`, disables the Anexia Engine LBaaS based LoadBalancer Service reconciliation entirely (no
-       LoadBalancer resources are read from or written to via the Engine API). Used to migrate clusters one at a
-       time to a different LoadBalancer reconciler. Defaults to `false`.
+       LoadBalancer resources are read from or written to via the Engine API). The CCM continues allocating the
+       intended external address and immediately publishes it in the Service status. Used to migrate clusters one
+       at a time to a different LoadBalancer reconciler. Defaults to `false`.
 
