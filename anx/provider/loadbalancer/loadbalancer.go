@@ -37,6 +37,8 @@ type mgr struct {
 	clusterName  string
 	k8s          kubernetes.Interface
 
+	disableEngineLoadBalancer bool
+
 	addressManager address.Manager
 
 	loadBalancers []string
@@ -77,21 +79,26 @@ var (
 // and there are multiple clusters running in the same Anexia customer, resulting in possibly colliding resources.
 func New(config *configuration.ProviderConfig, logger logr.Logger, k8sClient kubernetes.Interface, apiClient api.API, legacyClient client.Client, providerMetrics metrics.ProviderMetrics) (cloudprovider.LoadBalancer, error) {
 	m := mgr{
-		api:          apiClient,
-		legacyClient: legacyClient,
-		k8s:          k8sClient,
-		logger:       logger,
-		sync:         &sync.Mutex{},
-		metrics:      providerMetrics,
-		backoffSteps: config.LoadBalancerBackoffSteps,
+		api:                       apiClient,
+		legacyClient:              legacyClient,
+		k8s:                       k8sClient,
+		logger:                    logger,
+		disableEngineLoadBalancer: config.DisableEngineLoadBalancer,
+		sync:                      &sync.Mutex{},
+		metrics:                   providerMetrics,
+		backoffSteps:              config.LoadBalancerBackoffSteps,
 	}
 
 	m.clusterName = config.ClusterName
 
 	ctx := logr.NewContext(context.TODO(), logger)
 
-	if err := m.configureLoadBalancers(ctx, config); err != nil {
-		return nil, fmt.Errorf("error configuring LoadBalancers: %w", err)
+	if !m.disableEngineLoadBalancer {
+		if err := m.configureLoadBalancers(ctx, config); err != nil {
+			return nil, fmt.Errorf("error configuring LoadBalancers: %w", err)
+		}
+	} else {
+		logger.Info("Anexia Engine LBaaS LoadBalancer reconciliation is disabled via configuration (disableEngineLoadBalancer/ANEXIA_DISABLE_ENGINE_LOAD_BALANCER); service status will be published without reconciling Engine LBaaS resources")
 	}
 
 	if err := m.configurePrefixes(ctx, config); err != nil {
@@ -120,6 +127,14 @@ func (m mgr) GetLoadBalancerName(ctx context.Context, clusterName string, servic
 
 func (m mgr) GetLoadBalancer(ctx context.Context, clusterName string, service *v1.Service) (*v1.LoadBalancerStatus, bool, error) {
 	ctx, clusterName = m.prepare(ctx, clusterName, service)
+	if m.disableEngineLoadBalancer {
+		status, err := m.desiredStatus(ctx, service)
+		if err != nil {
+			return nil, false, err
+		}
+
+		return status, len(status.Ingress) > 0, nil
+	}
 
 	recon, externalAddresses, err := m.reconciliationForService(ctx, clusterName, service, []*v1.Node{})
 	if err != nil {
@@ -166,6 +181,9 @@ func (m mgr) EnsureLoadBalancer(ctx context.Context, clusterName string, service
 	defer m.sync.Unlock()
 
 	ctx, clusterName = m.prepare(ctx, clusterName, service)
+	if m.disableEngineLoadBalancer {
+		return m.desiredStatus(ctx, service)
+	}
 
 	recon, _, err := m.reconciliationForService(ctx, clusterName, service, nodes)
 	if err != nil {
@@ -190,8 +208,45 @@ func (m mgr) UpdateLoadBalancer(ctx context.Context, clusterName string, service
 }
 
 func (m mgr) EnsureLoadBalancerDeleted(ctx context.Context, clusterName string, service *v1.Service) error {
+	if m.disableEngineLoadBalancer {
+		return nil
+	}
+
 	_, err := m.EnsureLoadBalancer(ctx, clusterName, service, []*v1.Node{})
 	return err
+}
+
+// desiredStatus returns the status the service should expose without consulting or reconciling Engine LBaaS resources.
+func (m mgr) desiredStatus(ctx context.Context, service *v1.Service) (*v1.LoadBalancerStatus, error) {
+	if service.DeletionTimestamp != nil {
+		return &v1.LoadBalancerStatus{}, nil
+	}
+
+	externalAddresses, err := m.addressManager.AllocateAddresses(ctx, service)
+	if err != nil {
+		return nil, err
+	}
+
+	ports := make([]uint16, 0, len(service.Spec.Ports))
+	for _, port := range service.Spec.Ports {
+		ports = append(ports, uint16(port.Port))
+	}
+
+	status := make(map[string][]uint16, len(externalAddresses))
+	for _, externalAddress := range externalAddresses {
+		ip := net.ParseIP(externalAddress)
+		if ip == nil || ip.IsUnspecified() {
+			continue
+		}
+
+		if err := m.checkIPCollision(ctx, ip, service); err != nil {
+			return nil, err
+		}
+
+		status[ip.String()] = ports
+	}
+
+	return lbStatusFromReconcileStatus(status, service), nil
 }
 
 func (m *mgr) configureLoadBalancers(ctx context.Context, config *configuration.ProviderConfig) error {
