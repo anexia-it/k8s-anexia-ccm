@@ -1,6 +1,7 @@
 package provider
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,10 +11,13 @@ import (
 
 	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/metrics"
 	"github.com/go-logr/logr"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/component-base/metrics/legacyregistry"
 
 	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/configuration"
+	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/kubernetes/resourceclient"
 	"github.com/anexia-it/k8s-anexia-ccm/anx/provider/loadbalancer"
 
 	anexia "go.anx.io/go-anxcloud/pkg"
@@ -28,6 +32,12 @@ const (
 	featureNameLoadBalancer = "load_balancer_provisioning"
 	featureNameInstancesV2  = "instances_v2"
 )
+
+var akeLoadBalancerTarget = resourceclient.Target{
+	Group:    "ake.k8s.anx.io",
+	Version:  "v1",
+	Resource: "loadbalancers",
+}
 
 var Version = "v0.0.0-unreleased"
 
@@ -112,6 +122,8 @@ func (a *anxProvider) initializeLoadBalancerManager(builder cloudprovider.Contro
 	var k8sClient kubernetes.Interface
 
 	if builder != nil {
+		a.disableEngineLoadBalancerForAKE(builder)
+
 		c, err := builder.Client("LoadBalancer")
 		if err != nil {
 			a.logger.Error(err, "Error creating kubernetes client for LoadBalancer manager")
@@ -127,6 +139,60 @@ func (a *anxProvider) initializeLoadBalancerManager(builder cloudprovider.Contro
 	} else {
 		a.loadBalancerManager = lb
 	}
+}
+
+// disableEngineLoadBalancerForAKE applies the same manager configuration as
+// DisableEngineLoadBalancer when an AKE Loadbalancer resource indicates that
+// another controller owns the Engine LBaaS configuration.
+func (a *anxProvider) disableEngineLoadBalancerForAKE(builder cloudprovider.ControllerClientBuilder) {
+	if a.config.DisableEngineLoadBalancer {
+		return
+	}
+
+	restConfig, err := builder.Config("LoadBalancerResourceDetection")
+	if err != nil {
+		a.logger.Error(err, "Unable to create Kubernetes config for AKE Loadbalancer detection; preserving configured Engine LBaaS reconciliation behavior")
+		return
+	}
+
+	client, err := resourceclient.NewForConfig(restConfig, akeLoadBalancerTarget)
+	if err != nil {
+		a.logger.Error(err, "Unable to create dynamic Kubernetes client for AKE Loadbalancer detection; preserving configured Engine LBaaS reconciliation behavior")
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	exists, err := akeLoadBalancerExists(ctx, client)
+	if err != nil {
+		a.logger.Error(err, "Unable to detect AKE Loadbalancer resources; preserving configured Engine LBaaS reconciliation behavior")
+		return
+	}
+	if !exists {
+		return
+	}
+
+	a.config.DisableEngineLoadBalancer = true
+	a.logger.Info(
+		"Disabling Anexia Engine LBaaS reconciliation because an AKE Loadbalancer resource exists",
+		"api-group", akeLoadBalancerTarget.Group,
+		"api-version", akeLoadBalancerTarget.Version,
+		"resource", akeLoadBalancerTarget.Resource,
+	)
+}
+
+func akeLoadBalancerExists(ctx context.Context, client *resourceclient.Client) (bool, error) {
+	exists, err := client.Any(ctx, metav1.ListOptions{}, nil)
+	if apierrors.IsNotFound(err) {
+		// Clusters that do not use AKE do not have this CRD installed.
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("check for AKE Loadbalancer resources: %w", err)
+	}
+
+	return exists, nil
 }
 
 func (a anxProvider) LoadBalancer() (cloudprovider.LoadBalancer, bool) {

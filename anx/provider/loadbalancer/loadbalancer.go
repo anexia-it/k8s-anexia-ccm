@@ -98,7 +98,7 @@ func New(config *configuration.ProviderConfig, logger logr.Logger, k8sClient kub
 			return nil, fmt.Errorf("error configuring LoadBalancers: %w", err)
 		}
 	} else {
-		logger.Info("Anexia Engine LBaaS LoadBalancer reconciliation is disabled via configuration (disableEngineLoadBalancer/ANEXIA_DISABLE_ENGINE_LOAD_BALANCER); service status will be published without reconciling Engine LBaaS resources")
+		logger.Info("Anexia Engine LBaaS LoadBalancer reconciliation is disabled; service status will be published without reconciling Engine LBaaS resources")
 	}
 
 	if err := m.configurePrefixes(ctx, config); err != nil {
