@@ -246,6 +246,26 @@ func TestInstanceExists(t *testing.T) {
 		require.False(t, exists, "expected instance to exist")
 	})
 
+	t.Run("InstanceDoesNotExist-SearchByName", func(t *testing.T) {
+		t.Parallel()
+		provider := tUtils.GetMockedAnxProvider()
+		nodeName := randomNodeIdentifier()
+
+		// first lookup with prefix returns nothing -> retries without prefix
+		provider.SearchMock.On("ByName", ctx, fmt.Sprintf("%s-%s",
+			provider.Config().CustomerID, nodeName)).Return([]search.VM{}, nil)
+		// second lookup without prefix also returns nothing
+		provider.SearchMock.On("ByName", ctx, nodeName).Return([]search.VM{}, nil)
+
+		manager := instanceManager{Provider: provider}
+		exists, err := manager.InstanceExists(ctx, &v1.Node{
+			ObjectMeta: metav1.ObjectMeta{Name: nodeName},
+		})
+
+		require.NoError(t, err)
+		require.False(t, exists)
+	})
+
 	t.Run("UnknownError", func(t *testing.T) {
 		t.Parallel()
 		provider := tUtils.GetMockedAnxProvider()
