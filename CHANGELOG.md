@@ -22,6 +22,7 @@ Please add your changelog entry under this comment in the correct category (Secu
 
 * Handle rate-limiting errors from the Anexia Engine (#382, @nachtjasmin)
 * Bumped Alpine Image
+* InstanceExist() should return false if it was not found by name
 
 ## [1.5.7] - 2025-01-14
 
