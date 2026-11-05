@@ -13,7 +13,7 @@ Please add your changelog entry under this comment in the correct category (Secu
 
 ### Changed
 
-* **BREAKING**: `topology.kubernetes.io/region` is now the location code (was the location country) and `topology.kubernetes.io/zone` is now the availability zone inside the location (was the location code), falling back to the location code for VMs without an availability zone. Labels on existing Nodes are not updated, recreate Nodes to pick up the new values.
+* **BREAKING**: `topology.kubernetes.io/region` is now the location code (was the location country) and `topology.kubernetes.io/zone` is now the availability zone inside the location (was the location code), falling back to the location code for VMs without an availability zone. Labels on existing Nodes are not updated, recreate Nodes to pick up the new values. (#499, @ProbstenHias)
 
 ### Added
 
