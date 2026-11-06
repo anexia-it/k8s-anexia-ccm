@@ -13,7 +13,7 @@ type ProviderConfig struct {
 	Token                  string `yaml:"anexiaToken" split_words:"true"`
 	CustomerID             string `yaml:"customerID,omitempty" split_words:"true"`
 	ClusterName            string `yaml:"clusterName,omitempty" split_words:"true"`
-	AutoDiscoveryTagPrefix string `yaml:"autoDiscoveryTagPrefix,omitempty" split_words:"true" default:"anxkube-ccm-lb"`
+	AutoDiscoveryTagPrefix string `yaml:"autoDiscoveryTagPrefix,omitempty" split_words:"true"`
 
 	// if ccm shall discover $LoadBalancerIdentifier, $SecondaryLoadBalancerIdentifiers and $LoadBalancerPrefixIdentifiers via tag "$AutoDiscoveryTagPrefix-$ClusterName"
 	AutoDiscoverLoadBalancer bool `yaml:"autoDiscoverLoadBalancer,omitempty" split_words:"true"`
@@ -28,7 +28,7 @@ type ProviderConfig struct {
 	LoadBalancerPrefixIdentifiers []string `yaml:"loadBalancerPrefixIdentifiers,omitempty" split_words:"true"`
 
 	// defines the number of retries to wait for LoadBalancer resources to be ready
-	LoadBalancerBackoffSteps int `yaml:"loadBalancerBackoffSteps" default:"30"`
+	LoadBalancerBackoffSteps int `yaml:"loadBalancerBackoffSteps"`
 
 	// DisableEngineLoadBalancer turns off this CCM's Anexia Engine LBaaS based LoadBalancer Service
 	// reconciliation (the frontend/backend/bind/server mirroring in anx/provider/loadbalancer). The manager
@@ -61,7 +61,10 @@ var (
 )
 
 func NewProviderConfig(configReader io.Reader) (ProviderConfig, error) {
-	var providerConfig ProviderConfig
+	providerConfig := ProviderConfig{
+		AutoDiscoveryTagPrefix:   "anxkube-ccm-lb",
+		LoadBalancerBackoffSteps: 30,
+	}
 	if configReader != nil {
 		config, err := io.ReadAll(configReader)
 		if err != nil {
