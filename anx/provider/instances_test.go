@@ -465,7 +465,7 @@ func TestInstanceMetadata(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, metadata.InstanceType, "C5-M4")
 		require.Equal(t, metadata.Zone, "AT04")
-		require.Equal(t, metadata.Region, "AT")
+		require.Equal(t, metadata.Region, "AT04")
 		require.Len(t, metadata.NodeAddresses, 1)
 		require.Equal(t, metadata.NodeAddresses[0].Address, "10.0.0.1")
 		require.Equal(t, string(metadata.NodeAddresses[0].Type), "InternalIP")
@@ -494,12 +494,34 @@ func TestInstanceMetadata(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, metadata.InstanceType, "C5-M4")
 		require.Equal(t, metadata.Zone, "AT04")
-		require.Equal(t, metadata.Region, "AT")
+		require.Equal(t, metadata.Region, "AT04")
 		require.Len(t, metadata.NodeAddresses, 1)
 		require.Equal(t, metadata.NodeAddresses[0].Address, "10.0.0.1")
 		require.Equal(t, string(metadata.NodeAddresses[0].Type), "InternalIP")
 	})
 
+}
+
+func TestZone(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		az   *info.AvailabilityZone
+		want string
+	}{
+		"NoAvailabilityZone":    {az: nil, want: "AT04"},
+		"ValidName":             {az: &info.AvailabilityZone{Identifier: "abc123", Name: "AZ-1"}, want: "AZ-1"},
+		"InvalidNameUsesID":     {az: &info.AvailabilityZone{Identifier: "abc123", Name: "Zone 1"}, want: "abc123"},
+		"EmptyNameUsesID":       {az: &info.AvailabilityZone{Identifier: "abc123"}, want: "abc123"},
+		"EmptyAvailabilityZone": {az: &info.AvailabilityZone{}, want: "AT04"},
+	}
+
+	for name, tt := range tests {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			require.Equal(t, tt.want, zone(info.Info{LocationCode: "AT04", AvailabilityZone: tt.az}))
+		})
+	}
 }
 
 func randomNodeIdentifier() string {
