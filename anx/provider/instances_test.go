@@ -214,6 +214,64 @@ func TestFetchingID(t *testing.T) {
 	})
 }
 
+func TestFetchingIDMultipleInternalIPs(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name         string
+		secondIP     string
+		network      []info.Network
+		otherNetwork []info.Network
+		otherErr     error
+	}{
+		{
+			name:     "dual-stack matches one vm",
+			secondIP: "2001:db8::1",
+			network:  []info.Network{{IPv4: []string{"10.0.0.1"}, IPv6: []string{"2001:db8::1"}}},
+		},
+		{
+			name:     "two ipv4 addresses match one vm across networks",
+			secondIP: "10.0.0.2",
+			network:  []info.Network{{IPv4: []string{"10.0.0.1"}}, {IPv4: []string{"10.0.0.2"}}},
+		},
+		{
+			name:         "failed details lookup skips partial matching data",
+			secondIP:     "10.0.0.2",
+			network:      []info.Network{{IPv4: []string{"10.0.0.1"}}},
+			otherNetwork: []info.Network{{IPv4: []string{"10.0.0.2"}}},
+			otherErr:     errors.New("details unavailable"),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := context.Background()
+			provider := tUtils.GetMockedAnxProvider()
+			const nodeName = "test-node"
+			vmName := fmt.Sprintf("%s-%s", provider.Config().CustomerID, nodeName)
+			provider.SearchMock.On("ByName", ctx, vmName).Return([]search.VM{
+				{Name: vmName, Identifier: "otherIdentifier"},
+				{Name: vmName, Identifier: "matchingIdentifier"},
+			}, nil)
+			provider.InfoMock.On("Get", ctx, "otherIdentifier").Return(info.Info{
+				Name: vmName, Identifier: "otherIdentifier", Network: tt.otherNetwork,
+			}, tt.otherErr)
+			provider.InfoMock.On("Get", ctx, "matchingIdentifier").Return(info.Info{
+				Name: vmName, Identifier: "matchingIdentifier", Network: tt.network,
+			}, nil)
+			manager := instanceManager{Provider: provider}
+			identifier, err := manager.InstanceIDByNode(ctx, &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{Name: nodeName},
+				Status: v1.NodeStatus{Addresses: []v1.NodeAddress{
+					{Type: v1.NodeInternalIP, Address: "10.0.0.1"},
+					{Type: v1.NodeInternalIP, Address: tt.secondIP},
+				}},
+			})
+			require.NoError(t, err)
+			require.Equal(t, "matchingIdentifier", identifier)
+		})
+	}
+}
+
 func TestInstanceExists(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
