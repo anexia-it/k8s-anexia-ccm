@@ -29,6 +29,27 @@ const (
 	testLoadBalancerIdentifier = "testLoadBalancerEngineIdentifier"
 )
 
+type progressingBackendAPI struct {
+	mock.API
+	backendGets int
+	tag         string
+}
+
+func (a *progressingBackendAPI) Get(ctx context.Context, o types.IdentifiedObject, opts ...types.GetOption) error {
+	if err := a.API.Get(ctx, o, opts...); err != nil {
+		return err
+	}
+	if backend, ok := o.(*lbaasv1.Backend); ok && backend.State == lbaasv1.NewlyCreated {
+		a.backendGets++
+		if a.backendGets == 1 {
+			return nil
+		}
+		backend.State = lbaasv1.Deployed
+		a.API.FakeExisting(backend, a.tag)
+	}
+	return nil
+}
+
 var _ = Describe("reconcile", func() {
 	var apiClient mock.API
 
@@ -241,6 +262,45 @@ var _ = Describe("reconcile", func() {
 			Expect(failedBackend).NotTo(BeNil())
 			Expect(failedBackend.UpdatedCount()).To(Equal(1))
 			Expect(failedBackend.DestroyedCount()).To(BeZero())
+		})
+	})
+
+	Context("with a progressing backend and missing resources", func() {
+		BeforeEach(func() {
+			apiClient = mock.NewMockAPI(mock.WithPreCreateHook(func(ctx context.Context, a mock.API, o types.IdentifiedObject) {
+				switch obj := o.(type) {
+				case *lbaasv1.Backend:
+					obj.State = lbaasv1.Deployed
+				case *lbaasv1.Frontend:
+					obj.State = lbaasv1.Deployed
+				case *lbaasv1.Bind:
+					obj.State = lbaasv1.Deployed
+				case *lbaasv1.Server:
+					obj.State = lbaasv1.Deployed
+				}
+			}))
+			apiClient.FakeExisting(&lbaasv1.LoadBalancer{Identifier: testLoadBalancerIdentifier})
+		})
+
+		JustBeforeEach(func() {
+			apiClient.FakeExisting(&lbaasv1.Backend{
+				Name:         "http." + testClusterName,
+				Mode:         lbaasv1.TCP,
+				HealthCheck:  `"adv_check": "tcp-check"`,
+				LoadBalancer: lbaasv1.LoadBalancer{Identifier: testLoadBalancerIdentifier},
+				HasState:     gs.HasState{State: lbaasv1.NewlyCreated},
+			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
+			recon.api = &progressingBackendAPI{API: apiClient, tag: fmt.Sprintf("anxccm-svc-uid=%v", svcUID)}
+		})
+
+		It("creates missing resources after waiting for the backend", func() {
+			Expect(recon.Reconcile()).To(Succeed())
+
+			Expect(len(apiClient.Existing())).To(Equal(13))
+			toCreate, toDestroy, err := recon.ReconcileCheck()
+			Expect(err).NotTo(HaveOccurred())
+			Expect(toCreate).To(BeEmpty())
+			Expect(toDestroy).To(BeEmpty())
 		})
 	})
 
