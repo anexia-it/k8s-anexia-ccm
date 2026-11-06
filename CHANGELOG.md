@@ -15,7 +15,8 @@ Please add your changelog entry under this comment in the correct category (Secu
 
 * Add http client metrics for requests towards the anexia engine (#390, @koflanx)
 * Added extending logging for Multiple IP Addresses
-* Add command line flag --disableEngineLoadBalancer for Services status reconciliation without LBaaS
+* Add command line flag --disableEngineLoadBalancer for Services status reconciliation without LBaaS and enable it
+  automatically when an AKE Loadbalancer custom resource exists
 * Added logging for difference between actual and desired state
 
 ### Fixed
