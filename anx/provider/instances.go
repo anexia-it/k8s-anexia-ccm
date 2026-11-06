@@ -181,10 +181,12 @@ func (i *instanceManager) filterInstances(ctx context.Context, node *v1.Node, vm
 	nodeIPs := nodeInternalIPs(node)
 
 	filtered := make([]string, 0, len(vms))
+nextVM:
 	for _, vm := range vms {
 		fullVM, err := i.VSphere().Info().Get(ctx, vm)
 		if err != nil {
 			logger.Error(err, "Error retrieving full VM details", "identifier", vm)
+			continue
 		}
 
 		for _, network := range fullVM.Network {
@@ -192,6 +194,7 @@ func (i *instanceManager) filterInstances(ctx context.Context, node *v1.Node, vm
 				for _, nodeIP := range nodeIPs {
 					if nodeIP.Equal(net.ParseIP(ip)) {
 						filtered = append(filtered, fullVM.Identifier)
+						continue nextVM
 					}
 				}
 			}
