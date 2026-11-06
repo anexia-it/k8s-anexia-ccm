@@ -259,7 +259,7 @@ func (m *mgr) configureLoadBalancers(ctx context.Context, config *configuration.
 
 		m.loadBalancers = lbs
 	} else {
-		m.loadBalancers = []string{config.LoadBalancerIdentifier}
+		m.loadBalancers = append([]string{config.LoadBalancerIdentifier}, config.SecondaryLoadBalancerIdentifiers...)
 	}
 
 	if len(m.loadBalancers) == 0 {
