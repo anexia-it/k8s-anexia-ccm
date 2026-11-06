@@ -21,6 +21,7 @@ Please add your changelog entry under this comment in the correct category (Secu
 
 ### Fixed
 
+* Delete all LBaaS service resources when a Service changes from LoadBalancer to another type
 * Handle rate-limiting errors from the Anexia Engine (#382, @nachtjasmin)
 * Bumped Alpine Image
 * InstanceExist() should return false if it was not found by name
