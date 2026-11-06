@@ -136,7 +136,7 @@ func (m mgr) GetLoadBalancer(ctx context.Context, clusterName string, service *v
 		return status, len(status.Ingress) > 0, nil
 	}
 
-	recon, externalAddresses, err := m.reconciliationForService(ctx, clusterName, service, []*v1.Node{})
+	recon, externalAddresses, err := m.reconciliationForService(ctx, clusterName, service, []*v1.Node{}, false)
 	if err != nil {
 		return nil, false, err
 	}
@@ -185,7 +185,7 @@ func (m mgr) EnsureLoadBalancer(ctx context.Context, clusterName string, service
 		return m.desiredStatus(ctx, service)
 	}
 
-	recon, _, err := m.reconciliationForService(ctx, clusterName, service, nodes)
+	recon, _, err := m.reconciliationForService(ctx, clusterName, service, nodes, false)
 	if err != nil {
 		return nil, handleRateLimitError(err)
 	}
@@ -212,8 +212,16 @@ func (m mgr) EnsureLoadBalancerDeleted(ctx context.Context, clusterName string, 
 		return nil
 	}
 
-	_, err := m.EnsureLoadBalancer(ctx, clusterName, service, []*v1.Node{})
-	return err
+	m.sync.Lock()
+	defer m.sync.Unlock()
+
+	ctx, clusterName = m.prepare(ctx, clusterName, service)
+	recon, _, err := m.reconciliationForService(ctx, clusterName, service, nil, true)
+	if err != nil {
+		return handleRateLimitError(err)
+	}
+
+	return handleRateLimitError(recon.Reconcile())
 }
 
 // desiredStatus returns the status the service should expose without consulting or reconciling Engine LBaaS resources.
@@ -313,12 +321,12 @@ func (m mgr) reconciliationStatus(recon reconciliation.Reconciliation, service *
 	return lbStatusFromReconcileStatus(status, service), nil
 }
 
-func (m mgr) reconciliationForService(ctx context.Context, clusterName string, svc *v1.Service, nodes []*v1.Node) (reconciliation.Reconciliation, []net.IP, error) {
+func (m mgr) reconciliationForService(ctx context.Context, clusterName string, svc *v1.Service, nodes []*v1.Node, deleting bool) (reconciliation.Reconciliation, []net.IP, error) {
 	var ports map[string]reconciliation.Port
 	var servers []reconciliation.Server
 	var externalAddresses []net.IP
 
-	if svc.DeletionTimestamp == nil {
+	if !deleting && svc.DeletionTimestamp == nil {
 		ports = make(map[string]reconciliation.Port, len(svc.Spec.Ports))
 		for _, port := range svc.Spec.Ports {
 			if prevPort, ok := ports[port.Name]; ok {
