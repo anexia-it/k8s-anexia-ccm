@@ -21,6 +21,7 @@ Please add your changelog entry under this comment in the correct category (Secu
 
 ### Fixed
 
+* Stop retrying failed LBaaS destroys when no progress is made and propagate destroy rate-limit errors
 * Handle rate-limiting errors from the Anexia Engine (#382, @nachtjasmin)
 * Bumped Alpine Image
 * InstanceExist() should return false if it was not found by name

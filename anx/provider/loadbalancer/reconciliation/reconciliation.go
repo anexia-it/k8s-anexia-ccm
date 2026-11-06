@@ -271,7 +271,6 @@ func (r *reconciliation) Reconcile() error {
 
 			allowRetry := true
 
-		outer:
 			for len(toDestroy) > 0 && allowRetry {
 				allowRetry = false
 
@@ -281,9 +280,13 @@ func (r *reconciliation) Reconcile() error {
 					err := r.api.Destroy(r.ctx, obj)
 					err = api.IgnoreNotFound(err) // We deliberately want to ignore not found errors, as they indicate success.
 
-					newToDestroy, err = handleDestroyError(err, newToDestroy, obj, r)
 					if err != nil {
-						break outer
+						var destroyErr error
+						newToDestroy, destroyErr = handleDestroyError(err, newToDestroy, obj, r)
+						if destroyErr != nil {
+							return destroyErr
+						}
+						continue
 					}
 					// The loadbalancer got already deleted, we're successful with this one!
 					//
