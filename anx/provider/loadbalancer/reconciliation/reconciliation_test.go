@@ -2,12 +2,14 @@ package reconciliation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"strings"
 	"testing"
 	"time"
 
+	"go.anx.io/go-anxcloud/pkg/api"
 	"go.anx.io/go-anxcloud/pkg/api/mock"
 	"go.anx.io/go-anxcloud/pkg/api/types"
 	gs "go.anx.io/go-anxcloud/pkg/apis/common/gs"
@@ -28,6 +30,19 @@ const (
 	testClusterName            = "testcluster"
 	testLoadBalancerIdentifier = "testLoadBalancerEngineIdentifier"
 )
+
+type failingDestroyAPI struct {
+	api.API
+	err error
+}
+
+func (a failingDestroyAPI) Destroy(ctx context.Context, _ types.IdentifiedObject, _ ...types.DestroyOption) error {
+	if ctx.Err() != nil {
+		// Bound a broken retry loop so the regression test can report its failure.
+		return api.RateLimitError{}
+	}
+	return a.err
+}
 
 var _ = Describe("reconcile", func() {
 	var apiClient mock.API
@@ -204,6 +219,51 @@ var _ = Describe("reconcile", func() {
 			Entry("binds", reconcileBinds, &expectDestroyBinds),
 			Entry("backends", reconcileBackends, &expectDestroyBackends),
 			Entry("servers", reconcileServers, &expectDestroyServers),
+		)
+	})
+
+	Context("with failing destroy operations", func() {
+		BeforeEach(func() {
+			externalAddresses = nil
+			ports = nil
+			servers = nil
+		})
+
+		JustBeforeEach(func() {
+			apiClient.FakeExisting(&lbaasv1.Backend{
+				Name:         "obsolete",
+				LoadBalancer: lbaasv1.LoadBalancer{Identifier: testLoadBalancerIdentifier},
+				HasState:     gs.HasState{State: lbaasv1.Deployed},
+			}, fmt.Sprintf("anxccm-svc-uid=%v", svcUID))
+		})
+
+		DescribeTable("returns without counting failed destroys as successful",
+			func(destroyErr error, rateLimited bool) {
+				ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+				defer cancel()
+				recon.ctx = ctx
+				recon.api = failingDestroyAPI{API: apiClient, err: destroyErr}
+				kubeRegistry.MustRegister(providerMetrics.ReconciliationDeletedTotal)
+
+				err := recon.Reconcile()
+				Expect(ctx.Err()).NotTo(HaveOccurred(), "reconciliation must stop before the timeout guard")
+				if rateLimited {
+					var rateLimitErr api.RateLimitError
+					Expect(errors.As(err, &rateLimitErr)).To(BeTrue(), "destroy rate-limit error must propagate")
+					Expect(rateLimitErr.RetryAfter).To(Equal(destroyErr.(api.RateLimitError).RetryAfter))
+				} else {
+					Expect(errors.Is(err, ErrResourcesNotDestroyable)).To(BeTrue())
+				}
+				providerMetrics.ReconciliationDeletedTotal.WithLabelValues("lbaas").Add(0)
+				Expect(testutil.GatherAndCompare(kubeRegistry, strings.NewReader(`
+# HELP cloud_provider_anexia_reconcile_resources_pending [ALPHA] Gauge of pending creation or deletion operations of resources
+# TYPE cloud_provider_anexia_reconcile_resources_pending gauge
+cloud_provider_anexia_reconcile_resources_pending{operation="destroy",service="lbaas"} 1
+`), "cloud_provider_anexia_reconcile_resources_pending")).To(Succeed())
+				Expect(testutil.ToFloat64(providerMetrics.ReconciliationDeletedTotal)).To(BeZero())
+			},
+			Entry("persistent failure", errors.New("destroy failed: 409 conflict"), false),
+			Entry("rate limit", api.RateLimitError{RetryAfter: time.Unix(2000000000, 0)}, true),
 		)
 	})
 
