@@ -22,7 +22,7 @@ type ProviderConfig struct {
 	LoadBalancerIdentifier string `yaml:"loadBalancerIdentifier,omitempty" split_words:"true"`
 
 	// identifiers of LBaaS LoadBalancer resources to keep in sync with $LoadBalancerIdentifier
-	SecondaryLoadBalancerIdentifiers []string `yaml:"secondaryLoadBalancersIdentifiers" split_words:"true"`
+	SecondaryLoadBalancerIdentifiers []string `yaml:"secondaryLoadBalancerIdentifiers" split_words:"true"`
 
 	// lists the identifiers of prefixes from which external IPs for LoadBalancer Services can be allocated
 	LoadBalancerPrefixIdentifiers []string `yaml:"loadBalancerPrefixIdentifiers,omitempty" split_words:"true"`

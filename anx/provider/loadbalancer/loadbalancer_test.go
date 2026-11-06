@@ -23,6 +23,17 @@ func (m staticAddressManager) AllocateAddresses(context.Context, *v1.Service) ([
 }
 
 var _ = Describe("Initialization", func() {
+	It("should configure primary and secondary loadbalancers without auto discovery", func() {
+		config := configuration.ProviderConfig{
+			LoadBalancerIdentifier:           "lb1",
+			SecondaryLoadBalancerIdentifiers: []string{"lb2"},
+		}
+		manager := &mgr{}
+
+		Expect(manager.configureLoadBalancers(context.Background(), &config)).To(Succeed())
+		Expect(manager.loadBalancers).To(Equal([]string{"lb1", "lb2"}))
+	})
+
 	It("should initialize loadbalancer", func() {
 		config := configuration.ProviderConfig{
 			Token:      "RANDOM_VALUE",
