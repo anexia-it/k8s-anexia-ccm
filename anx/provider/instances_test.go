@@ -219,6 +219,7 @@ func TestFetchingIDMultipleInternalIPs(t *testing.T) {
 	tests := []struct {
 		name         string
 		secondIP     string
+		thirdIP      string
 		network      []info.Network
 		otherNetwork []info.Network
 		otherErr     error
@@ -230,8 +231,14 @@ func TestFetchingIDMultipleInternalIPs(t *testing.T) {
 		},
 		{
 			name:     "two ipv4 addresses match one vm across networks",
-			secondIP: "10.0.0.2",
-			network:  []info.Network{{IPv4: []string{"10.0.0.1"}}, {IPv4: []string{"10.0.0.2"}}},
+			secondIP: "10.20.0.20",
+			network:  []info.Network{{IPv4: []string{"10.0.0.1"}}, {IPv4: []string{"10.20.0.20"}}},
+		},
+		{
+			name:     "four IPs across three networks match one vm",
+			secondIP: "10.30.0.30",
+			thirdIP:  "10.40.0.40",
+			network:  []info.Network{{IPv4: []string{"10.0.0.1"}}, {IPv4: []string{"10.30.0.30"}, IPv6: []string{"2001:db8::30"}}, {IPv4: []string{"10.40.0.40"}}},
 		},
 		{
 			name:         "failed details lookup skips partial matching data",
@@ -259,12 +266,16 @@ func TestFetchingIDMultipleInternalIPs(t *testing.T) {
 				Name: vmName, Identifier: "matchingIdentifier", Network: tt.network,
 			}, nil)
 			manager := instanceManager{Provider: provider}
+			addresses := []v1.NodeAddress{
+				{Type: v1.NodeInternalIP, Address: "10.0.0.1"},
+				{Type: v1.NodeInternalIP, Address: tt.secondIP},
+			}
+			if tt.thirdIP != "" {
+				addresses = append(addresses, v1.NodeAddress{Type: v1.NodeInternalIP, Address: tt.thirdIP})
+			}
 			identifier, err := manager.InstanceIDByNode(ctx, &v1.Node{
 				ObjectMeta: metav1.ObjectMeta{Name: nodeName},
-				Status: v1.NodeStatus{Addresses: []v1.NodeAddress{
-					{Type: v1.NodeInternalIP, Address: "10.0.0.1"},
-					{Type: v1.NodeInternalIP, Address: tt.secondIP},
-				}},
+				Status:     v1.NodeStatus{Addresses: addresses},
 			})
 			require.NoError(t, err)
 			require.Equal(t, "matchingIdentifier", identifier)
