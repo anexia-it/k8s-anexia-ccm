@@ -266,6 +266,66 @@ func TestInstanceExists(t *testing.T) {
 		require.False(t, exists)
 	})
 
+	t.Run("SearchError", func(t *testing.T) {
+		t.Parallel()
+		provider := tUtils.GetMockedAnxProvider()
+		nodeName := randomNodeIdentifier()
+
+		provider.SearchMock.On("ByName", ctx, fmt.Sprintf("%s-%s",
+			provider.Config().CustomerID, nodeName)).Return(nil, &client.ResponseError{
+			Response: &http.Response{
+				StatusCode: http.StatusInternalServerError,
+			},
+		})
+
+		manager := instanceManager{Provider: provider}
+		exists, err := manager.InstanceExists(ctx, &v1.Node{
+			ObjectMeta: metav1.ObjectMeta{Name: nodeName},
+		})
+
+		require.Error(t, err)
+		require.False(t, exists)
+		provider.InfoMock.AssertNumberOfCalls(t, "Get", 0)
+	})
+
+	t.Run("InstanceDoesNotExist-NameNotUnique", func(t *testing.T) {
+		t.Parallel()
+		provider := tUtils.GetMockedAnxProvider()
+		nodeName := randomNodeIdentifier()
+		firstIdentifier := randomNodeIdentifier()
+		secondIdentifier := randomNodeIdentifier()
+
+		// several VMs match the node name and the node IP
+		provider.SearchMock.On("ByName", ctx, fmt.Sprintf("%s-%s",
+			provider.Config().CustomerID, nodeName)).Return([]search.VM{
+			{Identifier: firstIdentifier},
+			{Identifier: secondIdentifier},
+		}, nil)
+
+		for _, id := range []string{firstIdentifier, secondIdentifier} {
+			provider.InfoMock.On("Get", ctx, id).Return(info.Info{
+				Identifier: id,
+				Network: []info.Network{
+					{IPv4: []string{"10.0.0.1"}},
+				},
+			}, nil)
+		}
+
+		manager := instanceManager{Provider: provider}
+		exists, err := manager.InstanceExists(ctx, &v1.Node{
+			ObjectMeta: metav1.ObjectMeta{Name: nodeName},
+			Status: v1.NodeStatus{
+				Addresses: []v1.NodeAddress{
+					{Type: v1.NodeInternalIP, Address: "10.0.0.1"},
+				},
+			},
+		})
+
+		require.ErrorIs(t, err, errVirtualMachineNameNotUnique)
+		require.False(t, exists)
+		provider.InfoMock.AssertNumberOfCalls(t, "Get", 2)
+	})
+
 	t.Run("UnknownError", func(t *testing.T) {
 		t.Parallel()
 		provider := tUtils.GetMockedAnxProvider()

@@ -77,7 +77,7 @@ func (i *instanceManager) InstanceExists(ctx context.Context, node *v1.Node) (bo
 	if errors.Is(err, errNamedVirtualMachineNotFound) {
 		return false, nil
 	}
-	if err != nil && utils.IsUnauthorizedOrForbiddenError(err) {
+	if err != nil {
 		i.handleUnauthorizedForbidden(err)
 		return false, err
 	}
