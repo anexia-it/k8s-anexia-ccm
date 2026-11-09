@@ -218,31 +218,29 @@ func TestFetchingIDMultipleInternalIPs(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		name         string
-		secondIP     string
-		thirdIP      string
+		extraIPs     []string
 		network      []info.Network
 		otherNetwork []info.Network
 		otherErr     error
 	}{
 		{
 			name:     "dual-stack matches one vm",
-			secondIP: "2001:db8::1",
+			extraIPs: []string{"2001:db8::1"},
 			network:  []info.Network{{IPv4: []string{"10.0.0.1"}, IPv6: []string{"2001:db8::1"}}},
 		},
 		{
 			name:     "two ipv4 addresses match one vm across networks",
-			secondIP: "10.20.0.20",
+			extraIPs: []string{"10.20.0.20"},
 			network:  []info.Network{{IPv4: []string{"10.0.0.1"}}, {IPv4: []string{"10.20.0.20"}}},
 		},
 		{
 			name:     "four IPs across three networks match one vm",
-			secondIP: "10.30.0.30",
-			thirdIP:  "10.40.0.40",
+			extraIPs: []string{"10.30.0.30", "10.40.0.40", "2001:db8::30"},
 			network:  []info.Network{{IPv4: []string{"10.0.0.1"}}, {IPv4: []string{"10.30.0.30"}, IPv6: []string{"2001:db8::30"}}, {IPv4: []string{"10.40.0.40"}}},
 		},
 		{
 			name:         "failed details lookup skips partial matching data",
-			secondIP:     "10.0.0.2",
+			extraIPs:     []string{"10.0.0.2"},
 			network:      []info.Network{{IPv4: []string{"10.0.0.1"}}},
 			otherNetwork: []info.Network{{IPv4: []string{"10.0.0.2"}}},
 			otherErr:     errors.New("details unavailable"),
@@ -268,10 +266,9 @@ func TestFetchingIDMultipleInternalIPs(t *testing.T) {
 			manager := instanceManager{Provider: provider}
 			addresses := []v1.NodeAddress{
 				{Type: v1.NodeInternalIP, Address: "10.0.0.1"},
-				{Type: v1.NodeInternalIP, Address: tt.secondIP},
 			}
-			if tt.thirdIP != "" {
-				addresses = append(addresses, v1.NodeAddress{Type: v1.NodeInternalIP, Address: tt.thirdIP})
+			for _, ip := range tt.extraIPs {
+				addresses = append(addresses, v1.NodeAddress{Type: v1.NodeInternalIP, Address: ip})
 			}
 			identifier, err := manager.InstanceIDByNode(ctx, &v1.Node{
 				ObjectMeta: metav1.ObjectMeta{Name: nodeName},
