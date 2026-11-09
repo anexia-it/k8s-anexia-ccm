@@ -288,7 +288,7 @@ func TestInstanceExists(t *testing.T) {
 		provider.InfoMock.AssertNumberOfCalls(t, "Get", 0)
 	})
 
-	t.Run("InstanceDoesNotExist-NameNotUnique", func(t *testing.T) {
+	t.Run("NameNotUnique", func(t *testing.T) {
 		t.Parallel()
 		provider := tUtils.GetMockedAnxProvider()
 		nodeName := randomNodeIdentifier()
