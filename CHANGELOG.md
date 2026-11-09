@@ -21,6 +21,7 @@ Please add your changelog entry under this comment in the correct category (Secu
 
 ### Fixed
 
+* Avoid duplicate instance matches for nodes with multiple internal IPs and skip failed VM details lookups (#505)
 * Handle rate-limiting errors from the Anexia Engine (#382, @nachtjasmin)
 * Bumped Alpine Image
 * InstanceExist() should return false if it was not found by name
