@@ -77,4 +77,10 @@ rules:
       - list
       - watch
       - update
+  - apiGroups:
+      - ake.k8s.anx.io
+    resources:
+      - loadbalancers
+    verbs:
+      - list
 {{ end }}

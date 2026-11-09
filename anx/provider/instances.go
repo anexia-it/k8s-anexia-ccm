@@ -36,7 +36,7 @@ func (i *instanceManager) NodeAddressesByProviderID(ctx context.Context, provide
 	}
 	info, err := i.VSphere().Info().Get(ctx, providerID)
 	if err != nil {
-		return nil, fmt.Errorf("could not get vm infoMock: %w", err)
+		return nil, fmt.Errorf("could not get vm info: %w", err)
 	}
 
 	if len(info.Network) == 0 {
@@ -74,7 +74,10 @@ func (i *instanceManager) InstanceExists(ctx context.Context, node *v1.Node) (bo
 	}
 
 	providerID, err := i.InstanceIDByNode(ctx, node)
-	if err != nil {
+	if errors.Is(err, errNamedVirtualMachineNotFound) {
+		return false, nil
+	}
+	if err != nil && utils.IsUnauthorizedOrForbiddenError(err) {
 		i.handleUnauthorizedForbidden(err)
 		return false, err
 	}
@@ -110,7 +113,7 @@ func (i *instanceManager) InstanceShutdown(ctx context.Context, node *v1.Node) (
 	case powercontrol.OffState:
 		return true, nil
 	default:
-		return false, fmt.Errorf("unkown power state '%s'", state)
+		return false, fmt.Errorf("unknown power state '%s'", state)
 	}
 }
 
