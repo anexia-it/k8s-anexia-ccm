@@ -11,7 +11,7 @@ require (
 	github.com/onsi/gomega v1.43.0
 	github.com/prometheus/client_golang v1.24.1
 	github.com/prometheus/client_model v0.6.3
-	github.com/spf13/pflag v1.0.10
+	github.com/spf13/pflag v1.1.0
 	github.com/stretchr/testify v1.12.1
 	go.anx.io/go-anxcloud v0.14.5
 	gopkg.in/yaml.v3 v3.0.1
