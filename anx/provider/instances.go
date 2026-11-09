@@ -14,6 +14,7 @@ import (
 	vminfo "go.anx.io/go-anxcloud/pkg/vsphere/info"
 	"go.anx.io/go-anxcloud/pkg/vsphere/powercontrol"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/util/validation"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog/v2"
 )
@@ -137,9 +138,28 @@ func (i *instanceManager) InstanceMetadata(ctx context.Context, node *v1.Node) (
 		ProviderID:    providerID,
 		InstanceType:  instanceType(info),
 		NodeAddresses: nodeAddresses,
-		Zone:          info.LocationCode,
-		Region:        info.LocationCountry,
+		Zone:          zone(info),
+		Region:        info.LocationCode,
 	}, nil
+}
+
+// zone returns the availability zone of the VM inside its location, falling back to the
+// location code for VMs without an availability zone (a region with a single zone).
+func zone(info vminfo.Info) string {
+	az := info.AvailabilityZone
+	if az == nil {
+		return info.LocationCode
+	}
+
+	// zone is used as a label value, the human-readable name is not guaranteed to be valid
+	if len(validation.IsValidLabelValue(az.Name)) == 0 && az.Name != "" {
+		return az.Name
+	}
+	if az.Identifier != "" {
+		return az.Identifier
+	}
+
+	return info.LocationCode
 }
 
 // try to fetch the correct instance by name, first by using the configured prefix (or a
