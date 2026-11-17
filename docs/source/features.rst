@@ -21,8 +21,10 @@ The node controller performs the following functions:
 Limitations
 -----------
 
-Currently the CCM takes the first VLAN it finds on the VM to initialise the `Node` objects `InternalIP`. So having multiple
-VLANs connected to VM can lead to weird behaviour.
+All IPs of the VM are set on the Node object, across all attached NICs and for both IPv4 and IPv6. IPs in private
+ranges (RFC 1918 IPv4 and IPv6 unique local addresses) are set as `InternalIP`, globally routable IPs are set as
+`ExternalIP`. Nodes that are only attached to public networks additionally mirror their `ExternalIP` as an
+`InternalIP`, so there is always at least one `InternalIP` present.
 
 
 Service Controller

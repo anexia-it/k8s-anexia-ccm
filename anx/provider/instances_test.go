@@ -621,11 +621,146 @@ func TestInstanceMetadata(t *testing.T) {
 		require.Equal(t, metadata.InstanceType, "C5-M4")
 		require.Equal(t, metadata.Zone, "AT04")
 		require.Equal(t, metadata.Region, "AT")
-		require.Len(t, metadata.NodeAddresses, 1)
+		require.Len(t, metadata.NodeAddresses, 2)
 		require.Equal(t, metadata.NodeAddresses[0].Address, "10.0.0.1")
 		require.Equal(t, string(metadata.NodeAddresses[0].Type), "InternalIP")
+		require.Equal(t, metadata.NodeAddresses[1].Address, "172.16.0.1")
+		require.Equal(t, string(metadata.NodeAddresses[1].Type), "InternalIP")
 	})
 
+}
+
+func TestNodeAddressesByProviderID(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	tests := []struct {
+		name     string
+		networks []info.Network
+		expected []v1.NodeAddress
+	}{
+		{
+			name: "private ipv4 is internal",
+			networks: []info.Network{
+				{IPv4: []string{"10.0.0.1"}},
+			},
+			expected: []v1.NodeAddress{
+				{Type: v1.NodeInternalIP, Address: "10.0.0.1"},
+			},
+		},
+		{
+			name: "dual-stack private v4 and public v6",
+			networks: []info.Network{
+				{IPv4: []string{"10.121.128.76"}, IPv6: []string{"2a0b:b580::10:121:128:4a"}},
+			},
+			expected: []v1.NodeAddress{
+				{Type: v1.NodeInternalIP, Address: "10.121.128.76"},
+				{Type: v1.NodeExternalIP, Address: "2a0b:b580::10:121:128:4a"},
+			},
+		},
+		{
+			name: "public-only node mirrors internal ipv4",
+			networks: []info.Network{
+				{IPv4: []string{"37.252.225.115"}},
+			},
+			expected: []v1.NodeAddress{
+				{Type: v1.NodeExternalIP, Address: "37.252.225.115"},
+				{Type: v1.NodeInternalIP, Address: "37.252.225.115"},
+			},
+		},
+		{
+			name: "public-only node mirrors internal ipv6",
+			networks: []info.Network{
+				{IPv6: []string{"2a00:11c0:dd:77::2"}},
+			},
+			expected: []v1.NodeAddress{
+				{Type: v1.NodeExternalIP, Address: "2a00:11c0:dd:77::2"},
+				{Type: v1.NodeInternalIP, Address: "2a00:11c0:dd:77::2"},
+			},
+		},
+		{
+			name: "private ipv6 ula is internal",
+			networks: []info.Network{
+				{IPv6: []string{"fd00:1234::1"}},
+			},
+			expected: []v1.NodeAddress{
+				{Type: v1.NodeInternalIP, Address: "fd00:1234::1"},
+			},
+		},
+		{
+			name: "unparseable ip is skipped while valid ip is kept",
+			networks: []info.Network{
+				{IPv4: []string{"not-an-ip", "10.0.0.1"}},
+			},
+			expected: []v1.NodeAddress{
+				{Type: v1.NodeInternalIP, Address: "10.0.0.1"},
+			},
+		},
+		{
+			name: "multiple public ips mirror only the first internal",
+			networks: []info.Network{
+				{IPv4: []string{"37.252.225.115"}, IPv6: []string{"2a00:11c0:dd:77::2"}},
+			},
+			expected: []v1.NodeAddress{
+				{Type: v1.NodeExternalIP, Address: "37.252.225.115"},
+				{Type: v1.NodeExternalIP, Address: "2a00:11c0:dd:77::2"},
+				{Type: v1.NodeInternalIP, Address: "37.252.225.115"},
+			},
+		},
+		{
+			name: "multiple networks with mixed families",
+			networks: []info.Network{
+				{IPv4: []string{"10.0.0.1"}},
+				{IPv4: []string{"172.16.0.1"}},
+				{IPv4: []string{"8.8.8.8"}, IPv6: []string{"2001:db8::1"}},
+			},
+			expected: []v1.NodeAddress{
+				{Type: v1.NodeInternalIP, Address: "10.0.0.1"},
+				{Type: v1.NodeInternalIP, Address: "172.16.0.1"},
+				{Type: v1.NodeExternalIP, Address: "8.8.8.8"},
+				{Type: v1.NodeExternalIP, Address: "2001:db8::1"},
+			},
+		},
+		{
+			name: "duplicate ips are deduplicated",
+			networks: []info.Network{
+				{IPv4: []string{"10.230.20.1"}},
+				{IPv4: []string{"10.230.20.1"}},
+			},
+			expected: []v1.NodeAddress{
+				{Type: v1.NodeInternalIP, Address: "10.230.20.1"},
+			},
+		},
+		{
+			name: "unparseable ips are skipped",
+			networks: []info.Network{
+				{IPv4: []string{"not-an-ip"}},
+			},
+			expected: nil,
+		},
+		{
+			name:     "no networks yields no addresses",
+			networks: nil,
+			expected: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			provider := tUtils.GetMockedAnxProvider()
+			identifier := randomNodeIdentifier()
+			provider.InfoMock.On("Get", ctx, identifier).Return(info.Info{
+				Identifier: identifier,
+				Network:    tt.networks,
+			}, nil)
+			manager := instanceManager{Provider: provider}
+
+			addresses, err := manager.NodeAddressesByProviderID(ctx, identifier)
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, addresses)
+		})
+	}
 }
 
 func randomNodeIdentifier() string {

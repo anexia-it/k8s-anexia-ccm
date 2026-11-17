@@ -40,26 +40,72 @@ func (i *instanceManager) NodeAddressesByProviderID(ctx context.Context, provide
 	}
 
 	if len(info.Network) == 0 {
+		klog.Infof("VM %q has no networks, no node addresses to set", providerID)
 		return nil, nil
 	}
-	nodeAddresses := make([]v1.NodeAddress, 0, len(info.Network))
-	if len(info.Network) > 1 {
-		klog.Warningf("found multiple networks for VM '%s'. This can potentially break stuff. Since only the first one"+
-			"will be used", providerID)
-		for index, Networks := range info.Network {
-			klog.Warningf("List IPs Index:%d : %s", index, Networks.IPv4)
-		}
 
+	var nodeAddresses []v1.NodeAddress
+	for _, network := range info.Network {
+		for _, ip := range append(network.IPv4, network.IPv6...) {
+			parsed := net.ParseIP(ip)
+			if parsed == nil {
+				continue
+			}
+			if hasNodeAddress(nodeAddresses, parsed) {
+				continue
+			}
+
+			addressType := v1.NodeInternalIP
+			if !parsed.IsPrivate() {
+				addressType = v1.NodeExternalIP
+			}
+
+			nodeAddresses = append(nodeAddresses, v1.NodeAddress{
+				Type:    addressType,
+				Address: ip,
+			})
+		}
 	}
 
-	for _, ip := range info.Network[0].IPv4 {
-		nodeAddresses = append(nodeAddresses, v1.NodeAddress{
-			Type:    "InternalIP",
-			Address: ip,
-		})
+	if len(nodeAddresses) == 0 {
+		klog.Warningf("VM %q has networks but no parseable IP addresses", providerID)
+	}
+
+	// ensure there is always at least one InternalIP,
+	// e.g. for nodes that are only attached to public networks
+	if !hasNodeAddressOfType(nodeAddresses, v1.NodeInternalIP) {
+		for _, addr := range nodeAddresses {
+			if addr.Type == v1.NodeExternalIP {
+				nodeAddresses = append(nodeAddresses, v1.NodeAddress{
+					Type:    v1.NodeInternalIP,
+					Address: addr.Address,
+				})
+				break
+			}
+		}
 	}
 
 	return nodeAddresses, nil
+}
+
+func hasNodeAddress(addresses []v1.NodeAddress, ip net.IP) bool {
+	for _, addr := range addresses {
+		if net.ParseIP(addr.Address).Equal(ip) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func hasNodeAddressOfType(addresses []v1.NodeAddress, addressType v1.NodeAddressType) bool {
+	for _, addr := range addresses {
+		if addr.Type == addressType {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (i *instanceManager) handleUnauthorizedForbidden(err error) {
