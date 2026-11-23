@@ -595,10 +595,20 @@ func (r *reconciliation) retrieveResources() error {
 		},
 	}
 
+	// abort stops the api.List producer goroutine: cancelling the context alone is
+	// not enough (its channel send is not ctx-aware), so we also drain the channel
+	// until the producer closes it, then return err.
+	abort := func(err error) error {
+		cancel()
+		for range oc {
+		}
+		return err
+	}
+
 	for retriever := range oc {
 		var res corev1.Resource
 		if err := retriever(&res); err != nil {
-			return fmt.Errorf("error retrieving resource: %w", err)
+			return abort(fmt.Errorf("error retrieving resource: %w", err))
 		}
 
 		logger := r.logger.WithValues(
@@ -609,7 +619,7 @@ func (r *reconciliation) retrieveResources() error {
 		if typedRetriever, ok := typedRetrievers[res.Type.Identifier]; ok {
 			err := typedRetriever(res.Identifier)
 			if err != nil {
-				return fmt.Errorf("error retrieving typed resource: %w", err)
+				return abort(fmt.Errorf("error retrieving typed resource: %w", err))
 			}
 		} else {
 			logger.Info(

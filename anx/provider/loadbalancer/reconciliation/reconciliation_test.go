@@ -2,12 +2,16 @@ package reconciliation
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
+	"reflect"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/go-logr/logr"
 	"go.anx.io/go-anxcloud/pkg/api/mock"
 	"go.anx.io/go-anxcloud/pkg/api/types"
 	gs "go.anx.io/go-anxcloud/pkg/apis/common/gs"
@@ -690,4 +694,63 @@ var _ = Describe("reconcile", func() {
 func TestReconcilation(t *testing.T) {
 	RegisterFailHandler(Fail)
 	RunSpecs(t, "LoadBalancer reconciliation test suite")
+}
+
+// failingGetAPI delegates to the mock API but makes Get fail with a non-NotFound
+// error for the given object type, simulating e.g. engine rate limiting.
+type failingGetAPI struct {
+	mock.API
+	failOn reflect.Type
+	err    error
+}
+
+func (f failingGetAPI) Get(ctx context.Context, o types.IdentifiedObject, opts ...types.GetOption) error {
+	if reflect.TypeOf(o) == f.failOn {
+		return f.err
+	}
+	return f.API.Get(ctx, o, opts...)
+}
+
+func TestRetrieveResourcesDoesNotLeakGoroutineOnError(t *testing.T) {
+	base := mock.NewMockAPI()
+	base.FakeExisting(&lbaasv1.LoadBalancer{Identifier: testLoadBalancerIdentifier})
+
+	// at least two tagged resources, so the api.List producer goroutine is blocked
+	// on a channel send when the consumer bails out on the first typed Get error
+	base.FakeExisting(&lbaasv1.Frontend{
+		Name: "a", LoadBalancer: &lbaasv1.LoadBalancer{Identifier: testLoadBalancerIdentifier},
+	}, "anxccm-svc-uid=leak-test")
+	base.FakeExisting(&lbaasv1.Frontend{
+		Name: "b", LoadBalancer: &lbaasv1.LoadBalancer{Identifier: testLoadBalancerIdentifier},
+	}, "anxccm-svc-uid=leak-test")
+
+	apiClient := failingGetAPI{
+		API:    base,
+		failOn: reflect.TypeOf(&lbaasv1.Frontend{}),
+		err:    errors.New("rate limiting by engine"),
+	}
+
+	recon := &reconciliation{
+		ctx:                context.TODO(),
+		api:                apiClient,
+		logger:             logr.Discard(),
+		tags:               []string{"anxccm-svc-uid=leak-test"},
+		resourceNameSuffix: "leak-test",
+		lb:                 lbaasv1.LoadBalancer{Identifier: testLoadBalancerIdentifier},
+		backoffSteps:       10,
+		metrics:            metrics.NewProviderMetrics("anexia", "test"),
+	}
+
+	before := runtime.NumGoroutine()
+	if err := recon.retrieveResources(); err == nil {
+		t.Fatal("expected an error from retrieveResources")
+	}
+
+	deadline := time.Now().Add(5 * time.Second)
+	for runtime.NumGoroutine() > before {
+		if time.Now().After(deadline) {
+			t.Fatalf("producer goroutine leaked: %d goroutines still running (baseline %d)", runtime.NumGoroutine(), before)
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
 }
