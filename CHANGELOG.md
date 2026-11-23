@@ -32,6 +32,7 @@ Please add your changelog entry under this comment in the correct category (Secu
 * Bumped Alpine Image
 * InstanceExists() should return false if it was not found by name
 * InstanceExists() no longer queries VM info with an empty identifier and surfaces VM lookup errors (#502)
+* fix(lbaas): drain ObjectChannel on error to stop goroutine leak (#519)
 
 ## [1.5.7] - 2025-01-14
 
