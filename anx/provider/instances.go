@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"slices"
 	"strings"
 	"time"
 
@@ -44,27 +45,30 @@ func (i *instanceManager) NodeAddressesByProviderID(ctx context.Context, provide
 		return nil, nil
 	}
 
+	if len(info.Network) > 1 {
+		klog.Infof("VM %q has %d networks, only the first one will be used for node addresses", providerID, len(info.Network))
+	}
+
+	network := info.Network[0]
 	var nodeAddresses []v1.NodeAddress
-	for _, network := range info.Network {
-		for _, ip := range append(network.IPv4, network.IPv6...) {
-			parsed := net.ParseIP(ip)
-			if parsed == nil {
-				continue
-			}
-			if hasNodeAddress(nodeAddresses, parsed) {
-				continue
-			}
-
-			addressType := v1.NodeInternalIP
-			if !parsed.IsPrivate() {
-				addressType = v1.NodeExternalIP
-			}
-
-			nodeAddresses = append(nodeAddresses, v1.NodeAddress{
-				Type:    addressType,
-				Address: ip,
-			})
+	for _, ip := range slices.Concat(network.IPv4, network.IPv6) {
+		parsed := net.ParseIP(ip)
+		if parsed == nil || !parsed.IsGlobalUnicast() {
+			continue
 		}
+		if hasNodeAddress(nodeAddresses, parsed) {
+			continue
+		}
+
+		addressType := v1.NodeInternalIP
+		if !parsed.IsPrivate() {
+			addressType = v1.NodeExternalIP
+		}
+
+		nodeAddresses = append(nodeAddresses, v1.NodeAddress{
+			Type:    addressType,
+			Address: ip,
+		})
 	}
 
 	if len(nodeAddresses) == 0 {

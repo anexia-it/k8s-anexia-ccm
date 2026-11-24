@@ -32,8 +32,10 @@ Please add your changelog entry under this comment in the correct category (Secu
 * Add command line flag --disableEngineLoadBalancer for Services status reconciliation without LBaaS and enable it
   automatically when an AKE Loadbalancer custom resource exists
 * Added logging for difference between actual and desired state
-* Set all IPs of a VM on the Node object (all NICs, IPv4 and IPv6), classifying private IPs as `InternalIP` and
-  public IPs as `ExternalIP`. Nodes only attached to public networks keep an `InternalIP` mirroring the public IP.
+* Set the IPs of the first network of a VM on the Node object (IPv4 and IPv6), classifying private IPs as `InternalIP`
+  and public IPs as `ExternalIP`. Nodes only attached to public networks keep an `InternalIP` mirroring the public IP.
+  Link-local IPs are not set. If a VM is attached to more than one network, only the first one is used and a warning is
+  logged.
 
 ### Fixed
 

@@ -621,11 +621,9 @@ func TestInstanceMetadata(t *testing.T) {
 		require.Equal(t, metadata.InstanceType, "C5-M4")
 		require.Equal(t, metadata.Zone, "AT04")
 		require.Equal(t, metadata.Region, "AT")
-		require.Len(t, metadata.NodeAddresses, 2)
+		require.Len(t, metadata.NodeAddresses, 1)
 		require.Equal(t, metadata.NodeAddresses[0].Address, "10.0.0.1")
 		require.Equal(t, string(metadata.NodeAddresses[0].Type), "InternalIP")
-		require.Equal(t, metadata.NodeAddresses[1].Address, "172.16.0.1")
-		require.Equal(t, string(metadata.NodeAddresses[1].Type), "InternalIP")
 	})
 
 }
@@ -708,7 +706,7 @@ func TestNodeAddressesByProviderID(t *testing.T) {
 			},
 		},
 		{
-			name: "multiple networks with mixed families",
+			name: "multiple networks use only the first network",
 			networks: []info.Network{
 				{IPv4: []string{"10.0.0.1"}},
 				{IPv4: []string{"172.16.0.1"}},
@@ -716,19 +714,39 @@ func TestNodeAddressesByProviderID(t *testing.T) {
 			},
 			expected: []v1.NodeAddress{
 				{Type: v1.NodeInternalIP, Address: "10.0.0.1"},
-				{Type: v1.NodeInternalIP, Address: "172.16.0.1"},
-				{Type: v1.NodeExternalIP, Address: "8.8.8.8"},
-				{Type: v1.NodeExternalIP, Address: "2001:db8::1"},
 			},
 		},
 		{
-			name: "duplicate ips are deduplicated",
+			name: "secondary network ips are not attached",
 			networks: []info.Network{
 				{IPv4: []string{"10.230.20.1"}},
-				{IPv4: []string{"10.230.20.1"}},
+				{IPv4: []string{"10.230.20.2"}},
 			},
 			expected: []v1.NodeAddress{
 				{Type: v1.NodeInternalIP, Address: "10.230.20.1"},
+			},
+		},
+		{
+			name: "link-local ipv6 is skipped",
+			networks: []info.Network{
+				{IPv6: []string{"fe80::1"}},
+			},
+			expected: nil,
+		},
+		{
+			name: "link-local ipv4 is skipped",
+			networks: []info.Network{
+				{IPv4: []string{"169.254.0.1"}},
+			},
+			expected: nil,
+		},
+		{
+			name: "link-local ip is skipped while valid ip is kept",
+			networks: []info.Network{
+				{IPv4: []string{"169.254.0.1", "10.0.0.1"}},
+			},
+			expected: []v1.NodeAddress{
+				{Type: v1.NodeInternalIP, Address: "10.0.0.1"},
 			},
 		},
 		{

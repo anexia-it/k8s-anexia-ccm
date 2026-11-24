@@ -21,10 +21,12 @@ The node controller performs the following functions:
 Limitations
 -----------
 
-All IPs of the VM are set on the Node object, across all attached NICs and for both IPv4 and IPv6. IPs in private
+Only the IPs of the first attached NIC's network are set on the Node object, for both IPv4 and IPv6. IPs in private
 ranges (RFC 1918 IPv4 and IPv6 unique local addresses) are set as `InternalIP`, globally routable IPs are set as
 `ExternalIP`. Nodes that are only attached to public networks additionally mirror their `ExternalIP` as an
-`InternalIP`, so there is always at least one `InternalIP` present.
+`InternalIP`, so there is always at least one `InternalIP` present. Link-local IPs (e.g. ``fe80::`` and ``169.254.0.0/16``)
+are never set on the Node object. If a VM is attached to more than one network, only the first network is used and a
+info is logged.
 
 
 Service Controller
