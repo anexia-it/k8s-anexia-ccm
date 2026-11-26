@@ -21,7 +21,7 @@ Please add your changelog entry under this comment in the correct category (Secu
 
 * BREAKING: YAML values for `autoDiscoveryTagPrefix` and `loadBalancerBackoffSteps` in the
   provider config now take effect. Previously they were silently overridden by the defaults.
-  Environment variables still take precedence over YAML.
+  Environment variables still take precedence over YAML. (#520)
 
 ## [1.6.37] - 2026-11-06
 
