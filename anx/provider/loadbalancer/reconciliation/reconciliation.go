@@ -254,6 +254,7 @@ func (r *reconciliation) Reconcile() error {
 			if err != nil {
 				return err
 			}
+			continue
 		}
 
 		// if there is something to destroy: destroy it and start again from retrieving the state
