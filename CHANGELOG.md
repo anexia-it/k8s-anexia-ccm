@@ -15,6 +15,7 @@ Please add your changelog entry under this comment in the correct category (Secu
 
 * Avoid duplicate instance matches for nodes with multiple internal IPs and skip failed VM details lookups (#505)
 * InstanceExists() no longer queries VM info with an empty identifier and surfaces VM lookup errors (#502)
+* fix(lbaas): drain ObjectChannel on error to stop goroutine leak (#519)
 
 ## [1.6.37] - 2026-11-06
 
@@ -32,7 +33,6 @@ Please add your changelog entry under this comment in the correct category (Secu
 * Bumped Alpine Image
 * InstanceExists() should return false if it was not found by name
 * InstanceExists() no longer queries VM info with an empty identifier and surfaces VM lookup errors (#502)
-* fix(lbaas): drain ObjectChannel on error to stop goroutine leak (#519)
 
 ## [1.5.7] - 2025-01-14
 
