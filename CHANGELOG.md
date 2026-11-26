@@ -29,7 +29,6 @@ Please add your changelog entry under this comment in the correct category (Secu
 
 ### Fixed
 
-* Preserve YAML configuration values when applying defaults and environment overrides
 * Handle rate-limiting errors from the Anexia Engine (#382, @nachtjasmin)
 * Bumped Alpine Image
 * InstanceExists() should return false if it was not found by name
