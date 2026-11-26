@@ -11,18 +11,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 Please add your changelog entry under this comment in the correct category (Security, Fixed, Added, Changed, Deprecated, Removed - in this order).
 -->
 
+### Fixed
+
+* Avoid duplicate instance matches for nodes with multiple internal IPs and skip failed VM details lookups (#505)
+* InstanceExists() no longer queries VM info with an empty identifier and surfaces VM lookup errors (#502)
+* fix(lbaas): drain ObjectChannel on error to stop goroutine leak (#519)
+
+## [1.6.37] - 2026-11-06
+
 ### Added
 
 * Add http client metrics for requests towards the anexia engine (#390, @koflanx)
 * Added extending logging for Multiple IP Addresses
-* Add command line flag --disableEngineLoadBalancer for Services status reconciliation without LBaaS
+* Add command line flag --disableEngineLoadBalancer for Services status reconciliation without LBaaS and enable it
+  automatically when an AKE Loadbalancer custom resource exists
 * Added logging for difference between actual and desired state
 
 ### Fixed
 
 * Handle rate-limiting errors from the Anexia Engine (#382, @nachtjasmin)
 * Bumped Alpine Image
-* InstanceExist() should return false if it was not found by name
+* InstanceExists() should return false if it was not found by name
+* InstanceExists() no longer queries VM info with an empty identifier and surfaces VM lookup errors (#502)
 
 ## [1.5.7] - 2025-01-14
 

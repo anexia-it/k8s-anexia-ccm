@@ -214,6 +214,72 @@ func TestFetchingID(t *testing.T) {
 	})
 }
 
+func TestFetchingIDMultipleInternalIPs(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name         string
+		extraIPs     []string
+		network      []info.Network
+		otherNetwork []info.Network
+		otherErr     error
+	}{
+		{
+			name:     "dual-stack matches one vm",
+			extraIPs: []string{"2001:db8::1"},
+			network:  []info.Network{{IPv4: []string{"10.0.0.1"}, IPv6: []string{"2001:db8::1"}}},
+		},
+		{
+			name:     "two ipv4 addresses match one vm across networks",
+			extraIPs: []string{"10.20.0.20"},
+			network:  []info.Network{{IPv4: []string{"10.0.0.1"}}, {IPv4: []string{"10.20.0.20"}}},
+		},
+		{
+			name:     "four IPs across three networks match one vm",
+			extraIPs: []string{"10.30.0.30", "10.40.0.40", "2001:db8::30"},
+			network:  []info.Network{{IPv4: []string{"10.0.0.1"}}, {IPv4: []string{"10.30.0.30"}, IPv6: []string{"2001:db8::30"}}, {IPv4: []string{"10.40.0.40"}}},
+		},
+		{
+			name:         "failed details lookup skips partial matching data",
+			extraIPs:     []string{"10.0.0.2"},
+			network:      []info.Network{{IPv4: []string{"10.0.0.1"}}},
+			otherNetwork: []info.Network{{IPv4: []string{"10.0.0.2"}}},
+			otherErr:     errors.New("details unavailable"),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := context.Background()
+			provider := tUtils.GetMockedAnxProvider()
+			const nodeName = "test-node"
+			vmName := fmt.Sprintf("%s-%s", provider.Config().CustomerID, nodeName)
+			provider.SearchMock.On("ByName", ctx, vmName).Return([]search.VM{
+				{Name: vmName, Identifier: "otherIdentifier"},
+				{Name: vmName, Identifier: "matchingIdentifier"},
+			}, nil)
+			provider.InfoMock.On("Get", ctx, "otherIdentifier").Return(info.Info{
+				Name: vmName, Identifier: "otherIdentifier", Network: tt.otherNetwork,
+			}, tt.otherErr)
+			provider.InfoMock.On("Get", ctx, "matchingIdentifier").Return(info.Info{
+				Name: vmName, Identifier: "matchingIdentifier", Network: tt.network,
+			}, nil)
+			manager := instanceManager{Provider: provider}
+			addresses := []v1.NodeAddress{
+				{Type: v1.NodeInternalIP, Address: "10.0.0.1"},
+			}
+			for _, ip := range tt.extraIPs {
+				addresses = append(addresses, v1.NodeAddress{Type: v1.NodeInternalIP, Address: ip})
+			}
+			identifier, err := manager.InstanceIDByNode(ctx, &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{Name: nodeName},
+				Status:     v1.NodeStatus{Addresses: addresses},
+			})
+			require.NoError(t, err)
+			require.Equal(t, "matchingIdentifier", identifier)
+		})
+	}
+}
+
 func TestInstanceExists(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -264,6 +330,66 @@ func TestInstanceExists(t *testing.T) {
 
 		require.NoError(t, err)
 		require.False(t, exists)
+	})
+
+	t.Run("SearchError", func(t *testing.T) {
+		t.Parallel()
+		provider := tUtils.GetMockedAnxProvider()
+		nodeName := randomNodeIdentifier()
+
+		provider.SearchMock.On("ByName", ctx, fmt.Sprintf("%s-%s",
+			provider.Config().CustomerID, nodeName)).Return(nil, &client.ResponseError{
+			Response: &http.Response{
+				StatusCode: http.StatusInternalServerError,
+			},
+		})
+
+		manager := instanceManager{Provider: provider}
+		exists, err := manager.InstanceExists(ctx, &v1.Node{
+			ObjectMeta: metav1.ObjectMeta{Name: nodeName},
+		})
+
+		require.Error(t, err)
+		require.False(t, exists)
+		provider.InfoMock.AssertNumberOfCalls(t, "Get", 0)
+	})
+
+	t.Run("NameNotUnique", func(t *testing.T) {
+		t.Parallel()
+		provider := tUtils.GetMockedAnxProvider()
+		nodeName := randomNodeIdentifier()
+		firstIdentifier := randomNodeIdentifier()
+		secondIdentifier := randomNodeIdentifier()
+
+		// several VMs match the node name and the node IP
+		provider.SearchMock.On("ByName", ctx, fmt.Sprintf("%s-%s",
+			provider.Config().CustomerID, nodeName)).Return([]search.VM{
+			{Identifier: firstIdentifier},
+			{Identifier: secondIdentifier},
+		}, nil)
+
+		for _, id := range []string{firstIdentifier, secondIdentifier} {
+			provider.InfoMock.On("Get", ctx, id).Return(info.Info{
+				Identifier: id,
+				Network: []info.Network{
+					{IPv4: []string{"10.0.0.1"}},
+				},
+			}, nil)
+		}
+
+		manager := instanceManager{Provider: provider}
+		exists, err := manager.InstanceExists(ctx, &v1.Node{
+			ObjectMeta: metav1.ObjectMeta{Name: nodeName},
+			Status: v1.NodeStatus{
+				Addresses: []v1.NodeAddress{
+					{Type: v1.NodeInternalIP, Address: "10.0.0.1"},
+				},
+			},
+		})
+
+		require.ErrorIs(t, err, errVirtualMachineNameNotUnique)
+		require.False(t, exists)
+		provider.InfoMock.AssertNumberOfCalls(t, "Get", 2)
 	})
 
 	t.Run("UnknownError", func(t *testing.T) {
