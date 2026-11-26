@@ -17,6 +17,12 @@ Please add your changelog entry under this comment in the correct category (Secu
 * InstanceExists() no longer queries VM info with an empty identifier and surfaces VM lookup errors (#502)
 * fix(lbaas): drain ObjectChannel on error to stop goroutine leak (#519)
 
+### Changed
+
+* BREAKING: YAML values for `autoDiscoveryTagPrefix` and `loadBalancerBackoffSteps` in the
+  provider config now take effect. Previously they were silently overridden by the defaults.
+  Environment variables still take precedence over YAML. (#520)
+
 ## [1.6.37] - 2026-11-06
 
 ### Added
