@@ -37,7 +37,7 @@ var _ = Describe("NewProviderConfig", func() {
 			name, _, _ := strings.Cut(variable, "=")
 			if strings.HasPrefix(name, "ANEXIA_") {
 				DeferCleanup(os.Setenv, name, os.Getenv(name))
-				os.Unsetenv(name)
+				_ = os.Unsetenv(name)
 			}
 		}
 
@@ -56,7 +56,7 @@ var _ = Describe("NewProviderConfig", func() {
 			}
 
 			for name, value := range testCase.environment {
-				os.Setenv(name, value)
+				_ = os.Setenv(name, value)
 				DeferCleanup(os.Unsetenv, name)
 			}
 
